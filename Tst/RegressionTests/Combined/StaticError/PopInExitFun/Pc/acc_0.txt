@@ -1,6 +1,0 @@
-=================================
-         Console output          
-=================================
-OUT: PopInExitFun.p (14, 14): function may cause a change in current state; this is not allowed here
-OUT: Compilation failed
-EXIT: -1

@@ -1,6 +1,0 @@
-=================================
-         Console output          
-=================================
-OUT: functionAnyAnon.p (6, 5): anonymous function cannot return a value
-OUT: Compilation failed
-EXIT: -1

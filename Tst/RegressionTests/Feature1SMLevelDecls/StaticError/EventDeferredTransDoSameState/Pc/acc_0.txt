@@ -1,6 +1,0 @@
-=================================
-         Console output          
-=================================
-OUT: EventDeferredTransDoSameState.p (25, 3): Action and transition over the same event
-OUT: Compilation failed
-EXIT: -1
