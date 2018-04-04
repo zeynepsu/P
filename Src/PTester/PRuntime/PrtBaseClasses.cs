@@ -51,6 +51,26 @@ namespace P.Runtime
         }
         #endregion
 
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(
+                renamedName.GetHashCode(),
+                isSafe.GetHashCode(),
+                instanceNumber.GetHashCode(),
+                fields.Select(v => v.GetHashCode()).Hash(),
+                eventValue.GetHashCode(),
+                stateStack.GetHashCode(),
+                invertedFunStack.GetHashCode(),
+                continuation.GetHashCode(),
+                currentStatus.GetHashCode(),
+                nextSMOperation.GetHashCode(),
+                stateExitReason.GetHashCode(),
+                currentTrigger.GetHashCode(),
+                currentPayload.GetHashCode(),
+                destOfGoto.GetHashCode()
+                );
+        }
+
         public abstract string Name
         {
             get;
@@ -338,6 +358,11 @@ namespace P.Runtime
             this.maxInstances = mInstances;
             this.doAssume = doAssume;
         }
+
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(name.GetHashCode(), payloadType.ToString().GetHashCode());
+        }
     };
 
     public class PrtTransition
@@ -383,6 +408,11 @@ namespace P.Runtime
             this.hasNullTransition = hasNullTransition;
             this.temperature = temperature;
         }
+
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(name.GetHashCode(), temperature.GetHashCode());
+        }
     };
 
     internal class PrtEventNode
@@ -403,6 +433,11 @@ namespace P.Runtime
         public PrtEventNode Clone()
         {
             return new PrtEventNode(this.ev, this.arg, this.senderMachineName, this.senderMachineStateName);
+        }
+
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(ev.GetHashCode(), arg.GetHashCode());
         }
     }
 
@@ -508,6 +543,11 @@ namespace P.Runtime
             }
             return false;
         }
+
+        public override int GetHashCode()
+        {
+            return events.Select(v => v.GetHashCode()).Hash();
+        }
     }
 
     public class PrtStateStackFrame
@@ -535,6 +575,10 @@ namespace P.Runtime
             return new PrtStateStackFrame(state, deferredSet, actionSet);
         }
 
+        public override int GetHashCode()
+        {
+            return state.GetHashCode();
+        }
     }
     
     public class PrtStateStack
@@ -602,6 +646,11 @@ namespace P.Runtime
             if (TopOfStack.state.hasNullTransition) return true;
             return TopOfStack.actionSet.Contains(PrtValue.@null);
         }
+
+        public override int GetHashCode()
+        {
+            return stateStack.Select(v => v.GetHashCode()).Hash();
+        }
     }
 
     public enum PrtContinuationReason : int
@@ -637,6 +686,11 @@ namespace P.Runtime
         }
 
         public abstract PrtFunStackFrame Clone();
+
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(returnToLocation.GetHashCode(), locals.Select(v => v.GetHashCode()).Hash());
+        }
     }
 
     public class PrtFunStack
@@ -688,6 +742,11 @@ namespace P.Runtime
         {
             return funStack.Pop();
         }
+
+        public override int GetHashCode()
+        {
+            return funStack.Select(v => v.GetHashCode()).Hash();
+        }
     }
 
     public class PrtContinuation
@@ -726,6 +785,11 @@ namespace P.Runtime
             var ret = nondet;
             nondet = false;
             return ret;
+        }
+
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(nondet.GetHashCode(), reason.GetHashCode(), retVal.GetHashCode(), retLocals.Select(v => v.GetHashCode()).Hash());
         }
     }
 }

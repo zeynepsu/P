@@ -60,6 +60,11 @@ namespace P.Runtime
             return clonedMachine;
         }
 
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(currentTemperature.GetHashCode(), base.GetHashCode());
+        }
+
         public override void PrtEnqueueEvent(PrtValue e, PrtValue arg, PrtMachine source, PrtMachineValue target = null)
         {
             int numOfStepsTaken = 0;

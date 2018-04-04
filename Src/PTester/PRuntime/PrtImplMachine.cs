@@ -107,6 +107,11 @@ namespace P.Runtime
         }
         #endregion
 
+        public override int GetHashCode()
+        {
+            return Hashing.Hash(base.GetHashCode(), eventQueue.GetHashCode());
+        }
+
         #region getters and setters
         public abstract int NextInstanceNumber(StateImpl app);
         #endregion

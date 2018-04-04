@@ -403,6 +403,7 @@ namespace P.Runtime
         {
             return new PrtEnumValue(this.constName, this.nt);
         }
+
     }
 
     [Serializable]
@@ -461,7 +462,8 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return mach.GetHashCode();
+            //return mach.GetHashCode(); 
+            return Hashing.Hash(mach.renamedName.GetHashCode(), mach.instanceNumber.GetHashCode());
         }
 
         public override string ToString()
@@ -536,7 +538,7 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return fieldValues.GetHashCode();
+            return fieldValues.Select(v => v.GetHashCode()).Hash();
         }
 
         public override string ToString()
@@ -610,7 +612,7 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return fieldValues.GetHashCode();
+            return Hashing.Hash(base.GetHashCode(), fieldValues.Select(s => s.GetHashCode()).Hash()); 
         }
 
         public override string ToString()
@@ -734,7 +736,7 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return elements.GetHashCode();
+            return elements.Select(v => v.GetHashCode()).Hash(); 
         }
 
         public override string ToString()
@@ -768,7 +770,7 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return key.GetHashCode();
+            return Hashing.Hash(key.GetHashCode(), keyIndex.GetHashCode());
         }
     }
 
@@ -873,7 +875,9 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return keyToValueMap.GetHashCode();
+            //return keyToValueMap.GetHashCode();
+            return Hashing.Hash(nextKeyIndex.GetHashCode(),
+                keyToValueMap.Select(tup => Hashing.Hash(tup.Key.GetHashCode(), tup.Value.GetHashCode())).Hash());
         }
 
         public override string ToString()

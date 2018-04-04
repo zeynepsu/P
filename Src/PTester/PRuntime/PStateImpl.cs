@@ -50,6 +50,13 @@ namespace P.Runtime
         /// </summary>
         private Dictionary<string, PrtSpecMachine> specMachinesMap;
 
+        public override int GetHashCode()
+        {
+            var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash();
+            var hash2 = specMachinesMap.Select(tup => tup.Value.GetHashCode()).Hash();
+            return Hashing.Hash(hash1, hash2);
+        }
+
         /// <summary>
         /// Stores the exception encoutered during exploration.
         /// </summary>
