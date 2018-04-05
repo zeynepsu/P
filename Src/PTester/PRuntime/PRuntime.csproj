@@ -65,6 +65,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Hashing\HashUtil.cs" />
     <Compile Include="PrtException.cs" />
     <Compile Include="PrtBaseClasses.cs" />
     <Compile Include="PrtImplMachine.cs" />

@@ -67,7 +67,7 @@ namespace P.Runtime
                 stateExitReason.GetHashCode(),
                 currentTrigger.GetHashCode(),
                 currentPayload.GetHashCode(),
-                destOfGoto.GetHashCode()
+                destOfGoto == null ? Hashing.Hash() : destOfGoto.GetHashCode()
                 );
         }
 
@@ -685,7 +685,10 @@ namespace P.Runtime
             returnToLocation = retLocation;
         }
 
-        public abstract PrtFunStackFrame Clone();
+        public virtual PrtFunStackFrame Clone()
+        {
+            return fun.CreateFunStackFrame(new List<PrtValue>(locals.Select(v => v.Clone())), returnToLocation);
+        }
 
         public override int GetHashCode()
         {

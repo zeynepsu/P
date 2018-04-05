@@ -281,6 +281,17 @@ namespace P.Tester
                 numOfSteps = 0;
                 while (numOfSteps < maxDepth)
                 {
+                    {
+                        var s1 = currImpl;
+                        var s2 = s1.Clone();
+
+                        var h1 = s1.GetHashCode();
+                        var h2 = s2.GetHashCode();
+
+                        System.Diagnostics.Debug.Assert(h1 == h2);
+                    }
+                    
+
                     if (currImpl.EnabledMachines.Count == 0)
                     {
                         break;

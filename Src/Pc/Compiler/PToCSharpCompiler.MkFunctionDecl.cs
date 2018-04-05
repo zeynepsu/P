@@ -1457,13 +1457,13 @@ namespace Microsoft.Pc
                                                                                                                    CSharpHelper.MkCSharpArgumentList(SyntaxFactory.IdentifierName("fun"), SyntaxFactory.IdentifierName("_locals"), SyntaxFactory.IdentifierName("retLocation"))),
                                                                        new List<StatementSyntax>()));
 
-                //public override PrtFunStackFrame Clone() {return this.Clone();}
+                //public override PrtFunStackFrame Clone() {return base.Clone();}
                 var body = SyntaxFactory.SingletonList<StatementSyntax>(
                     SyntaxFactory.ReturnStatement(
                         SyntaxFactory.InvocationExpression(
                             SyntaxFactory.MemberAccessExpression(
                                 SyntaxKind.SimpleMemberAccessExpression,
-                                SyntaxFactory.ThisExpression(),
+                                SyntaxFactory.BaseExpression(),
                                 SyntaxFactory.IdentifierName("Clone")))));
                 var clonePars = new List<SyntaxNode>();
                 members = members.Add((MemberDeclarationSyntax)CSharpHelper.MkCSharpMethodDeclaration(SyntaxFactory.IdentifierName("PrtFunStackFrame"),
