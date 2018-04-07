@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 
 namespace P.Runtime
 {
@@ -55,6 +56,24 @@ namespace P.Runtime
             var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash();
             var hash2 = specMachinesMap.Select(tup => tup.Value.GetHashCode()).Hash();
             return Hashing.Hash(hash1, hash2);
+        }
+
+        public void DbgCompare(StateImpl state)
+        {
+            Debug.Assert(implMachines.Count == state.implMachines.Count);
+            for(int i = 0; i < implMachines.Count; i++)
+            {
+                implMachines[i].DbgCompare(state.implMachines[i]);
+            }
+
+            Debug.Assert(specMachinesMap.Count == state.specMachinesMap.Count);
+            foreach(var tup in specMachinesMap)
+            {
+                Debug.Assert(state.specMachinesMap.ContainsKey(tup.Key));
+                tup.Value.DbgCompare(state.specMachinesMap[tup.Key]);
+            }
+
+            Debug.Assert(GetHashCode() == state.GetHashCode());
         }
 
         /// <summary>
@@ -148,8 +167,24 @@ namespace P.Runtime
             }
 
             clonedState.errorTrace = new StringBuilder(errorTrace.ToString());
+
+            clonedState.Resolve();
+
             return clonedState;
 
+        }
+
+        public void Resolve()
+        {
+            foreach (var m in implMachines)
+            {
+                m.Resolve(this);
+            }
+
+            foreach(var m in specMachinesMap.Values)
+            {
+                m.Resolve(this);
+            }
         }
         #endregion
 

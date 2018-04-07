@@ -243,6 +243,8 @@ namespace P.Runtime
                 throw new PrtInhabitsTypeException(String.Format("value {0} is not a member of type {1}", value.ToString(), type.ToString()));
             return value.Clone();
         }
+
+        public virtual void Resolve(StateImpl state) { }
     }
 
     [Serializable]
@@ -453,6 +455,11 @@ namespace P.Runtime
             return new PrtMachineValue(this.mach);
         }
 
+        public override void Resolve(StateImpl state)
+        {
+            mach = state.ImplMachines.First(m => m.renamedName == mach.renamedName && m.instanceNumber == mach.instanceNumber);
+        }
+
         public override bool Equals(object val)
         {
             var machineVal = val as PrtMachineValue;
@@ -539,6 +546,11 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return fieldValues.Select(v => v.GetHashCode()).Hash();
+        }
+
+        public override void Resolve(StateImpl state)
+        {
+            fieldValues.ForEach(f => f.Resolve(state));
         }
 
         public override string ToString()
@@ -739,6 +751,11 @@ namespace P.Runtime
             return elements.Select(v => v.GetHashCode()).Hash(); 
         }
 
+        public override void Resolve(StateImpl state)
+        {
+            elements.ForEach(f => f.Resolve(state));
+        }
+
         public override string ToString()
         {
             string retStr = "(";
@@ -771,6 +788,11 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return Hashing.Hash(key.GetHashCode(), keyIndex.GetHashCode());
+        }
+
+        public void Resolve(StateImpl state)
+        {
+            key.Resolve(state);
         }
     }
 
@@ -878,6 +900,18 @@ namespace P.Runtime
             //return keyToValueMap.GetHashCode();
             return Hashing.Hash(nextKeyIndex.GetHashCode(),
                 keyToValueMap.Select(tup => Hashing.Hash(tup.Key.GetHashCode(), tup.Value.GetHashCode())).Hash());
+        }
+
+        public override void Resolve(StateImpl state)
+        {
+            var list = keyToValueMap.ToList();
+            list.ForEach(tup =>
+            {
+                tup.Key.Resolve(state);
+                tup.Value.Resolve(state);
+            });
+            keyToValueMap = new Dictionary<PrtMapKey, PrtValue>();
+            list.ForEach(tup => keyToValueMap.Add(tup.Key, tup.Value));
         }
 
         public override string ToString()

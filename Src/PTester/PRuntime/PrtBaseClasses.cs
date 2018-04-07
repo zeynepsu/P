@@ -71,6 +71,39 @@ namespace P.Runtime
                 );
         }
 
+        public virtual void Resolve(StateImpl state)
+        {
+            fields.ForEach(v => v.Resolve(state));
+            eventValue.Resolve(state);
+            invertedFunStack.Resolve(state);
+            continuation.Resolve(state);
+            currentTrigger.Resolve(state);
+            currentPayload.Resolve(state);
+        }
+
+        public virtual void DbgCompare(PrtMachine machine)
+        {
+            Debug.Assert(renamedName == machine.renamedName);
+            Debug.Assert(isSafe == machine.isSafe);
+            Debug.Assert(instanceNumber == machine.instanceNumber);
+            Debug.Assert(fields.Count == machine.fields.Count);
+            for(int i = 0; i < fields.Count; i++)
+            {
+                Debug.Assert(fields[i].GetHashCode() == machine.fields[i].GetHashCode());
+            }
+            Debug.Assert(eventValue.GetHashCode() == machine.eventValue.GetHashCode());
+            Debug.Assert(stateStack.GetHashCode() == machine.stateStack.GetHashCode());
+            Debug.Assert(invertedFunStack.GetHashCode() == machine.invertedFunStack.GetHashCode());
+            Debug.Assert(continuation.GetHashCode() == machine.continuation.GetHashCode());
+            Debug.Assert(currentStatus == machine.currentStatus);
+            Debug.Assert(nextSMOperation == machine.nextSMOperation);
+            Debug.Assert(stateExitReason == machine.stateExitReason);
+            Debug.Assert(currentTrigger.GetHashCode() == machine.currentTrigger.GetHashCode());
+            Debug.Assert(currentPayload.GetHashCode() == machine.currentPayload.GetHashCode());
+            Debug.Assert((destOfGoto == null && machine.destOfGoto == null) || 
+                (destOfGoto != null && machine.destOfGoto != null && destOfGoto.GetHashCode() == machine.destOfGoto.GetHashCode()));
+        }
+
         public abstract string Name
         {
             get;
@@ -409,10 +442,10 @@ namespace P.Runtime
             this.temperature = temperature;
         }
 
-        public override int GetHashCode()
-        {
-            return Hashing.Hash(name.GetHashCode(), temperature.GetHashCode());
-        }
+        //public override int GetHashCode()
+        //{
+        //    return Hashing.Hash(name.GetHashCode(), temperature.GetHashCode());
+        //}
     };
 
     internal class PrtEventNode
@@ -438,6 +471,12 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return Hashing.Hash(ev.GetHashCode(), arg.GetHashCode());
+        }
+
+        public void Resolve(StateImpl state)
+        {
+            ev.Resolve(state);
+            arg.Resolve(state);
         }
     }
 
@@ -547,6 +586,11 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return events.Select(v => v.GetHashCode()).Hash();
+        }
+
+        public void Resolve(StateImpl state)
+        {
+            events.ForEach(n => n.Resolve(state));
         }
     }
 
@@ -694,6 +738,11 @@ namespace P.Runtime
         {
             return Hashing.Hash(returnToLocation.GetHashCode(), locals.Select(v => v.GetHashCode()).Hash());
         }
+
+        public void Resolve(StateImpl state)
+        {
+            locals.ForEach(l => l.Resolve(state));
+        }
     }
 
     public class PrtFunStack
@@ -707,11 +756,11 @@ namespace P.Runtime
         public PrtFunStack Clone()
         {
             var clonedStack = new PrtFunStack();
-            foreach(var frame in funStack)
+            foreach(var frame in funStack.Reverse())
             {
                 clonedStack.funStack.Push(frame.Clone());
             }
-            clonedStack.funStack.Reverse();
+            
             return clonedStack;
         }
 
@@ -749,6 +798,14 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return funStack.Select(v => v.GetHashCode()).Hash();
+        }
+
+        public void Resolve(StateImpl state)
+        {
+            foreach(var f in funStack)
+            {
+                f.Resolve(state);
+            }
         }
     }
 
@@ -793,6 +850,12 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return Hashing.Hash(nondet.GetHashCode(), reason.GetHashCode(), retVal.GetHashCode(), retLocals.Select(v => v.GetHashCode()).Hash());
+        }
+
+        public void Resolve(StateImpl state)
+        {
+            retVal.Resolve(state);
+            retLocals.ForEach(l => l.Resolve(state));
         }
     }
 }

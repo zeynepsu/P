@@ -67,6 +67,8 @@ namespace P.Runtime
             clonedMachine.isSafe = this.isSafe;
             clonedMachine.stateImpl = app;
 
+            clonedMachine.destOfGoto = this.destOfGoto;
+
             //impl class fields
             clonedMachine.eventQueue = this.eventQueue.Clone();
             foreach (var ev in this.receiveSet)
@@ -110,6 +112,19 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return Hashing.Hash(base.GetHashCode(), eventQueue.GetHashCode());
+        }
+
+        public override void Resolve(StateImpl state)
+        {
+            base.Resolve(state);
+            eventQueue.Resolve(state);
+        }
+
+        public override void DbgCompare(PrtMachine machine)
+        {
+            base.DbgCompare(machine);
+            Debug.Assert(eventQueue.GetHashCode() == (machine as PrtImplMachine).eventQueue.GetHashCode());
+            Debug.Assert(GetHashCode() == machine.GetHashCode());
         }
 
         #region getters and setters

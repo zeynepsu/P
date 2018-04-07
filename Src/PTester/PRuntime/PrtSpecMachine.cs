@@ -65,6 +65,13 @@ namespace P.Runtime
             return Hashing.Hash(currentTemperature.GetHashCode(), base.GetHashCode());
         }
 
+        public override void DbgCompare(PrtMachine machine)
+        {
+            base.DbgCompare(machine);
+            Debug.Assert(currentTemperature.GetHashCode() == (machine as PrtSpecMachine).currentTemperature.GetHashCode());
+            Debug.Assert(GetHashCode() == machine.GetHashCode());
+        }
+
         public override void PrtEnqueueEvent(PrtValue e, PrtValue arg, PrtMachine source, PrtMachineValue target = null)
         {
             int numOfStepsTaken = 0;

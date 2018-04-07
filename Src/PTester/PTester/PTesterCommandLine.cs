@@ -63,11 +63,14 @@ namespace P.Tester
         public bool printStats;
         public int timeout;
         public bool UsePSharp = false;
+        public bool DfsExploration;
+        public bool UseStateHashing;
         public bool isRefinement;
         public string LHSModel;
         public string RHSModel;
         public bool verbose;
         public int numberOfSchedules;
+        public bool debugHashing;
         public CommandLineOptions()
         {
             inputFileName = null;
@@ -78,6 +81,9 @@ namespace P.Tester
             RHSModel = null;
             verbose = false;
             numberOfSchedules = 1000;
+            debugHashing = false;
+            DfsExploration = false;
+            UseStateHashing = false;
         }
     }
 
@@ -138,6 +144,15 @@ namespace P.Tester
                             break;
                         case "psharp":
                             options.UsePSharp = true;
+                            break;
+                        case "dfs":
+                            options.DfsExploration = true;
+                            break;
+                        case "hash":
+                            options.UseStateHashing = true;
+                            break;
+                        case "debughash":
+                            options.debugHashing = true;
                             break;
                         case "break":
                             System.Diagnostics.Debugger.Launch();
@@ -246,8 +261,8 @@ namespace P.Tester
                 }
                 return;
             }
-
-            var asm = Assembly.LoadFrom(options.inputFileName);
+            
+            var asm = Assembly.LoadFile(Path.GetFullPath(options.inputFileName));
             StateImpl s = (StateImpl)asm.CreateInstance("P.Program.Application",
                                                         false,
                                                         BindingFlags.CreateInstance,
@@ -258,9 +273,22 @@ namespace P.Tester
             if (s == null)
                 throw new ArgumentException("Invalid assembly");
 
+            var sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
+
             if (options.UsePSharp)
             {
                 RunPSharpTester(s);
+                Console.WriteLine("Time elapsed: {0} seconds", sw.Elapsed.TotalSeconds.ToString("F2"));
+                return;
+            }
+
+            if(options.DfsExploration)
+            {
+                DfsExploration.UseHashing = options.UseStateHashing;
+                DfsExploration.Explore(s);
+
+                Console.WriteLine("Time elapsed: {0} seconds", sw.Elapsed.TotalSeconds.ToString("F2"));
                 return;
             }
 
@@ -268,7 +296,7 @@ namespace P.Tester
             int maxDepth = 5000;
             int numOfSchedules = 0;
             int numOfSteps = 0;
-            var randomScheduler = new Random(DateTime.Now.Millisecond);
+            var randomScheduler = new Random(0); // DateTime.Now.Millisecond);
             while (numOfSchedules < maxNumOfSchedules)
             {
                 var currImpl = (StateImpl)s.Clone();
@@ -281,16 +309,23 @@ namespace P.Tester
                 numOfSteps = 0;
                 while (numOfSteps < maxDepth)
                 {
+                    StateImpl clone = null;
+
+                    if(options.debugHashing)
                     {
-                        var s1 = currImpl;
-                        var s2 = s1.Clone();
+                        clone = (StateImpl)currImpl.Clone();
+                        if (clone.GetHashCode() != currImpl.GetHashCode())
+                        {
+                            currImpl.DbgCompare(clone);
+                            System.Diagnostics.Debug.Assert(false);
+                        }
 
-                        var h1 = s1.GetHashCode();
-                        var h2 = s2.GetHashCode();
-
-                        System.Diagnostics.Debug.Assert(h1 == h2);
+                        Console.WriteLine("-----------------");
+                        Console.WriteLine(currImpl.errorTrace.ToString());
+                        Console.WriteLine("-----------------");
+                        Console.WriteLine(clone.errorTrace.ToString());
+                        Console.WriteLine("-----------------");
                     }
-                    
 
                     if (currImpl.EnabledMachines.Count == 0)
                     {
@@ -299,7 +334,47 @@ namespace P.Tester
 
                     var num = currImpl.EnabledMachines.Count;
                     var choosenext = randomScheduler.Next(0, num);
+
+                    int seed = 0;
+
+                    if(options.debugHashing)
+                    {
+                        seed = randomScheduler.Next();
+                        var choices = new Random(seed);
+
+                        currImpl.UserBooleanChoice = delegate ()
+                        {
+                            return choices.Next(2) == 0;
+                        };
+                    }
+
+
                     currImpl.EnabledMachines[choosenext].PrtRunStateMachine();
+
+                    if(options.debugHashing)
+                    {
+                        var choices = new Random(seed);
+                        clone.UserBooleanChoice = delegate ()
+                        {
+                            return choices.Next(2) == 0;
+                        };
+
+                        clone.EnabledMachines[choosenext].PrtRunStateMachine();
+                        if (clone.GetHashCode() != currImpl.GetHashCode())
+                        {
+                            Console.WriteLine("numOfSchedules: {0}", numOfSchedules);
+                            Console.WriteLine("numSteps: {0}", numOfSteps);
+                            Console.WriteLine("-----------------");
+                            Console.WriteLine(currImpl.errorTrace.ToString());
+                            Console.WriteLine("-----------------");
+                            Console.WriteLine(clone.errorTrace.ToString());
+                            Console.WriteLine("-----------------");
+
+                            currImpl.DbgCompare(clone);
+                            System.Diagnostics.Debug.Assert(false);
+                        }
+                    }
+
                     if (currImpl.Exception != null)
                     {
                         if (currImpl.Exception is PrtAssumeFailureException)
@@ -334,6 +409,7 @@ namespace P.Tester
                 numOfSchedules++;
             }
 
+            Console.WriteLine("Time elapsed: {0} seconds", sw.Elapsed.TotalSeconds.ToString("F2"));
         }
 
         public static StateImpl main_s;

@@ -10,13 +10,22 @@ namespace P.Tester
 {
     static class DfsExploration
     {
+        public static bool UseHashing = false;
+        public static bool UseDepthBounding = false;
+        public static int DepthBound = 100;
+
         public static void Explore(StateImpl s)
         {
             var stack = new Stack<BacktrackingState>();
+            var visited = new HashSet<int>();
+
             stack.Push(new BacktrackingState(s));
+            visited.Add(s.GetHashCode());
 
             while (stack.Count != 0)
             {
+                PrintStackDepth(stack.Count);
+
                 var bstate = stack.Pop();
                 var enabledMachines = bstate.State.EnabledMachines;
 
@@ -29,11 +38,27 @@ namespace P.Tester
 
                 stack.Push(bstate);
 
-                if (!CheckFailure(next.State))
+                if (!CheckFailure(next.State, next.depth))
                 {
-                    stack.Push(next);
+                    var hash = next.State.GetHashCode();
+
+                    if (!UseHashing || !visited.Contains(hash))
+                    {
+                        stack.Push(next);
+                        visited.Add(hash);
+                    }
                 }
             }
+
+        }
+
+        static void PrintStackDepth(int depth)
+        {
+            for(int i = 0; i < depth; i++)
+            {
+                Console.Write(".");
+            }
+            Console.WriteLine();
         }
 
         /// <summary>
@@ -74,6 +99,7 @@ namespace P.Tester
             }
 
             var ret = new BacktrackingState(bstate.State);
+            ret.depth = bstate.depth + 1;
 
             bstate.State = origState;
 
@@ -86,8 +112,19 @@ namespace P.Tester
         }
 
 
-        static bool CheckFailure(StateImpl s)
+        static bool CheckFailure(StateImpl s, int depth)
         {
+            if(UseDepthBounding && depth > DepthBound)
+            {
+                return true;
+            }
+
+            if(s.Exception == null)
+            {
+                return false;
+            }
+
+            
             if (s.Exception is PrtAssumeFailureException)
             {
                 return true;
@@ -114,19 +151,14 @@ namespace P.Tester
         public StateImpl State;
         public int CurrIndex;
         public List<bool> ChoiceVector;
-        
+        public int depth;
+
         public BacktrackingState(StateImpl state)
         {
             this.State = state;
             CurrIndex = 0;
             ChoiceVector = new List<bool>();
-        }
-
-        public BacktrackingState(StateImpl state, int currIndex, List<bool> choiceVector)
-        {
-            this.State = state;
-            this.CurrIndex = currIndex;
-            this.ChoiceVector = choiceVector;
+            depth = 0;
         }
 
     }
