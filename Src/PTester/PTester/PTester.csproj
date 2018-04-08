@@ -186,10 +186,12 @@
   <ItemGroup>
     <Compile Include="Coverage.cs" />
     <Compile Include="DfsExploration.cs" />
+    <Compile Include="PSharpExploration.cs" />
     <Compile Include="PTConfig.cs" />
     <Compile Include="PTester.cs" />
     <Compile Include="PTesterCommandLine.cs" />
     <Compile Include="PTesterUtilities.cs" />
+    <Compile Include="RandomExploration.cs" />
     <Compile Include="Refinement.cs" />
   </ItemGroup>
   <ItemGroup>

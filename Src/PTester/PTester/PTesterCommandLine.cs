@@ -261,8 +261,8 @@ namespace P.Tester
                 }
                 return;
             }
-            
-            var asm = Assembly.LoadFile(Path.GetFullPath(options.inputFileName));
+
+            var asm = Assembly.LoadFrom(options.inputFileName);
             StateImpl s = (StateImpl)asm.CreateInstance("P.Program.Application",
                                                         false,
                                                         BindingFlags.CreateInstance,
@@ -270,6 +270,9 @@ namespace P.Tester
                                                         new object[] { true },
                                                         null,
                                                         new object[] { });
+
+            //StateImpl s = new P.Program.Application(true);
+
             if (s == null)
                 throw new ArgumentException("Invalid assembly");
 
@@ -278,345 +281,20 @@ namespace P.Tester
 
             if (options.UsePSharp)
             {
-                RunPSharpTester(s);
-                Console.WriteLine("Time elapsed: {0} seconds", sw.Elapsed.TotalSeconds.ToString("F2"));
-                return;
+                PSharpExploration.RunPSharpTester(s);
             }
-
-            if(options.DfsExploration)
+            else if (options.DfsExploration)
             {
-                DfsExploration.UseHashing = options.UseStateHashing;
-                DfsExploration.Explore(s);
-
-                Console.WriteLine("Time elapsed: {0} seconds", sw.Elapsed.TotalSeconds.ToString("F2"));
-                return;
+                DfsExploration.Explore(s, options);
             }
-
-            int maxNumOfSchedules = 10000;
-            int maxDepth = 5000;
-            int numOfSchedules = 0;
-            int numOfSteps = 0;
-            var randomScheduler = new Random(0); // DateTime.Now.Millisecond);
-            while (numOfSchedules < maxNumOfSchedules)
+            else
             {
-                var currImpl = (StateImpl)s.Clone();
-                if (numOfSchedules % 10 == 0)
-                {
-                    Console.WriteLine("-----------------------------------------------------");
-                    Console.WriteLine("Total Schedules Explored: {0}", numOfSchedules);
-                    Console.WriteLine("-----------------------------------------------------");
-                }
-                numOfSteps = 0;
-                while (numOfSteps < maxDepth)
-                {
-                    StateImpl clone = null;
-
-                    if(options.debugHashing)
-                    {
-                        clone = (StateImpl)currImpl.Clone();
-                        if (clone.GetHashCode() != currImpl.GetHashCode())
-                        {
-                            currImpl.DbgCompare(clone);
-                            System.Diagnostics.Debug.Assert(false);
-                        }
-
-                        Console.WriteLine("-----------------");
-                        Console.WriteLine(currImpl.errorTrace.ToString());
-                        Console.WriteLine("-----------------");
-                        Console.WriteLine(clone.errorTrace.ToString());
-                        Console.WriteLine("-----------------");
-                    }
-
-                    if (currImpl.EnabledMachines.Count == 0)
-                    {
-                        break;
-                    }
-
-                    var num = currImpl.EnabledMachines.Count;
-                    var choosenext = randomScheduler.Next(0, num);
-
-                    int seed = 0;
-
-                    if(options.debugHashing)
-                    {
-                        seed = randomScheduler.Next();
-                        var choices = new Random(seed);
-
-                        currImpl.UserBooleanChoice = delegate ()
-                        {
-                            return choices.Next(2) == 0;
-                        };
-                    }
-
-
-                    currImpl.EnabledMachines[choosenext].PrtRunStateMachine();
-
-                    if(options.debugHashing)
-                    {
-                        var choices = new Random(seed);
-                        clone.UserBooleanChoice = delegate ()
-                        {
-                            return choices.Next(2) == 0;
-                        };
-
-                        clone.EnabledMachines[choosenext].PrtRunStateMachine();
-                        if (clone.GetHashCode() != currImpl.GetHashCode())
-                        {
-                            Console.WriteLine("numOfSchedules: {0}", numOfSchedules);
-                            Console.WriteLine("numSteps: {0}", numOfSteps);
-                            Console.WriteLine("-----------------");
-                            Console.WriteLine(currImpl.errorTrace.ToString());
-                            Console.WriteLine("-----------------");
-                            Console.WriteLine(clone.errorTrace.ToString());
-                            Console.WriteLine("-----------------");
-
-                            currImpl.DbgCompare(clone);
-                            System.Diagnostics.Debug.Assert(false);
-                        }
-                    }
-
-                    if (currImpl.Exception != null)
-                    {
-                        if (currImpl.Exception is PrtAssumeFailureException)
-                        {
-                            break;
-                        }
-                        else if (currImpl.Exception is PrtException)
-                        {
-                            Console.WriteLine(currImpl.errorTrace.ToString());
-                            Console.WriteLine("ERROR: {0}", currImpl.Exception.Message);
-                            Environment.Exit(-1);
-                        }
-                        else
-                        {
-                            Console.WriteLine(currImpl.errorTrace.ToString());
-                            Console.WriteLine("[Internal Exception]: Please report to the P Team");
-                            Console.WriteLine(currImpl.Exception.ToString());
-                            Environment.Exit(-1);
-                        }
-                    }
-
-                    numOfSteps++;
-
-                    //print the execution if verbose
-                    if(options.verbose)
-                    {
-                        Console.WriteLine("-----------------------------------------------------");
-                        Console.WriteLine("Execution {0}", numOfSchedules);
-                        Console.WriteLine(currImpl.errorTrace.ToString());
-                    }                    
-                }
-                numOfSchedules++;
+                RandomExploration.Explore(s, options);
             }
-
             Console.WriteLine("Time elapsed: {0} seconds", sw.Elapsed.TotalSeconds.ToString("F2"));
         }
 
-        public static StateImpl main_s;
-        public static StateImpl currentImpl;
-        public static Coverage coverage;
-
-        public static void RunPSharpTester(StateImpl s)
-        {
-            main_s = s;
-            coverage = new Coverage();
-
-            var configuration = Configuration.Create()
-                .WithNumberOfIterations(100); 
-
-            configuration.UserExplicitlySetMaxFairSchedulingSteps = true;
-            configuration.MaxUnfairSchedulingSteps = 100;
-            configuration.MaxFairSchedulingSteps = configuration.MaxUnfairSchedulingSteps * 10;
-            configuration.LivenessTemperatureThreshold = configuration.MaxFairSchedulingSteps / 3;
-            
-            foreach(var machine in main_s.EnabledMachines)
-            {
-                coverage.DeclareMachine(machine);
-            }
-
-            var engine = Microsoft.PSharp.TestingServices.TestingEngineFactory.CreateBugFindingEngine(
-                configuration, PSharpWrapper.Execute);
-            engine.Run();
-
-            Console.WriteLine("Bugs found: {0}", engine.TestReport.NumOfFoundBugs);
-
-            if (engine.TestReport.NumOfFoundBugs > 0)
-            {
-                if (currentImpl.Exception != null && currentImpl.Exception is PrtException)
-                {
-                    Console.WriteLine("{0}", currentImpl.errorTrace.ToString());
-                    Console.WriteLine("ERROR: {0}", currentImpl.Exception.Message);
-                }
-                else if (currentImpl.Exception != null)
-                {
-                    Console.WriteLine("{0}", currentImpl.errorTrace.ToString());
-                    Console.WriteLine("[Internal Exception]: Please report to the P Team");
-                    Console.WriteLine("{0}", currentImpl.Exception.ToString());
-                }
-                else
-                {
-                    Console.WriteLine("{0}", currentImpl.errorTrace.ToString());
-                    Console.WriteLine("ERROR: Liveness violation");
-                }
-            }
-
-            Console.WriteLine("Dumping coverage information");
-            coverage.Dump("coverage");
-            Console.WriteLine("... Writing coverage.txt");
-            Console.WriteLine("... Writing coverage.dgml");
-        }
     }
 
-    public class PSharpWrapper
-    {
-        public static void Execute(PSharpRuntime runtime)
-        {
-            var s = (StateImpl)PTesterCommandLine.main_s.Clone();
-
-            s.UserBooleanChoice = delegate ()
-            {
-                return runtime.Random();
-            };
-
-            s.CreateMachineCallback = delegate (PrtImplMachine machine)
-            {
-                PTesterCommandLine.coverage.DeclareMachine(machine);
-            };
-
-            s.DequeueCallback = delegate (PrtImplMachine machine, string evName, string senderMachineName, string senderMachineStateName)
-            {
-                PTesterCommandLine.coverage.ReportDequeue(machine, evName, senderMachineName, senderMachineStateName);
-            };
-
-            s.StateTransitionCallback = delegate (PrtImplMachine machine, PrtState from, PrtState to, string reason)
-            {
-                PTesterCommandLine.coverage.ReportStateTransition(machine, from, to, reason);
-            };
-
-            PTesterCommandLine.currentImpl = s;
-
-            runtime.CreateMachine(typeof(PSharpMachine), new MachineInitEvent(s));
-        }
-
-        public class Unit : Microsoft.PSharp.Event { }
-
-        public class MachineInitEvent : Microsoft.PSharp.Event
-        {
-            public StateImpl s;
-
-            public MachineInitEvent(StateImpl s)
-            {
-                this.s = s;
-            }
-        }
-
-        class PSharpMachine : Microsoft.PSharp.Machine
-        {
-            StateImpl currImpl;
-            Dictionary<PrtSpecMachine, Type> specToMonitor;
-
-            [Microsoft.PSharp.Start]
-            [Microsoft.PSharp.OnEntry(nameof(Configure))]
-            [Microsoft.PSharp.OnEventDoAction(typeof(Unit), nameof(Step))]
-            class Init : Microsoft.PSharp.MachineState { }
-
-            void Configure()
-            {
-                var e = (this.ReceivedEvent as MachineInitEvent);
-                this.currImpl = e.s;
-                this.specToMonitor = new Dictionary<PrtSpecMachine, Type>();
-
-                // register monitors
-                foreach (var spec in currImpl.GetAllSpecMachines())
-                {
-                    var genericTy = typeof(PSharpMonitor<int>).GetGenericTypeDefinition();
-                    var specTy = spec.GetType();
-                    var monitorTy = genericTy.MakeGenericType(specTy);
-                    this.specToMonitor.Add(spec, monitorTy);
-
-                    this.Id.Runtime.RegisterMonitor(monitorTy);
-                }
-
-                this.Raise(new Unit());
-            }
-
-            void Step()
-            {
-                if (currImpl.EnabledMachines.Count == 0)
-                {
-                    return;
-                }
-
-                foreach (var tup in specToMonitor)
-                {
-                    Event ev = tup.Key.currentTemperature == StateTemperature.Hot ? (Event) new MoveToHot() :
-                        tup.Key.currentTemperature == StateTemperature.Warm ? (Event) new MoveToWarm() :
-                        (Event) new MoveToCold();
-
-                    this.Monitor(tup.Value, ev);
-                }
-
-
-                var num = currImpl.EnabledMachines.Count;
-                var choosenext = this.RandomInteger(num);
-                currImpl.EnabledMachines[choosenext].PrtRunStateMachine();
-                if (currImpl.Exception != null)
-                {
-                    if (currImpl.Exception is PrtAssumeFailureException)
-                    {
-                        return;
-                    }
-                    else 
-                    {
-                        this.Assert(false);
-                    }
-                }
-
-                this.Raise(new Unit());
-            }
-
-        }
-
-        class MoveToHot : Event { }
-        class MoveToCold : Event { }
-        class MoveToWarm : Event { }
-
-        class PSharpMonitor<T> : Monitor
-        {
-            [Start]
-            [Cold]
-            [OnEventDoAction(typeof(MoveToHot), nameof(GotHot))]
-            [OnEventDoAction(typeof(MoveToCold), nameof(GotCold))]
-            [OnEventDoAction(typeof(MoveToWarm), nameof(GotWarm))]
-            class S1 : MonitorState { }
-
-            [Hot]
-            [OnEventDoAction(typeof(MoveToHot), nameof(GotHot))]
-            [OnEventDoAction(typeof(MoveToCold), nameof(GotCold))]
-            [OnEventDoAction(typeof(MoveToWarm), nameof(GotWarm))]
-            class S2 : MonitorState { }
-
-            [OnEventDoAction(typeof(MoveToHot), nameof(GotHot))]
-            [OnEventDoAction(typeof(MoveToCold), nameof(GotCold))]
-            [OnEventDoAction(typeof(MoveToWarm), nameof(GotWarm))]
-            class S3 : MonitorState { }
-
-            void GotHot()
-            {
-                this.Goto<S2>();
-            }
-
-            void GotCold()
-            {
-                this.Goto<S1>();
-            }
-
-            void GotWarm()
-            {
-                this.Goto<S3>();
-            }
-
-        }
-    }
 
 }

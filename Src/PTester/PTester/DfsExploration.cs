@@ -10,11 +10,10 @@ namespace P.Tester
 {
     static class DfsExploration
     {
-        public static bool UseHashing = false;
         public static bool UseDepthBounding = false;
         public static int DepthBound = 100;
 
-        public static void Explore(StateImpl s)
+        public static void Explore(StateImpl s, CommandLineOptions options)
         {
             var stack = new Stack<BacktrackingState>();
             var visited = new HashSet<int>();
@@ -42,7 +41,7 @@ namespace P.Tester
                 {
                     var hash = next.State.GetHashCode();
 
-                    if (!UseHashing || !visited.Contains(hash))
+                    if (!options.UseStateHashing || !visited.Contains(hash))
                     {
                         stack.Push(next);
                         visited.Add(hash);

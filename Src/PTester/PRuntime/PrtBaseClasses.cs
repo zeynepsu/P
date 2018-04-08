@@ -215,12 +215,12 @@ namespace P.Runtime
             {
                 stateImpl.TraceLine("<FunctionLog> Machine {0}-{1} executing Function {2}", this.Name, this.instanceNumber, fun);
             }
-            invertedFunStack.PushFun(fun, locals);
+            invertedFunStack.PushFun(fun, new List<PrtValue>(locals.Select(v => v.Clone()))); // TODO: temporary
         }
 
         public void PrtPushFunStackFrame(PrtFun fun, List<PrtValue> locals, int retTo)
         {
-            invertedFunStack.PushFun(fun, locals, retTo);
+            invertedFunStack.PushFun(fun, new List<PrtValue>(locals.Select(v => v.Clone())), retTo);
         }
 
         public void PrtPushExitFunction()
