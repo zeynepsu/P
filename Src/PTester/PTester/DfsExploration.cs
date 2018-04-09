@@ -21,7 +21,7 @@ namespace P.Tester
             stack.Push(new BacktrackingState(s));
             visited.Add(s.GetHashCode());
 
-            while (stack.Count != 0)
+            while (stack.Count != 0) // while stack is non-empty
             {
                 PrintStackDepth(stack.Count);
 
