@@ -12,7 +12,7 @@ namespace P.Runtime
     public static class Hashing
     {
         /// <summary>
-        /// Nullary hash (useful for iteation)
+        /// Nullary hash (useful for iteration)
         /// </summary>
         /// <returns></returns>
         public static int Hash()

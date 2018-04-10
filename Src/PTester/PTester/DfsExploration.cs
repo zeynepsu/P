@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using P.Runtime;
 using System.Diagnostics;
 
+
 namespace P.Tester
 {
     static class DfsExploration
@@ -21,7 +22,8 @@ namespace P.Tester
             stack.Push(new BacktrackingState(s));
             visited.Add(s.GetHashCode());
 
-            while (stack.Count != 0) // while stack is non-empty
+            // DFS begin
+            while (stack.Count != 0)
             {
                 PrintStackDepth(stack.Count);
 
@@ -33,15 +35,15 @@ namespace P.Tester
                     continue;
                 }
 
-                var next = Execute(bstate);
+                BacktrackingState next = Execute(bstate);
 
-                stack.Push(bstate);
+                stack.Push(bstate); // after increasing the index, push state back on
 
                 if (!CheckFailure(next.State, next.depth))
                 {
                     var hash = next.State.GetHashCode();
 
-                    if (!options.UseStateHashing || !visited.Contains(hash))
+                    if (!options.UseStateHashing || !visited.Contains(hash)) // ?? if state hashing not used, this will add hash to visited
                     {
                         stack.Push(next);
                         visited.Add(hash);
@@ -84,10 +86,10 @@ namespace P.Tester
 
             bstate.State.EnabledMachines[bstate.CurrIndex].PrtRunStateMachine();
 
-            Debug.Assert(choiceIndex == bstate.ChoiceVector.Count);
+            Debug.Assert(choiceIndex == bstate.ChoiceVector.Count); // == we are done
 
-            // flip last choice            
-            while (bstate.ChoiceVector.Count > 0 && bstate.ChoiceVector[bstate.ChoiceVector.Count - 1] == true)
+            // flip last choice          
+            while (bstate.ChoiceVector.Count > 0 && bstate.ChoiceVector[bstate.ChoiceVector.Count - 1])
             {
                 bstate.ChoiceVector.RemoveAt(bstate.ChoiceVector.Count - 1);
             }
@@ -148,9 +150,9 @@ namespace P.Tester
     class BacktrackingState
     {
         public StateImpl State;
-        public int CurrIndex;
-        public List<bool> ChoiceVector;
-        public int depth;
+        public int CurrIndex;            // index of the next machine to execute
+        public List<bool> ChoiceVector;  // length = number of choices to be made; contents of list = current choice as bitvector
+        public int depth;                // used only with depth bounding
 
         public BacktrackingState(StateImpl state)
         {
