@@ -14,10 +14,16 @@ namespace P.Tester
         public static bool UseDepthBounding = false;
         public static int DepthBound = 100;
 
+        public static ushort k = 0; // queue size bound. '0' means 'unbounded'
+
         public static void Explore(StateImpl s, CommandLineOptions options)
         {
             var stack = new Stack<BacktrackingState>();
-            var visited = new HashSet<int>();
+            var visited = new HashSet<int>(); // think about whether this should be uint
+
+            k = options.k;
+            Console.WriteLine("Received k = {0}", k);
+            P.Runtime.PrtImplMachine.k = k;
 
             stack.Push(new BacktrackingState(s));
             visited.Add(s.GetHashCode());
@@ -30,14 +36,14 @@ namespace P.Tester
                 var bstate = stack.Pop();
                 var enabledMachines = bstate.State.EnabledMachines;
 
-                if(bstate.CurrIndex >= enabledMachines.Count)
+                if (bstate.CurrIndex >= enabledMachines.Count) // if "done" with bstate
                 {
                     continue;
                 }
 
                 BacktrackingState next = Execute(bstate);
 
-                stack.Push(bstate); // after increasing the index, push state back on
+                stack.Push(bstate); // after increasing the index, push state back on. This is like modifying bstate "on the stack"
 
                 if (!CheckFailure(next.State, next.depth))
                 {
@@ -47,6 +53,7 @@ namespace P.Tester
                     {
                         stack.Push(next);
                         visited.Add(hash);
+                        // now compute visible projection of 'next' and add it (or its hash) to Visible
                     }
                 }
             }
@@ -55,7 +62,7 @@ namespace P.Tester
 
         static void PrintStackDepth(int depth)
         {
-            for(int i = 0; i < depth; i++)
+            for (int i = 0; i < depth; i++)
             {
                 Console.Write(".");
             }
@@ -86,7 +93,7 @@ namespace P.Tester
 
             bstate.State.EnabledMachines[bstate.CurrIndex].PrtRunStateMachine();
 
-            Debug.Assert(choiceIndex == bstate.ChoiceVector.Count); // == we are done
+            Debug.Assert(choiceIndex == bstate.ChoiceVector.Count);
 
             // flip last choice          
             while (bstate.ChoiceVector.Count > 0 && bstate.ChoiceVector[bstate.ChoiceVector.Count - 1])

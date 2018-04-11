@@ -39,6 +39,8 @@ namespace P.Runtime
         public bool doAssume;
         public PrtInterfaceValue self;
 
+        public static ushort k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
+
         #endregion
 
         #region Clone
@@ -182,6 +184,7 @@ namespace P.Runtime
             {
                 stateImpl.currentVisibleTrace.AddAction(new Tuple<string, int>(target.mach.renamedName, target.mach.instanceNumber), ev, arg);
             }
+
             if (currentStatus == PrtMachineStatus.Halted)
             {
                 stateImpl.TraceLine(
@@ -193,18 +196,25 @@ namespace P.Runtime
                 stateImpl.TraceLine(
                     @"<EnqueueLog> Enqueued Event <{0},{1}> in machine {2}-{3} by machine {4}-{5}",
                     ev.evt.name, arg.ToString(), this.Name, this.instanceNumber, source.Name, source.instanceNumber);
-                this.eventQueue.EnqueueEvent(e, arg, source.Name, source.CurrentState.name);
-                if (this.maxBufferSize != DefaultMaxBufferSize && this.eventQueue.Size() > this.maxBufferSize)
+
+                // k-bounded queue semantics
+                if (k > 0 && this.eventQueue.Size() == k)
                 {
-                    if (this.doAssume)
+                    throw new PrtAssumeFailureException(); // check with Akash if that is the right thing to do here (or just return?)
+                }
+                else
+                {
+                    this.eventQueue.EnqueueEvent(e, arg, source.Name, source.CurrentState.name);
+                    if (this.maxBufferSize != DefaultMaxBufferSize && this.eventQueue.Size() > this.maxBufferSize)
                     {
-                        throw new PrtAssumeFailureException();
-                    }
-                    else
-                    {
-                        throw new PrtMaxBufferSizeExceededException(
-                            String.Format(@"<EXCEPTION> Event Buffer Size Exceeded {0} in Machine {1}-{2}",
-                            this.maxBufferSize, this.Name, this.instanceNumber));
+                        if (this.doAssume)
+                        {
+                            throw new PrtAssumeFailureException();
+                        }
+                        else
+                        {
+                            throw new PrtMaxBufferSizeExceededException(String.Format(@"<EXCEPTION> Event Buffer Size Exceeded {0} in Machine {1}-{2}", this.maxBufferSize, this.Name, this.instanceNumber));
+                        }
                     }
                 }
                 if (currentStatus == PrtMachineStatus.Blocked && this.eventQueue.IsEnabled(this))

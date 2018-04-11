@@ -1,0 +1,37 @@
+DFS -- recursive version:
+
+DFS(s0):
+  visit(s0)
+
+visit(s):
+  visited.insert(s);
+  // compute visible version of s; add to Visibles
+  for all s_p in Image(s):
+    if ! (s_p in visited):
+      visit(s_p)
+
+///////////////////////////////////////////////////////////////////////////
+
+DFS -- stack version:
+
+Explore(s0):
+  stack<State> S;
+  set<int> visited_H;
+  S.push(s0)
+  visited.add(s0);
+  while (! S.empty()):
+    s = S.pop();
+    for all s_p in Image(s):
+      h_p = s_p.hash();
+      if ! (h_p in visited):
+        S.push(s_p)
+	visited.add(h_p);
+        continue
+
+===========================================================================
+
+Questions:
+
+- how to "auto-indent" code? <tab> just stupidly inserts tabs
+- passing by reference -- how to I prevent a variable from being modified in a function ("const")?
+- int vs. ushort

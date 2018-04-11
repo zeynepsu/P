@@ -64,6 +64,7 @@ namespace P.Tester
         public int timeout;
         public bool UsePSharp = false;
         public bool DfsExploration;
+        public ushort k; // queue bound
         public bool UseStateHashing;
         public bool isRefinement;
         public string LHSModel;
@@ -83,6 +84,7 @@ namespace P.Tester
             numberOfSchedules = 1000;
             debugHashing = false;
             DfsExploration = false;
+            k = 0;
             UseStateHashing = false;
         }
     }
@@ -147,6 +149,10 @@ namespace P.Tester
                             break;
                         case "dfs":
                             options.DfsExploration = true;
+                            if (param.Length != 0)
+                            {
+                                options.k = ushort.Parse(param);
+                            }
                             break;
                         case "hash":
                             options.UseStateHashing = true;
@@ -232,6 +238,7 @@ namespace P.Tester
             Console.WriteLine("-ns:<int>                Number of schedulers <int> to explore");
             Console.WriteLine("-lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
             Console.WriteLine("-rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
+            Console.WriteLine("-dfs:k                   Perform DFS of the state space, with a queue bound of k (i.e. a machine's send is not enabled when its current buffer is size k");
         }
 
         public static void Main(string[] args)
