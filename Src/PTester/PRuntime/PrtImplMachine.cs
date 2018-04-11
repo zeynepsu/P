@@ -198,13 +198,15 @@ namespace P.Runtime
                     ev.evt.name, arg.ToString(), this.Name, this.instanceNumber, source.Name, source.instanceNumber);
 
                 // k-bounded queue semantics
-                if (k > 0 && this.eventQueue.Size() == k)
+                if (k > 0 && eventQueue.Size() == k)
                 {
-                    throw new PrtAssumeFailureException(); // check with Akash if that is the right thing to do here (or just return?)
+                    Console.WriteLine("PrtImplMachine::PrtEnqueueEvent: warning: queue bound {0} reached in machine {1}; rejecting send event", k, Name);
+                    throw new PrtAssumeFailureException(); // Akash: is the right thing to do here (or just return)?
                 }
                 else
                 {
                     this.eventQueue.EnqueueEvent(e, arg, source.Name, source.CurrentState.name);
+                    Console.WriteLine("Queue size of machine {0} = {1}", Name, eventQueue.Size());
                     if (this.maxBufferSize != DefaultMaxBufferSize && this.eventQueue.Size() > this.maxBufferSize)
                     {
                         if (this.doAssume)
