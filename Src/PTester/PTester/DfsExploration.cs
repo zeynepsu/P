@@ -19,18 +19,20 @@ namespace P.Tester
         public static void Explore(StateImpl s, CommandLineOptions options)
         {
             var stack = new Stack<BacktrackingState>();
-            var visited = new HashSet<int>(); // think about whether this should be uint
-            SortedSet<VisibleState> visible = new SortedSet<VisibleState>();
+            var visited = new HashSet<int>();
+            var visible = new SortedDictionary<int, VisibleState>();
 
             k = options.k;
             Console.WriteLine("Using queue bound of {0}", k);
             P.Runtime.PrtImplMachine.k = k;
 
-            uint state_number = 0;
+            // uint state_number = 0;
 
             stack.Push(new BacktrackingState(s));
             visited.Add(s.GetHashCode());
-            visible.Add(new VisibleState(s));
+
+            var vs = new VisibleState((StateImpl)(s.Clone()));
+            visible.Add(vs.hash, vs);
 
             // DFS begin
             while (stack.Count != 0)
@@ -64,9 +66,9 @@ namespace P.Tester
                         stack.Push(next);
                         visited.Add(hash);
                         // Console.WriteLine("Encountered state number {0}", ++state_number);
-                        visible.Add(new VisibleState(next.State));
+                        var next_vs = new VisibleState((StateImpl)(next.State.Clone()));
+                        visible.Add(next_vs.hash, next_vs);
 
-                        // now compute visible projection of 'next' and add it (or its hash) to Visible
                     }
                 }
             }
@@ -188,53 +190,31 @@ namespace P.Tester
 
   
         
-    class VisibleState : IComparable
+    class VisibleState : StateImpl
     {   
-        public List<PrtValue> heads; // list of events at the head of each ImplMachine's event queue, or "null" if queue empty
+//        public List<PrtValue> heads; // list of events at the head of each ImplMachine's event queue, or "null" if queue empty
+        public int hash;             // hash value computed from the visible state's StateImpl interpretation
 
+        public override StateImpl MakeSkeleton() { return this; } // meaning unclear, but required
+
+        // precond: state is already cloned. Don't know how to program this better
         public VisibleState(StateImpl state)
         {
-            heads = new List<PrtValue>();
-            List<PrtImplMachine> implMachines = state.ImplMachines; // a reference, hopefully (not copy)
-            for (int i = 0; i < implMachines.Count; i++)
-            {
-                PrtImplMachine m = implMachines[i]; // a reference, hopefully (not copy)
-                if (m.eventQueue.Size() == 0)
-                {
-                    heads.Add(PrtValue.@null);
-                }
-                else
-                {
-                    heads.Add(m.eventQueue.Head());
-                }
-            }
-        }
-
-        int IComparable.CompareTo(object o) 
-        {
-            VisibleState vs = (VisibleState) o;
-            int j = 0;
-            for (int i = 0; i < heads.Count; i++, j++)
-            {
-                if (j == vs.heads.Count)
-                {
-                    return +1; // this is longer: this > vs
-                }
-
-                int c = PrtValue.Compare(heads[i], heads[j]);
-                if (c != 0)
-                    return c;
-                // if both pointers i,j are "valid" and the elements are equal, move on
-            }
-
-            if (j == vs.heads.Count)
-            {
-                return 0; // same length; all elements equal: this == vs
-            }
-            else
-            {
-                return -1; // i is out, j is not: this < vs
-            }
+            hash = 10;
+            //          heads = new List<PrtValue>();
+            //        List<PrtImplMachine> implMachines = state.ImplMachines; // a reference, hopefully (not copy)
+            //      for (int i = 0; i < implMachines.Count; i++)
+            //    {
+            //      PrtImplMachine m = implMachines[i]; // a reference, hopefully (not copy)
+            //    if (m.eventQueue.Size() == 0)
+            //  {
+            //    heads.Add(PrtValue.@null);
+            //}
+            //                else
+            //              {
+            //                heads.Add(m.eventQueue.Head());
+            //          }
+            //    }
         }
     }
 }

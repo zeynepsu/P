@@ -1,11 +1,5 @@
 Silly questions:
 
-- how to "auto-indent" code? <tab> just stupidly inserts tabs
-
-- passing by reference -- how to I prevent a variable from being modified in a function ("const")?
-
-- int vs. ushort
-
 ===========================================================================
 
 Non-silly questions:
@@ -13,7 +7,11 @@ Non-silly questions:
 - bounded Q semantics: I reject sends on the /receiver/ side if the queue is full.
   Is the sender aware that the send has failed? does he have to be?
 
+  No. Assume exception is good.
+
 - a "visible state" is currently simply the list of all queue heads.
   * I keep those in an un-hashed set. It seems I have to
   * For that I need events to be comparable. Currently this is based on (slow?) string comparison
   * how do I extract the "local state" of a machine, i.e. everything except the event queue?
+
+  Make a clone of the state, then overwrite the queue by empty, or its head, or whatever you want to keep.
