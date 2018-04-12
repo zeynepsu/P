@@ -1,15 +1,19 @@
 Silly questions:
 
 - how to "auto-indent" code? <tab> just stupidly inserts tabs
+
 - passing by reference -- how to I prevent a variable from being modified in a function ("const")?
+
 - int vs. ushort
+
+===========================================================================
 
 Non-silly questions:
 
-(Try:
-  pt /dfs   /hash Test0.dll
-  pt /dfs:3 /hash Test0.dll
-)
+- bounded Q semantics: I reject sends on the /receiver/ side if the queue is full.
+  Is the sender aware that the send has failed? does he have to be?
 
-- bounded Q semantics: I rejected sends on the /receiver/ side if the queue is full.
-  Is the sender aware that the send failed? does he have to be?
+- a "visible state" is currently simply the list of all queue heads.
+  * I keep those in an un-hashed set. It seems I have to
+  * For that I need events to be comparable. Currently this is based on (slow?) string comparison
+  * how do I extract the "local state" of a machine, i.e. everything except the event queue?

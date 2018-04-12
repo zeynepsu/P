@@ -20,13 +20,17 @@ namespace P.Tester
         {
             var stack = new Stack<BacktrackingState>();
             var visited = new HashSet<int>(); // think about whether this should be uint
+            SortedSet<VisibleState> visible = new SortedSet<VisibleState>();
 
             k = options.k;
-            Console.WriteLine("Received k = {0}", k);
+            Console.WriteLine("Using queue bound of {0}", k);
             P.Runtime.PrtImplMachine.k = k;
+
+            uint state_number = 0;
 
             stack.Push(new BacktrackingState(s));
             visited.Add(s.GetHashCode());
+            visible.Add(new VisibleState(s));
 
             // DFS begin
             while (stack.Count != 0)
@@ -49,17 +53,26 @@ namespace P.Tester
                 {
                     var hash = next.State.GetHashCode();
 
-                    if (!options.UseStateHashing || !visited.Contains(hash)) // ?? if state hashing not used, this will add hash to visited
+                    if (!options.UseStateHashing)
+                    {
+                        throw new NotImplementedException();
+                    }
+
+                    // if (!options.UseStateHashing || !visited.Contains(hash)) // I don't understand this line: if state hashing not used, this will always add next to stack, whether new or not
+                    if (!visited.Contains(hash))
                     {
                         stack.Push(next);
                         visited.Add(hash);
+                        // Console.WriteLine("Encountered state number {0}", ++state_number);
+                        visible.Add(new VisibleState(next.State));
+
                         // now compute visible projection of 'next' and add it (or its hash) to Visible
                     }
                 }
             }
 
-            Console.WriteLine("Number of distinct states visited = {0}", visited.Count);
-
+            Console.WriteLine("Number of distinct         states visited = {0}", visited.Count);
+            Console.WriteLine("Number of distinct visible states visited = {0}", visible.Count);
         }
 
         static void PrintStackDepth(int depth)
@@ -171,5 +184,57 @@ namespace P.Tester
             depth = 0;
         }
 
+    }
+
+  
+        
+    class VisibleState : IComparable
+    {   
+        public List<PrtValue> heads; // list of events at the head of each ImplMachine's event queue, or "null" if queue empty
+
+        public VisibleState(StateImpl state)
+        {
+            heads = new List<PrtValue>();
+            List<PrtImplMachine> implMachines = state.ImplMachines; // a reference, hopefully (not copy)
+            for (int i = 0; i < implMachines.Count; i++)
+            {
+                PrtImplMachine m = implMachines[i]; // a reference, hopefully (not copy)
+                if (m.eventQueue.Size() == 0)
+                {
+                    heads.Add(PrtValue.@null);
+                }
+                else
+                {
+                    heads.Add(m.eventQueue.Head());
+                }
+            }
+        }
+
+        int IComparable.CompareTo(object o) 
+        {
+            VisibleState vs = (VisibleState) o;
+            int j = 0;
+            for (int i = 0; i < heads.Count; i++, j++)
+            {
+                if (j == vs.heads.Count)
+                {
+                    return +1; // this is longer: this > vs
+                }
+
+                int c = PrtValue.Compare(heads[i], heads[j]);
+                if (c != 0)
+                    return c;
+                // if both pointers i,j are "valid" and the elements are equal, move on
+            }
+
+            if (j == vs.heads.Count)
+            {
+                return 0; // same length; all elements equal: this == vs
+            }
+            else
+            {
+                return -1; // i is out, j is not: this < vs
+            }
+        }
     }
 }

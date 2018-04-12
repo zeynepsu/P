@@ -488,6 +488,11 @@ namespace P.Runtime
             events = new List<PrtEventNode>();
         }
 
+        public PrtValue Head()
+        {
+            return events[0].ev;
+        }
+
         public PrtEventBuffer Clone()
         {
             var clonedVal = new PrtEventBuffer();

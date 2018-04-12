@@ -64,6 +64,14 @@ namespace P.Runtime
             throw new NotImplementedException("ToString method is not overridden in the derived class");
         }
 
+        // stupid implementation
+        static public int Compare(PrtValue v1, PrtValue v2)
+        {
+            string s1 = v1.ToString();
+            string s2 = v2.ToString();
+            return String.Compare(s1, s2);
+        }
+
         public virtual int Size()
         {
             throw new NotImplementedException("Size method is not overridden in the derived class");
