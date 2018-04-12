@@ -31,7 +31,7 @@ namespace P.Tester
             // DFS begin
             while (stack.Count != 0)
             {
-                PrintStackDepth(stack.Count);
+                // PrintStackDepth(stack.Count);
 
                 var bstate = stack.Pop();
                 var enabledMachines = bstate.State.EnabledMachines;
@@ -57,6 +57,8 @@ namespace P.Tester
                     }
                 }
             }
+
+            Console.WriteLine("Number of distinct states visited = {0}", visited.Count);
 
         }
 
