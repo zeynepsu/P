@@ -483,14 +483,21 @@ namespace P.Runtime
     public class PrtEventBuffer
     {
         List<PrtEventNode> events;
+
         public PrtEventBuffer()
         {
             events = new List<PrtEventNode>();
         }
 
-        public PrtValue Head()
+        // cut off all elements after the first, if any, in place
+        public void Make_singleton()
         {
-            return events[0].ev;
+            if (events.Count > 1)
+            {
+                PrtEventNode head = events.First();
+                events.Clear();
+                //events.Add(head);
+            }
         }
 
         public PrtEventBuffer Clone()

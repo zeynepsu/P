@@ -20,7 +20,7 @@ namespace P.Tester
         {
             var stack = new Stack<BacktrackingState>();
             var visited = new HashSet<int>();
-            var visible = new SortedDictionary<int, VisibleState>();
+            var visible = new SortedDictionary<int, VState>();
 
             k = options.k;
             Console.WriteLine("Using queue bound of {0}", k);
@@ -31,8 +31,8 @@ namespace P.Tester
             stack.Push(new BacktrackingState(s));
             visited.Add(s.GetHashCode());
 
-            var vs = new VisibleState((StateImpl)(s.Clone()));
-            visible.Add(vs.hash, vs);
+            var vs = new VState(s);
+            visible.Add(vs.GetHashCode(), vs);
 
             // DFS begin
             while (stack.Count != 0)
@@ -66,9 +66,12 @@ namespace P.Tester
                         stack.Push(next);
                         visited.Add(hash);
                         // Console.WriteLine("Encountered state number {0}", ++state_number);
-                        var next_vs = new VisibleState((StateImpl)(next.State.Clone()));
-                        visible.Add(next_vs.hash, next_vs);
-
+                        var next_vs = new VState(next.State);
+                        var vhash = next_vs.GetHashCode();
+                        if (!visible.ContainsKey(vhash))
+                        {
+                            visible.Add(vhash, next_vs);
+                        }
                     }
                 }
             }
@@ -139,17 +142,17 @@ namespace P.Tester
 
         static bool CheckFailure(StateImpl s, int depth)
         {
-            if(UseDepthBounding && depth > DepthBound)
+            if (UseDepthBounding && depth > DepthBound)
             {
                 return true;
             }
 
-            if(s.Exception == null)
+            if (s.Exception == null)
             {
                 return false;
             }
 
-            
+
             if (s.Exception is PrtAssumeFailureException)
             {
                 return true;
@@ -188,33 +191,21 @@ namespace P.Tester
 
     }
 
-  
-        
-    class VisibleState : StateImpl
-    {   
-//        public List<PrtValue> heads; // list of events at the head of each ImplMachine's event queue, or "null" if queue empty
-        public int hash;             // hash value computed from the visible state's StateImpl interpretation
 
-        public override StateImpl MakeSkeleton() { return this; } // meaning unclear, but required
+    // This is inelegant: a VState should really be derived from a StateImpl, not have a StateImpl, but that requires a copy constructor, similar to the clone method
+    class VState
+    {
+        StateImpl s;
 
-        // precond: state is already cloned. Don't know how to program this better
-        public VisibleState(StateImpl state)
+        public VState(StateImpl s)
         {
-            hash = 10;
-            //          heads = new List<PrtValue>();
-            //        List<PrtImplMachine> implMachines = state.ImplMachines; // a reference, hopefully (not copy)
-            //      for (int i = 0; i < implMachines.Count; i++)
-            //    {
-            //      PrtImplMachine m = implMachines[i]; // a reference, hopefully (not copy)
-            //    if (m.eventQueue.Size() == 0)
-            //  {
-            //    heads.Add(PrtValue.@null);
-            //}
-            //                else
-            //              {
-            //                heads.Add(m.eventQueue.Head());
-            //          }
-            //    }
+            this.s = (StateImpl)(s.Clone());
+            List<PrtImplMachine> implMachines = s.ImplMachines; // a reference, hopefully (not copy)
+            for (int i = 0; i < implMachines.Count; i++)
+            {
+                implMachines[i].eventQueue.Make_singleton();
+                Console.WriteLine("Abstract queue size = {0}", implMachines[i].eventQueue.Size());
+            }
         }
     }
 }
