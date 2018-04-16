@@ -500,7 +500,7 @@ namespace P.Runtime
                 PrtEventNode head = events.First().Clone();
                 events.Clear();
                 events.Add(head);
-                Console.WriteLine("Projected queue to head element {0}", head.ev.ToString());
+                // Console.WriteLine("Projected queue to head element {0}", head.ev.ToString());
             }
         }
 

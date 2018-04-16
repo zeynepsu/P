@@ -65,7 +65,7 @@ namespace P.Tester
         public bool UsePSharp = false;
         public bool DfsExploration;
         public bool OS_Exploration;
-        public ushort k; // queue bound
+        public int k; // queue bound
         public bool UseStateHashing;
         public bool isRefinement;
         public string LHSModel;
@@ -118,60 +118,42 @@ namespace P.Tester
                         return null;
                     }
 
+                    // note: the case string must consist of SMALL letters! Otherwise it won't find it (:-(
                     switch (option)
                     {
                         case "?":
                         case "h":
-                            {
-                                PrintHelp(null, null);
-                                Environment.Exit((int)TestResult.Success);
-                                break;
-                            }
-                        case "stats":
-                            options.printStats = true;
-                            break;
+                        case "help":    PrintHelp(null, null); Environment.Exit((int)TestResult.Success); break;
+
+                        case "stats":   options.printStats = true; break;
+
                         case "v":
-                        case "verbose":
-                            options.verbose = true;
-                            break;
-                        case "ns":
-                            if (param.Length != 0)
-                            {
-                                options.numberOfSchedules = int.Parse(param);
-                            }
-                            break;
-                        case "timeout":
-                            if (param.Length != 0)
-                            {
-                                options.timeout = int.Parse(param);
-                            }
-                            break;
-                        case "psharp":
-                            options.UsePSharp = true;
-                            break;
+                        case "verbose": options.verbose = true; break;
+
+                        case "ns":      if (param.Length != 0) { options.numberOfSchedules = int.Parse(param); } break;
+
+                        case "timeout": if (param.Length != 0) { options.timeout = int.Parse(param); } break;
+
+                        case "psharp":  options.UsePSharp = true; break;
+
                         case "dfs":
                             options.DfsExploration = true;
-                            if (param.Length != 0)
-                            {
-                                options.k = ushort.Parse(param);
-                            }
+                            options.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
+                            options.k = ( param.Length != 0 ? int.Parse(param) : 0 ); // default = 0
                             break;
-                        case "OS":
+
+                        case "os":
                             options.OS_Exploration = true;
-                            if (param.Length != 0)
-                            {
-                                options.k = ushort.Parse(param);
-                            }
+                            options.UseStateHashing = true; // ditto
+                            options.k = ( param.Length != 0 ? int.Parse(param) : 1 ); // default = 1
                             break;
-                        case "hash":
-                            options.UseStateHashing = true;
-                            break;
-                        case "debughash":
-                            options.debugHashing = true;
-                            break;
-                        case "break":
-                            System.Diagnostics.Debugger.Launch();
-                            break;
+
+                        case "hash":      options.UseStateHashing = true; break;
+
+                        case "debughash": options.debugHashing = true; break;
+
+                        case "break":     System.Diagnostics.Debugger.Launch(); break;
+
                         case "lhs":
                             if (param.Length != 0)
                             {
@@ -185,6 +167,7 @@ namespace P.Tester
                                 return null;
                             }
                             break;
+
                         case "rhs":
                             if (param.Length != 0)
                             {
@@ -198,6 +181,7 @@ namespace P.Tester
                                 return null;
                             }
                             break;
+
                         default:
                             PrintHelp(arg, "Invalid option");
                             return null;
@@ -249,6 +233,7 @@ namespace P.Tester
             Console.WriteLine("-rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
             Console.WriteLine("-dfs:k                   Perform DFS exploration  of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
             Console.WriteLine("-OS:k                    Perform OS exploration (based on DFS) of the state space, starting with a queue bound of k");
+            Console.WriteLine("-hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence -dfs implies -hash, and so does -OS.)");
         }
 
         public static void Main(string[] args)
@@ -303,13 +288,13 @@ namespace P.Tester
             else if (options.DfsExploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.start = (StateImpl)(s.Clone());
+                DfsExploration.start = s;
                 DfsExploration.Explore(options.k); // single exploration with queue bound k
             }
             else if (options.OS_Exploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.start = (StateImpl)(s.Clone());
+                DfsExploration.start = s;
                 DfsExploration.OS_Explore(options.k); // OS exploration starting with queue bound k
             }
             else

@@ -36,10 +36,11 @@ namespace P.Tester
 
             var stack = new Stack<BacktrackingState>();
 
-            stack.Push(new BacktrackingState(start));
-            visited.Add(start.GetHashCode());
+            StateImpl s = (StateImpl)start.Clone(); // clone this since we need the original 'start', for later iterations of Explore
+            stack.Push(new BacktrackingState(s));
+            visited.Add(s.GetHashCode());
 
-            var vs = new VState(start);
+            var vs = new VState(s);
             visible.Add(vs.GetHashCode(), vs);
 
             // DFS begin
@@ -49,6 +50,7 @@ namespace P.Tester
 
                 var bstate = stack.Pop();
                 var enabledMachines = bstate.State.EnabledMachines;
+
 
                 if (bstate.CurrIndex >= enabledMachines.Count) // if "done" with bstate
                 {
@@ -95,12 +97,18 @@ namespace P.Tester
 
         public static void OS_Explore(int k0)
         {
+            if (k0 == 0)
+            {
+                Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)");
+                OS_Explore(1);
+            }
+
             int k = k0;
             do
             {
-                Console.Write("About to DFS-explore state space for bound k = {0}. Continue (<ENTER> for 'y')?", k);
-                int ans = Console.Read();
-                if (ans == 'n' || ans == 'N')
+                Console.Write("About to DFS-explore state space for bound k = {0}. Continue (<ENTER> for 'y') ? ", k);
+                string ans = Console.ReadLine();
+                if (ans == "n" || ans == "N")
                     break;
 
                 Explore(k);
@@ -108,12 +116,16 @@ namespace P.Tester
                 // when do we have to run the convergence test?
                 if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
                 { // a new plateau!
+                    Console.WriteLine("Running convergence test ...");
                     if (visible_converged())
                     {
                         Console.WriteLine("Converged!");
                         Environment.Exit(0);
                     }
                 }
+
+                size_Visible_previous_previous = size_Visible_previous;
+                size_Visible_previous = visible.Count;
 
                 ++k;
 
@@ -255,7 +267,7 @@ namespace P.Tester
             for (int i = 0; i < implMachines.Count; ++i)
             {
                 implMachines[i].abstract_me();
-                Console.WriteLine("Abstract queue size = {0}", implMachines[i].eventQueue.Size());
+                // Console.WriteLine("Abstract queue size = {0}", implMachines[i].eventQueue.Size());
             }
         }
     }
