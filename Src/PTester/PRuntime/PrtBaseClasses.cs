@@ -489,14 +489,18 @@ namespace P.Runtime
             events = new List<PrtEventNode>();
         }
 
-        // cut off all elements after the first, if any, in place
+        // PrtEventBuffer abstraction: cut off all elements after the first, if any, in place
+        // A more precise abstraction keeps, for the rest of the events list, a map<PrtEventNode,bool>
+        // which stores the elements in the rest, without ordering, and whether they occur once or more than once (0,1,infinity abstraction)
+        // To use that abstraction, have the Make_singleton method compute and return that map, and store the map with a VState
         public void Make_singleton()
         {
             if (events.Count > 1)
             {
-                PrtEventNode head = events.First();
+                PrtEventNode head = events.First().Clone();
                 events.Clear();
-                //events.Add(head);
+                events.Add(head);
+                Console.WriteLine("Projected queue to head element {0}", head.ev.ToString());
             }
         }
 

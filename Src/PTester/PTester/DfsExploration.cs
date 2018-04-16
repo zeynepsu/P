@@ -14,24 +14,32 @@ namespace P.Tester
         public static bool UseDepthBounding = false;
         public static int DepthBound = 100;
 
-        public static ushort k = 0; // queue size bound. '0' means 'unbounded'
+        public static bool UseStateHashing = true; // currently doesn't make sense without
 
-        public static void Explore(StateImpl s, CommandLineOptions options)
+        public static StateImpl start; // start state. Silly: I assume CommandLineOptions sets the start state. Improve this
+
+        public static HashSet<int>                  visited = new HashSet<int>();
+        public static SortedDictionary<int, VState> visible = new SortedDictionary<int, VState>();
+        
+        public static int size_Visible_previous = 0;
+        public static int size_Visible_previous_previous = 0;
+
+        public static void Explore(int k)
         {
-            var stack = new Stack<BacktrackingState>();
-            var visited = new HashSet<int>();
-            var visible = new SortedDictionary<int, VState>();
-
-            k = options.k;
             Console.WriteLine("Using queue bound of {0}", k);
             P.Runtime.PrtImplMachine.k = k;
 
             // uint state_number = 0;
 
-            stack.Push(new BacktrackingState(s));
-            visited.Add(s.GetHashCode());
+            visited.Clear();
+            visible.Clear();
 
-            var vs = new VState(s);
+            var stack = new Stack<BacktrackingState>();
+
+            stack.Push(new BacktrackingState(start));
+            visited.Add(start.GetHashCode());
+
+            var vs = new VState(start);
             visible.Add(vs.GetHashCode(), vs);
 
             // DFS begin
@@ -51,16 +59,16 @@ namespace P.Tester
 
                 stack.Push(bstate); // after increasing the index, push state back on. This is like modifying bstate "on the stack"
 
-                if (!CheckFailure(next.State, next.depth))
+                if (!CheckFailure(next.State, next.depth)) // should we check for "new" first, then check for failure? failure check could become complicated some day
                 {
                     var hash = next.State.GetHashCode();
 
-                    if (!options.UseStateHashing)
+                    if (!UseStateHashing)
                     {
                         throw new NotImplementedException();
                     }
 
-                    // if (!options.UseStateHashing || !visited.Contains(hash)) // I don't understand this line: if state hashing not used, this will always add next to stack, whether new or not
+                    // if (!UseStateHashing || !visited.Contains(hash)) // I don't understand this line: if state hashing not used, this will always add next to stack, whether new or not
                     if (!visited.Contains(hash))
                     {
                         stack.Push(next);
@@ -78,6 +86,38 @@ namespace P.Tester
 
             Console.WriteLine("Number of distinct         states visited = {0}", visited.Count);
             Console.WriteLine("Number of distinct visible states visited = {0}", visible.Count);
+        }
+
+        public static bool visible_converged()
+        {
+            return false;
+        }
+
+        public static void OS_Explore(int k0)
+        {
+            int k = k0;
+            do
+            {
+                Console.Write("About to DFS-explore state space for bound k = {0}. Continue (<ENTER> for 'y')?", k);
+                int ans = Console.Read();
+                if (ans == 'n' || ans == 'N')
+                    break;
+
+                Explore(k);
+
+                // when do we have to run the convergence test?
+                if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
+                { // a new plateau!
+                    if (visible_converged())
+                    {
+                        Console.WriteLine("Converged!");
+                        Environment.Exit(0);
+                    }
+                }
+
+                ++k;
+
+            } while (true);
         }
 
         static void PrintStackDepth(int depth)
@@ -192,18 +232,29 @@ namespace P.Tester
     }
 
 
-    // This is inelegant: a VState should really be derived from a StateImpl, not have a StateImpl, but that requires a copy constructor, similar to the clone method
+    // Part I: define what an "abstract state" is. The general guidelines are as follows. An abstract state consists of two parts:
+    // 1. the /visible fragment/ of the state, which is a part of the state information that is kept concretely, precisely, in plain text; and
+    // 2. an abstraction of the rest of the state information.
+    // This state partitioning should satisfy two properties:
+    // (a) It defines a finite state space. That is, the set of visible fragments + abstractions of the rest of all conceivable states is finite.
+    // (b) It contains all the information needed to determine fireability of a transition, and the visible fragment of the successor state.
+    // As an example, for the common case of a message passing system with finitely many local states, a finite set of message types, but unbounded queues,
+    // the visible state might contain of the complete local state and the head of the queue of each machine.
+    // The abstraction of the rest might be a set of the messages in the rest of the queue, i.e. ignoring ordering and multiplicity.
+
+    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. Not quite clear in C# -- need a copy constructor, similar to Clone?
     class VState
     {
-        StateImpl s;
+        private StateImpl s;
 
         public VState(StateImpl s)
         {
             this.s = (StateImpl)(s.Clone());
+            // the abstraction is a per-machine abstraction
             List<PrtImplMachine> implMachines = s.ImplMachines; // a reference, hopefully (not copy)
-            for (int i = 0; i < implMachines.Count; i++)
+            for (int i = 0; i < implMachines.Count; ++i)
             {
-                implMachines[i].eventQueue.Make_singleton();
+                implMachines[i].abstract_me();
                 Console.WriteLine("Abstract queue size = {0}", implMachines[i].eventQueue.Size());
             }
         }

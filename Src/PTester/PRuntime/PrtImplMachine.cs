@@ -39,7 +39,7 @@ namespace P.Runtime
         public bool doAssume;
         public PrtInterfaceValue self;
 
-        public static ushort k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
+        public static int k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
 
         #endregion
 
@@ -618,6 +618,12 @@ namespace P.Runtime
             Finish:
             Debug.Assert(!hasMoreWork || currentStatus == PrtMachineStatus.Enabled, "hasMoreWork is true but the statemachine is blocked");
             return hasMoreWork;
+        }
+
+        // the current abstraction mechanism: keep the local state and the head of the queue
+        public void abstract_me()
+        {
+            eventQueue.Make_singleton();
         }
     }
 }

@@ -64,6 +64,7 @@ namespace P.Tester
         public int timeout;
         public bool UsePSharp = false;
         public bool DfsExploration;
+        public bool OS_Exploration;
         public ushort k; // queue bound
         public bool UseStateHashing;
         public bool isRefinement;
@@ -84,6 +85,7 @@ namespace P.Tester
             numberOfSchedules = 1000;
             debugHashing = false;
             DfsExploration = false;
+            OS_Exploration = false;
             k = 0;
             UseStateHashing = false;
         }
@@ -149,6 +151,13 @@ namespace P.Tester
                             break;
                         case "dfs":
                             options.DfsExploration = true;
+                            if (param.Length != 0)
+                            {
+                                options.k = ushort.Parse(param);
+                            }
+                            break;
+                        case "OS":
+                            options.OS_Exploration = true;
                             if (param.Length != 0)
                             {
                                 options.k = ushort.Parse(param);
@@ -238,7 +247,8 @@ namespace P.Tester
             Console.WriteLine("-ns:<int>                Number of schedulers <int> to explore");
             Console.WriteLine("-lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
             Console.WriteLine("-rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
-            Console.WriteLine("-dfs:k                   Perform DFS of the state space, with a queue bound of k (i.e. a machine's send is not enabled when its current buffer is size k");
+            Console.WriteLine("-dfs:k                   Perform DFS exploration  of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
+            Console.WriteLine("-OS:k                    Perform OS exploration (based on DFS) of the state space, starting with a queue bound of k");
         }
 
         public static void Main(string[] args)
@@ -292,7 +302,15 @@ namespace P.Tester
             }
             else if (options.DfsExploration)
             {
-                DfsExploration.Explore(s, options);
+                DfsExploration.UseStateHashing = options.UseStateHashing;
+                DfsExploration.start = (StateImpl)(s.Clone());
+                DfsExploration.Explore(options.k); // single exploration with queue bound k
+            }
+            else if (options.OS_Exploration)
+            {
+                DfsExploration.UseStateHashing = options.UseStateHashing;
+                DfsExploration.start = (StateImpl)(s.Clone());
+                DfsExploration.OS_Explore(options.k); // OS exploration starting with queue bound k
             }
             else
             {
