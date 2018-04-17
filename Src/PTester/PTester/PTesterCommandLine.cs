@@ -118,7 +118,7 @@ namespace P.Tester
                         return null;
                     }
 
-                    // note: the case string must consist of SMALL letters! Otherwise it won't find it (:-(
+                    // note: the case string must consist of SMALL letters! Otherwise it won't find it (:-( Found out the hard way
                     switch (option)
                     {
                         case "?":
@@ -231,9 +231,12 @@ namespace P.Tester
             Console.WriteLine("-ns:<int>                Number of schedulers <int> to explore");
             Console.WriteLine("-lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
             Console.WriteLine("-rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
-            Console.WriteLine("-dfs:k                   Perform DFS exploration  of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
+            Console.WriteLine("-psharp                  Run the PSharp Tester");
+            Console.WriteLine("-dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
             Console.WriteLine("-OS:k                    Perform OS exploration (based on DFS) of the state space, starting with a queue bound of k");
             Console.WriteLine("-hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence -dfs implies -hash, and so does -OS.)");
+            Console.WriteLine();
+            Console.WriteLine("If none of -psharp, -dfs, -OS are specified: perform random testing");
         }
 
         public static void Main(string[] args)

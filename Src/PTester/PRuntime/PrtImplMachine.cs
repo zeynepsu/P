@@ -206,7 +206,7 @@ namespace P.Runtime
                 else
                 {
                     this.eventQueue.EnqueueEvent(e, arg, source.Name, source.CurrentState.name);
-                    Console.WriteLine("Queue size of machine {0} = {1}", Name, eventQueue.Size());
+                    // Console.WriteLine("Queue size of machine {0} = {1}", Name, eventQueue.Size());
                     if (this.maxBufferSize != DefaultMaxBufferSize && this.eventQueue.Size() > this.maxBufferSize)
                     {
                         if (this.doAssume)

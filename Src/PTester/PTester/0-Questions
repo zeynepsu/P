@@ -1,17 +1,24 @@
-Silly questions:
+1. Debugging: how do I do that, say from within VS?
+
+   I get: "WinUser.lib is not a valid Win32 application."
+
+2. There is Debug.Assert statement. I assume these are done in some kind of Debug mode only.
+
+   How can I execute whole code segments in Debug mode only?
+   Some sanity checks are expensive.
 
 ===========================================================================
 
-Non-silly questions:
+Problem: the random explorer seems to explore more states than DFS,
+judged by the maximum queue size observed:
 
-- bounded Q semantics: I reject sends on the /receiver/ side if the queue is full.
-  Is the sender aware that the send has failed? does he have to be?
+In CoffeeMachine:
 
-  No. Assume exception is good.
+pt      Test0.dll
+pt /dfs Test0.dll
 
-- a "visible state" is currently simply the list of all queue heads.
-  * I keep those in an un-hashed set. It seems I have to
-  * For that I need events to be comparable. Currently this is based on (slow?) string comparison
-  * how do I extract the "local state" of a machine, i.e. everything except the event queue?
+===========================================================================
 
-  Make a clone of the state, then overwrite the queue by empty, or its head, or whatever you want to keep.
+Perhaps for a similar reason, DFS on German does not terminate even with queue bound of 1.
+
+(I build a Test Script myself; check whether it makes sense this first.)

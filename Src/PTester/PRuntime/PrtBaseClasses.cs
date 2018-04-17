@@ -501,6 +501,7 @@ namespace P.Runtime
                 events.Clear();
                 events.Add(head);
                 // Console.WriteLine("Projected queue to head element {0}", head.ev.ToString());
+                Debug.Assert(events.Count == 1);
             }
         }
 

@@ -10,6 +10,8 @@ namespace P.Tester
 {
     static class RandomExploration
     {
+        private static int max_queue_size;
+
         public static void Explore(StateImpl s, CommandLineOptions options)
         {
             int maxNumOfSchedules = 10000;
@@ -17,6 +19,9 @@ namespace P.Tester
             int numOfSchedules = 0;
             int numOfSteps = 0;
             var randomScheduler = new Random(0); // DateTime.Now.Millisecond);
+
+            max_queue_size = 0;
+
             while (numOfSchedules < maxNumOfSchedules)
             {
                 var currImpl = (StateImpl)s.Clone();
@@ -30,17 +35,26 @@ namespace P.Tester
                 while (numOfSteps < maxDepth)
                 {
 
-                    if (currImpl.EnabledMachines.Count == 0)
+                    var num = currImpl.EnabledMachines.Count;
+
+                    if (num == 0)
                     {
                         break;
                     }
-
-                    var num = currImpl.EnabledMachines.Count;
+                                        
                     var choosenext = randomScheduler.Next(0, num);
 
                     currImpl.EnabledMachines[choosenext].PrtRunStateMachine();
 
-                    if (currImpl.Exception != null)
+                    // how do we perform this only in Debug mode?
+                    List<PrtImplMachine> implMachines = currImpl.ImplMachines;
+                    for (int i = 0; i < implMachines.Count; ++i)
+                    {
+                        int new_max = implMachines[i].eventQueue.Size();
+                        max_queue_size = ( max_queue_size < new_max ? new_max : max_queue_size );
+                    }
+
+                        if (currImpl.Exception != null)
                     {
                         if (currImpl.Exception is PrtAssumeFailureException)
                         {
@@ -73,6 +87,9 @@ namespace P.Tester
                 }
                 numOfSchedules++;
             }
+
+            Console.WriteLine("");
+            Console.WriteLine("Maximum queue size observed during this random test: {0}", max_queue_size);
 
         }
 
