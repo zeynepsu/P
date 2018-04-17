@@ -11,6 +11,9 @@ namespace P.Tester
 {
     static class DfsExploration
     {
+
+        private static int max_queue_size;
+
         public static bool UseDepthBounding = false;
         public static int DepthBound = 100;
 
@@ -29,10 +32,10 @@ namespace P.Tester
             Console.WriteLine("Using queue bound of {0}", k);
             P.Runtime.PrtImplMachine.k = k;
 
-            // uint state_number = 0;
-
             visited.Clear();
             visible.Clear();
+
+            max_queue_size = 0;
 
             var stack = new Stack<BacktrackingState>();
 
@@ -73,21 +76,47 @@ namespace P.Tester
                     // if (!UseStateHashing || !visited.Contains(hash)) // I don't understand this line: if state hashing not used, this will always add next to stack, whether new or not
                     if (!visited.Contains(hash))
                     {
+
+                        // update global state hash set
                         stack.Push(next);
                         visited.Add(hash);
-                        // Console.WriteLine("Encountered state number {0}", ++state_number);
+
+                        // update visible state dictionary
                         var next_vs = new VState(next.State);
                         var vhash = next_vs.GetHashCode();
                         if (!visible.ContainsKey(vhash))
                         {
                             visible.Add(vhash, next_vs);
                         }
+
+                        // diagnostics
+#if DEBUG
+                        // Update maximum encountered queue size. How do we perform this only in Debug mode?
+                        List<PrtImplMachine> implMachines = next.State.ImplMachines;
+                        for (int i = 0; i < implMachines.Count; ++i)
+                        {
+                            int new_max = implMachines[i].eventQueue.Size();
+                            max_queue_size = (max_queue_size < new_max ? new_max : max_queue_size);
+                        }
+
+                        // Print number of states explored
+                        if (visited.Count % 100 == 0)
+                        {
+                            Console.WriteLine("-----------------------------------------------------");
+                            Console.WriteLine("Total # of states visited: {0}", visited.Count);
+                            Console.WriteLine("-----------------------------------------------------");
+                        }
+#endif
+
                     }
                 }
             }
 
-            Console.WriteLine("Number of distinct         states visited = {0}", visited.Count);
-            Console.WriteLine("Number of distinct visible states visited = {0}", visible.Count);
+            Console.WriteLine("");
+
+            Console.WriteLine("Number of         states visited = {0}", visited.Count);
+            Console.WriteLine("Number of visible states visited = {0}", visible.Count);
+            Console.WriteLine("Maximum queue size observed      = {0}", max_queue_size);
         }
 
         public static bool visible_converged()
@@ -106,7 +135,7 @@ namespace P.Tester
             int k = k0;
             do
             {
-                Console.Write("About to DFS-explore state space for bound k = {0}. Continue (<ENTER> for 'y') ? ", k);
+                Console.Write("About to explore state space for bound k = {0}. Continue (<ENTER> for 'y') ? ", k);
                 string ans = Console.ReadLine();
                 if (ans == "n" || ans == "N")
                     break;
@@ -116,12 +145,13 @@ namespace P.Tester
                 // when do we have to run the convergence test?
                 if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
                 { // a new plateau!
-                    Console.WriteLine("Running convergence test ...");
+                    Console.Write("Running convergence test ...");
                     if (visible_converged())
                     {
-                        Console.WriteLine("Converged!");
+                        Console.WriteLine(" Converged!");
                         Environment.Exit(0);
                     }
+                    Console.WriteLine(" did not converge; continuing");
                 }
 
                 size_Visible_previous_previous = size_Visible_previous;
@@ -252,9 +282,9 @@ namespace P.Tester
     // (b) It contains all the information needed to determine fireability of a transition, and the visible fragment of the successor state.
     // As an example, for the common case of a message passing system with finitely many local states, a finite set of message types, but unbounded queues,
     // the visible state might contain of the complete local state and the head of the queue of each machine.
-    // The abstraction of the rest might be a set of the messages in the rest of the queue, i.e. ignoring ordering and multiplicity.
+    // The abstraction of the rest might be the set of the messages in the rest of the queue, i.e. ignoring ordering and multiplicity.
 
-    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. Not quite clear in C# -- need a copy constructor, similar to Clone?
+    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. I guess we need a copy constructor, similar to Clone
     class VState
     {
         private StateImpl s;
