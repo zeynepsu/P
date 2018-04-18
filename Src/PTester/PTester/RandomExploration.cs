@@ -46,15 +46,17 @@ namespace P.Tester
 
                     currImpl.EnabledMachines[choosenext].PrtRunStateMachine();
 
-                    // how do we perform this only in Debug mode?
+#if DEBUG
+                    // some diagnostics
                     List<PrtImplMachine> implMachines = currImpl.ImplMachines;
                     for (int i = 0; i < implMachines.Count; ++i)
                     {
-                        int new_max = implMachines[i].eventQueue.Size();
-                        max_queue_size = ( max_queue_size < new_max ? new_max : max_queue_size );
+                        int current_size = implMachines[i].eventQueue.Size();
+                        max_queue_size = ( max_queue_size < current_size ? current_size : max_queue_size );
                     }
+#endif
 
-                        if (currImpl.Exception != null)
+                    if (currImpl.Exception != null)
                     {
                         if (currImpl.Exception is PrtAssumeFailureException)
                         {

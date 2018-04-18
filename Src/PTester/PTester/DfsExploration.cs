@@ -95,8 +95,8 @@ namespace P.Tester
                         List<PrtImplMachine> implMachines = next.State.ImplMachines;
                         for (int i = 0; i < implMachines.Count; ++i)
                         {
-                            int new_max = implMachines[i].eventQueue.Size();
-                            max_queue_size = (max_queue_size < new_max ? new_max : max_queue_size);
+                            int current_size = implMachines[i].eventQueue.Size();
+                            max_queue_size = (max_queue_size < current_size ? current_size : max_queue_size);
                         }
 
                         // Print number of states explored
