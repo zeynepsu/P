@@ -298,7 +298,7 @@ namespace P.Tester
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 DfsExploration.start = s;
-                DfsExploration.OS_Explore(options.k); // OS exploration starting with queue bound k
+                DfsExploration.OS_Iterate(options.k); // OS exploration starting with queue bound k
             }
             else
             {

@@ -25,7 +25,7 @@ namespace P.Tester
             while (numOfSchedules < maxNumOfSchedules)
             {
                 var currImpl = (StateImpl)s.Clone();
-                if (numOfSchedules % 10 == 0)
+                if (numOfSchedules % 1000 == 0)
                 {
                     Console.WriteLine("-----------------------------------------------------");
                     Console.WriteLine("Total Schedules Explored: {0}", numOfSchedules);
@@ -105,7 +105,7 @@ namespace P.Tester
             while (numOfSchedules < maxNumOfSchedules)
             {
                 var currImpl = (StateImpl)s.Clone();
-                if (numOfSchedules % 10 == 0)
+                if (numOfSchedules % 1000 == 0)
                 {
                     Console.WriteLine("-----------------------------------------------------");
                     Console.WriteLine("Total Schedules Explored: {0}", numOfSchedules);

@@ -1,9 +1,9 @@
 set THISDIR=%~dp0
 pushd %THISDIR%
-set pc=..\..\bld\drops\Release\x64\Binaries\pc.exe
+set pc=..\..\bld\drops\Debug\x64\Binaries\pc.exe
 if not exist "%pc%" goto :noP
 
-set pt=..\..\bld\drops\Release\x64\Binaries\pt.exe
+set pt=..\..\bld\drops\Debug\x64\Binaries\pt.exe
 
 %pc% /generate:C# /shared CoffeeMachine.p CoffeeMachineController.p Timer.p User.p Main.p Safety.p /t:CoffeeMachine.4ml
 

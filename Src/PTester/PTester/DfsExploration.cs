@@ -35,8 +35,10 @@ namespace P.Tester
             visited.Clear();
             visible.Clear();
 
+#if DEBUG
             max_queue_size = 0;
-
+#endif
+            
             var stack = new Stack<BacktrackingState>();
 
             StateImpl s = (StateImpl)start.Clone(); // clone this since we need the original 'start', for later iterations of Explore
@@ -100,7 +102,7 @@ namespace P.Tester
                         }
 
                         // Print number of states explored
-                        if (visited.Count % 100 == 0)
+                        if (visited.Count % 1000 == 0)
                         {
                             Console.WriteLine("-----------------------------------------------------");
                             Console.WriteLine("Total # of states visited: {0}", visited.Count);
@@ -116,7 +118,11 @@ namespace P.Tester
 
             Console.WriteLine("Number of         states visited = {0}", visited.Count);
             Console.WriteLine("Number of visible states visited = {0}", visible.Count);
+
+#if DEBUG
             Console.WriteLine("Maximum queue size observed      = {0}", max_queue_size);
+#endif
+
         }
 
         public static bool visible_converged()
@@ -124,12 +130,12 @@ namespace P.Tester
             return false;
         }
 
-        public static void OS_Explore(int k0)
+        public static void OS_Iterate(int k0)
         {
             if (k0 == 0)
             {
                 Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)");
-                OS_Explore(1);
+                OS_Iterate(1);
             }
 
             int k = k0;
@@ -293,7 +299,7 @@ namespace P.Tester
         {
             this.s = (StateImpl)(s.Clone());
             // the abstraction is a per-machine abstraction
-            List<PrtImplMachine> implMachines = s.ImplMachines; // a reference, hopefully (not copy)
+            List<PrtImplMachine> implMachines = this.s.ImplMachines; // a reference, hopefully (not copy)
             for (int i = 0; i < implMachines.Count; ++i)
             {
                 implMachines[i].abstract_me();
