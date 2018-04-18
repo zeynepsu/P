@@ -81,6 +81,11 @@ namespace P.Runtime
             currentPayload.Resolve(state);
         }
 
+        public override string ToString()
+        {
+            return "PrtMachine::ToString";
+        }
+
         public virtual void DbgCompare(PrtMachine machine)
         {
             Debug.Assert(renamedName == machine.renamedName);
@@ -473,6 +478,11 @@ namespace P.Runtime
             return Hashing.Hash(ev.GetHashCode(), arg.GetHashCode());
         }
 
+        public override string ToString()
+        {
+            return ev.ToString() + ":" + arg.ToString() + ":" + senderMachineName + ":" + senderMachineStateName;
+        }
+
         public void Resolve(StateImpl state)
         {
             ev.Resolve(state);
@@ -508,16 +518,30 @@ namespace P.Runtime
         public PrtEventBuffer Clone()
         {
             var clonedVal = new PrtEventBuffer();
-            foreach(var ev in this.events)
+            foreach(var ev in events)
             {
                 clonedVal.events.Add(ev.Clone());
             }
             return clonedVal;
         }
+
+        public override string ToString()
+        {
+            string result = "";
+            for (ushort i = 0; i < events.Count; ++i)
+            {
+                if (i > 0)
+                    result = result + ",";
+                result = result + events[i].ToString();
+            }
+            return result;
+        }
+
         public int Size()
         {
             return events.Count();
         }
+
         public int CalculateInstances(PrtValue e)
         {
             return events.Select(en => en.ev).Where(ev => ev == e).Count();

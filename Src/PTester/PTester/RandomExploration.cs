@@ -48,11 +48,12 @@ namespace P.Tester
 
 #if DEBUG
                     // some diagnostics
-                    List<PrtImplMachine> implMachines = currImpl.ImplMachines;
-                    for (int i = 0; i < implMachines.Count; ++i)
+
+                    // update maximum encountered queue size
+                    foreach (PrtImplMachine m in currImpl.ImplMachines)
                     {
-                        int current_size = implMachines[i].eventQueue.Size();
-                        max_queue_size = ( max_queue_size < current_size ? current_size : max_queue_size );
+                        int m_size = m.eventQueue.Size();
+                        max_queue_size = (m_size > max_queue_size ? m_size : max_queue_size);
                     }
 #endif
 

@@ -1,24 +1,13 @@
-1. Debugging: how do I do that, say from within VS?
+DFS on German does not terminate even with queue bound of 1.
 
-   I get: "WinUser.lib is not a valid Win32 application."
+(I build a Test Script myself; check whether it makes sense.)
 
-2. There is Debug.Assert statement. I assume these are done in some kind of Debug mode only.
+========================================================================
 
-   How can I execute whole code segments in Debug mode only?
-   Some sanity checks are expensive.
+Decide and discuss which components of a PrtImplMachine should be (i)
+cloned (ii) hashed (iii) stringified. There are lots of components. E.g.
+the receiveSet field does not seem to be hashed: the hash function returns
 
-===========================================================================
+Hashing.Hash(base.GetHashCode(), eventQueue.GetHashCode());
 
-Problem: the random explorer seems to explore more states than DFS,
-judged by the maximum queue size observed:
-
-In CoffeeMachine:
-
-pt      Test0.dll
-pt /dfs Test0.dll
-
-===========================================================================
-
-Perhaps for a similar reason, DFS on German does not terminate even with queue bound of 1.
-
-(I build a Test Script myself; check whether it makes sense this first.)
+but receiveSet it is not part of base or eventQueue.

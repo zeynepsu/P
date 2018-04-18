@@ -86,6 +86,11 @@ namespace P.Runtime
         }
         #endregion
 
+        public override string ToString()
+        {
+            return base.ToString() + ";" + eventQueue.ToString();
+        }
+
         #region Constructor
         public abstract PrtImplMachine MakeSkeleton();
 

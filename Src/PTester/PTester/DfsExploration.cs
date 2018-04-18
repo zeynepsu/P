@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,9 +22,9 @@ namespace P.Tester
 
         public static StateImpl start; // start state. Silly: I assume CommandLineOptions sets the start state. Improve this
 
-        public static HashSet<int>                  visited = new HashSet<int>();
+        public static HashSet<int> visited = new HashSet<int>();
         public static SortedDictionary<int, VState> visible = new SortedDictionary<int, VState>();
-        
+
         public static int size_Visible_previous = 0;
         public static int size_Visible_previous_previous = 0;
 
@@ -38,7 +39,7 @@ namespace P.Tester
 #if DEBUG
             max_queue_size = 0;
 #endif
-            
+
             var stack = new Stack<BacktrackingState>();
 
             StateImpl s = (StateImpl)start.Clone(); // clone this since we need the original 'start', for later iterations of Explore
@@ -89,16 +90,16 @@ namespace P.Tester
                         if (!visible.ContainsKey(vhash))
                         {
                             visible.Add(vhash, next_vs);
+                            // Console.WriteLine(next_vs.ToString());
                         }
 
                         // diagnostics
 #if DEBUG
-                        // Update maximum encountered queue size. How do we perform this only in Debug mode?
-                        List<PrtImplMachine> implMachines = next.State.ImplMachines;
-                        for (int i = 0; i < implMachines.Count; ++i)
+                        // update maximum encountered queue size
+                        foreach (PrtImplMachine m in next.State.ImplMachines)
                         {
-                            int current_size = implMachines[i].eventQueue.Size();
-                            max_queue_size = (max_queue_size < current_size ? current_size : max_queue_size);
+                            int m_size = m.eventQueue.Size();
+                            max_queue_size = (m_size > max_queue_size ? m_size : max_queue_size);
                         }
 
                         // Print number of states explored
@@ -118,6 +119,13 @@ namespace P.Tester
 
             Console.WriteLine("Number of         states visited = {0}", visited.Count);
             Console.WriteLine("Number of visible states visited = {0}", visible.Count);
+
+            StreamWriter visible_k = new StreamWriter("visible_" + k.ToString() + ".txt");
+            foreach (KeyValuePair<int, VState> entry in visible)
+            {
+                visible_k.WriteLine(entry.Value.ToString());
+            }
+            visible_k.Close();
 
 #if DEBUG
             Console.WriteLine("Maximum queue size observed      = {0}", max_queue_size);
@@ -298,13 +306,30 @@ namespace P.Tester
         public VState(StateImpl s)
         {
             this.s = (StateImpl)(s.Clone());
-            // the abstraction is a per-machine abstraction
-            List<PrtImplMachine> implMachines = this.s.ImplMachines; // a reference, hopefully (not copy)
-            for (int i = 0; i < implMachines.Count; ++i)
+            // abstract each ImplMachine
+            foreach (var m in this.s.ImplMachines)
             {
-                implMachines[i].abstract_me();
+                m.abstract_me();
                 // Console.WriteLine("Abstract queue size = {0}", implMachines[i].eventQueue.Size());
             }
+        }
+
+        // We use the following printing convention:
+        // | separates machines. Within a machine:
+        //   ; separates base fields from the queue. Within the queue:
+        //     , separates queue entries (not in VStates, which always have |queue| <= 1)
+        public override string ToString()
+        {
+            string result = "";
+            // dump each ImplMachine to a string
+            var implMachines = s.ImplMachines;
+            for (ushort i = 0; i < implMachines.Count; ++i)
+            {
+                if (i > 0)
+                    result = result + "|";
+                result = result + implMachines[i].ToString();
+            }
+            return result;
         }
     }
 }
