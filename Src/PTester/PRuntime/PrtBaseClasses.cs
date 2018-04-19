@@ -83,7 +83,24 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return "PrtMachine::ToString";
+            // return "PrtMachine::ToString()"; // placeholder
+            string result = "";
+            result += renamedName + ",";
+            result += isSafe.ToString() + ",";
+            result += instanceNumber.ToString() + ",";
+            result += fields.Select(v => v.ToString());
+            result += eventValue.ToString();
+            result += stateStack.ToString();
+            result += invertedFunStack.ToString();
+            result += continuation.ToString();
+            result += currentStatus.ToString();
+            result += nextSMOperation.ToString();
+            result += stateExitReason.ToString();
+            result += currentTrigger.ToString();
+            result += currentPayload.ToString();
+            result += ( destOfGoto == null ? "0" : destOfGoto.ToString() );
+
+            return result;
         }
 
         public virtual void DbgCompare(PrtMachine machine)

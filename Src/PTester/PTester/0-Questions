@@ -1,13 +1,30 @@
-DFS on German does not terminate even with queue bound of 1.
+First show ToString method using pt /dfs:1 Test0.dll .
+Output files are different, but not after sorting.
 
-(I build a Test Script myself; check whether it makes sense.)
+Then do "pt /dfs:2 Test0.dll" : output files are different,
+even after sorting, but "wc -l" is similar to the number of
+states/visible states it claims to have reached.
 
-========================================================================
+===========================================================================
+
+Discuss ToString method for State and VState.
 
 Decide and discuss which components of a PrtImplMachine should be (i)
-cloned (ii) hashed (iii) stringified. There are lots of components. E.g.
+cloned (ii) hashed (iii) ToString'ed. There are lots of components. E.g.
 the receiveSet field does not seem to be hashed: the hash function returns
 
 Hashing.Hash(base.GetHashCode(), eventQueue.GetHashCode());
 
 but receiveSet it is not part of base or eventQueue.
+
+========================================================================
+
+Concrete suspicious observations we need to address:
+
+- # of hashes of reached States and VStates is the same; shouldn't be
+
+- # of hashes of reached VStates goes down very slightly for one step or so
+    when reaching a plateau, then goes back up where it should be. Strange.
+
+- DFS on German does not terminate even with queue bound of 1.
+  (I built my own Test Script.)

@@ -86,6 +86,7 @@ namespace P.Runtime
         }
         #endregion
 
+        // ToString: use same recursive descent as for GetHashCode
         public override string ToString()
         {
             return base.ToString() + ";" + eventQueue.ToString();
@@ -205,8 +206,8 @@ namespace P.Runtime
                 // k-bounded queue semantics
                 if (k > 0 && eventQueue.Size() == k)
                 {
-                    Console.WriteLine("PrtImplMachine::PrtEnqueueEvent: warning: queue bound {0} reached in machine {1}; rejecting send event", k, Name);
-                    throw new PrtAssumeFailureException(); // Akash: is the right thing to do here (or just return)?
+                    // Console.WriteLine("PrtImplMachine::PrtEnqueueEvent: warning: queue bound {0} reached in machine {1}; rejecting send event", k, Name);
+                    throw new PrtAssumeFailureException();
                 }
                 else
                 {

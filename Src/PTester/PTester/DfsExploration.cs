@@ -42,9 +42,13 @@ namespace P.Tester
 
             var stack = new Stack<BacktrackingState>();
 
+            StreamWriter visited_k = new StreamWriter("visited_" + k.ToString() + ".txt"); // for dumping visited states as strings into a file
+
             StateImpl s = (StateImpl)start.Clone(); // clone this since we need the original 'start', for later iterations of Explore
+
             stack.Push(new BacktrackingState(s));
             visited.Add(s.GetHashCode());
+            visited_k.WriteLine(s.ToString());
 
             var vs = new VState(s);
             visible.Add(vs.GetHashCode(), vs);
@@ -80,9 +84,10 @@ namespace P.Tester
                     if (!visited.Contains(hash))
                     {
 
-                        // update global state hash set
+                        // a new global states: update the various data structures
                         stack.Push(next);
                         visited.Add(hash);
+                        visited_k.WriteLine(next.State.ToString());
 
                         // update visible state dictionary
                         var next_vs = new VState(next.State);
@@ -120,6 +125,9 @@ namespace P.Tester
             Console.WriteLine("Number of         states visited = {0}", visited.Count);
             Console.WriteLine("Number of visible states visited = {0}", visible.Count);
 
+            visited_k.Close();
+
+            // dump reached visible states into a file
             StreamWriter visible_k = new StreamWriter("visible_" + k.ToString() + ".txt");
             foreach (KeyValuePair<int, VState> entry in visible)
             {
@@ -314,22 +322,9 @@ namespace P.Tester
             }
         }
 
-        // We use the following printing convention:
-        // | separates machines. Within a machine:
-        //   ; separates base fields from the queue. Within the queue:
-        //     , separates queue entries (not in VStates, which always have |queue| <= 1)
         public override string ToString()
         {
-            string result = "";
-            // dump each ImplMachine to a string
-            var implMachines = s.ImplMachines;
-            for (ushort i = 0; i < implMachines.Count; ++i)
-            {
-                if (i > 0)
-                    result = result + "|";
-                result = result + implMachines[i].ToString();
-            }
-            return result;
+            return s.ToString();
         }
     }
 }

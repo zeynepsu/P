@@ -188,6 +188,23 @@ namespace P.Runtime
         }
         #endregion
 
+        // We use the following printing convention:
+        // | separates machines. Within a machine:
+        //   ; separates base fields from the queue. Within the base machine AND within the queue:
+        //     , separates base machine fields and queue entries
+        public override string ToString()
+        {
+            string result = "";
+            // dump each ImplMachine to a string
+            for (ushort i = 0; i < implMachines.Count; ++i)
+            {
+                if (i > 0)
+                    result = result + "|";
+                result = result + implMachines[i].ToString();
+            }
+            return result;
+        }
+
         public List<PrtSpecMachine> GetAllSpecMachines()
         {
             return specMachinesMap.Values.ToList();

@@ -1,0 +1,13 @@
+#/usr/bin/env bash
+
+echo -n "size (in bytes) before: "
+ls -s --block-size=1 $1
+
+TMP=$(mktemp)
+
+sort -u $1 > $TMP
+
+mv -f $TMP $1
+
+echo -n "size (in bytes) after:  "
+ls -s --block-size=1 $1
