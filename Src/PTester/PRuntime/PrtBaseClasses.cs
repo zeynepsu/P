@@ -88,17 +88,17 @@ namespace P.Runtime
             result += renamedName + ",";
             result += isSafe.ToString() + ",";
             result += instanceNumber.ToString() + ",";
-            result += fields.Select(v => v.ToString());
+            result += fields.Select(v => v.ToString()).Aggregate("", (s1,s2) => s1 + s2); 
             result += eventValue.ToString();
-            result += stateStack.ToString();
-            result += invertedFunStack.ToString();
+            result += stateStack.ToString(); 
+            result += invertedFunStack.ToString(); 
             result += continuation.ToString();
             result += currentStatus.ToString();
             result += nextSMOperation.ToString();
             result += stateExitReason.ToString();
             result += currentTrigger.ToString();
             result += currentPayload.ToString();
-            result += ( destOfGoto == null ? "0" : destOfGoto.ToString() );
+            result += ( destOfGoto == null ? "0" : destOfGoto.ToString() ); 
 
             return result;
         }
@@ -464,10 +464,15 @@ namespace P.Runtime
             this.temperature = temperature;
         }
 
-        //public override int GetHashCode()
-        //{
-        //    return Hashing.Hash(name.GetHashCode(), temperature.GetHashCode());
-        //}
+        public override int GetHashCode()
+        {
+            return name.GetHashCode();
+        }
+
+        public override string ToString()
+        {
+            return name;
+        }
     };
 
     internal class PrtEventNode
@@ -497,7 +502,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return ev.ToString() + ":" + arg.ToString() + ":" + senderMachineName + ":" + senderMachineStateName;
+            return ev.ToString() + ":" + arg.ToString(); // not including senderMachine data since the image (successor) relation doesn't depend on them
         }
 
         public void Resolve(StateImpl state)
@@ -681,6 +686,11 @@ namespace P.Runtime
         {
             return state.GetHashCode();
         }
+
+        public override string ToString()
+        {
+            return state.ToString();
+        }
     }
     
     public class PrtStateStack
@@ -753,6 +763,11 @@ namespace P.Runtime
         {
             return stateStack.Select(v => v.GetHashCode()).Hash();
         }
+
+        public override string ToString()
+        {
+            return stateStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2);
+        }
     }
 
     public enum PrtContinuationReason : int
@@ -795,6 +810,11 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return Hashing.Hash(returnToLocation.GetHashCode(), locals.Select(v => v.GetHashCode()).Hash());
+        }
+
+        public override string ToString()
+        {
+            return locals.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2);
         }
 
         public void Resolve(StateImpl state)
@@ -858,6 +878,11 @@ namespace P.Runtime
             return funStack.Select(v => v.GetHashCode()).Hash();
         }
 
+        public override string ToString()
+        {
+            return funStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2);
+        }
+
         public void Resolve(StateImpl state)
         {
             foreach(var f in funStack)
@@ -908,6 +933,11 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             return Hashing.Hash(nondet.GetHashCode(), reason.GetHashCode(), retVal.GetHashCode(), retLocals.Select(v => v.GetHashCode()).Hash());
+        }
+
+        public override string ToString()
+        {
+            return reason.ToString() + "," + retVal.ToString() + "," + retLocals.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2) + "," + nondet.ToString();
         }
 
         public void Resolve(StateImpl state)

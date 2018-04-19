@@ -1,13 +1,15 @@
 #/usr/bin/env bash
 
-echo -n "size (in bytes) before: "
-ls -s --block-size=1 $1
-
 TMP=$(mktemp)
 
-sort -u $1 > $TMP
+for file in $*; do
+    echo -n "# of lines (= states) before: "
+    cat $file | wc -l
 
-mv -f $TMP $1
+    sort -u $file > $TMP
 
-echo -n "size (in bytes) after:  "
-ls -s --block-size=1 $1
+    mv -f $TMP $file
+
+    echo -n "# of lines (= states) after:  "
+    cat $file | wc -l
+done

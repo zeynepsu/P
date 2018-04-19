@@ -42,7 +42,7 @@ namespace P.Tester
 
             var stack = new Stack<BacktrackingState>();
 
-            StreamWriter visited_k = new StreamWriter("visited_" + k.ToString() + ".txt"); // for dumping visited states as strings into a file
+            StreamWriter visited_k = new StreamWriter("visited-" + k.ToString() + ".txt"); // for dumping visited states as strings into a file
 
             StateImpl s = (StateImpl)start.Clone(); // clone this since we need the original 'start', for later iterations of Explore
 
@@ -87,7 +87,7 @@ namespace P.Tester
                         // a new global states: update the various data structures
                         stack.Push(next);
                         visited.Add(hash);
-                        visited_k.WriteLine(next.State.ToString());
+                        visited_k.WriteLine(next.State.ToString() + " = " + hash.ToString());
 
                         // update visible state dictionary
                         var next_vs = new VState(next.State);
@@ -110,9 +110,7 @@ namespace P.Tester
                         // Print number of states explored
                         if (visited.Count % 1000 == 0)
                         {
-                            Console.WriteLine("-----------------------------------------------------");
-                            Console.WriteLine("Total # of states visited: {0}", visited.Count);
-                            Console.WriteLine("-----------------------------------------------------");
+                            Console.WriteLine("-------------- Number of states visited so far = {0}", visited.Count);
                         }
 #endif
 
@@ -128,7 +126,7 @@ namespace P.Tester
             visited_k.Close();
 
             // dump reached visible states into a file
-            StreamWriter visible_k = new StreamWriter("visible_" + k.ToString() + ".txt");
+            StreamWriter visible_k = new StreamWriter("visible-" + k.ToString() + ".txt");
             foreach (KeyValuePair<int, VState> entry in visible)
             {
                 visible_k.WriteLine(entry.Value.ToString());

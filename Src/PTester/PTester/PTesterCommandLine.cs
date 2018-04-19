@@ -123,36 +123,36 @@ namespace P.Tester
                     {
                         case "?":
                         case "h":
-                        case "help":    PrintHelp(null, null); Environment.Exit((int)TestResult.Success); break;
+                        case "help": PrintHelp(null, null); Environment.Exit((int)TestResult.Success); break;
 
-                        case "stats":   options.printStats = true; break;
+                        case "stats": options.printStats = true; break;
 
                         case "v":
                         case "verbose": options.verbose = true; break;
 
-                        case "ns":      if (param.Length != 0) { options.numberOfSchedules = int.Parse(param); } break;
+                        case "ns": if (param.Length != 0) { options.numberOfSchedules = int.Parse(param); } break;
 
                         case "timeout": if (param.Length != 0) { options.timeout = int.Parse(param); } break;
 
-                        case "psharp":  options.UsePSharp = true; break;
+                        case "psharp": options.UsePSharp = true; break;
 
                         case "dfs":
                             options.DfsExploration = true;
                             options.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
-                            options.k = ( param.Length != 0 ? int.Parse(param) : 0 ); // default = 0
+                            options.k = (param.Length != 0 ? int.Parse(param) : 0); // default = 0
                             break;
 
                         case "os":
                             options.OS_Exploration = true;
                             options.UseStateHashing = true; // ditto
-                            options.k = ( param.Length != 0 ? int.Parse(param) : 1 ); // default = 1
+                            options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
                             break;
 
-                        case "hash":      options.UseStateHashing = true; break;
+                        case "hash": options.UseStateHashing = true; break;
 
                         case "debughash": options.debugHashing = true; break;
 
-                        case "break":     System.Diagnostics.Debugger.Launch(); break;
+                        case "break": System.Diagnostics.Debugger.Launch(); break;
 
                         case "lhs":
                             if (param.Length != 0)
@@ -239,6 +239,7 @@ namespace P.Tester
             Console.WriteLine("If none of -psharp, -dfs, -OS are specified: perform random testing");
         }
 
+        //return funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2);
         public static void Main(string[] args)
         {
             var options = ParseCommandLine(args);
@@ -306,8 +307,5 @@ namespace P.Tester
             }
             Console.WriteLine("Time elapsed: {0} seconds", sw.Elapsed.TotalSeconds.ToString("F2"));
         }
-
     }
-
-
 }
