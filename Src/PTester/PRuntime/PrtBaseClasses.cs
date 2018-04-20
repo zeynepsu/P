@@ -53,22 +53,6 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            //Console.WriteLine("    base.fields.GetHashCode(): {0} {1} {2} {3} {4} {5} !{6} {7} {8} {9} {10} {11} {12} {13} ",
-            //    renamedName.GetHashCode(),
-            //    isSafe.GetHashCode(),
-            //    instanceNumber.GetHashCode(),
-            //    fields.Select(v => v.GetHashCode()).Hash(),
-            //    eventValue.GetHashCode(),
-            //    stateStack.GetHashCode(),
-            //    invertedFunStack.GetHashCode(),
-            //    continuation.GetHashCode(),
-            //    currentStatus.GetHashCode(),
-            //    nextSMOperation.GetHashCode(),
-            //    stateExitReason.GetHashCode(),
-            //    currentTrigger.GetHashCode(),
-            //    currentPayload.GetHashCode(),
-            //    destOfGoto == null ? Hashing.Hash() : destOfGoto.GetHashCode());
-
             return Hashing.Hash(
                 renamedName.GetHashCode(),
                 isSafe.GetHashCode(),
@@ -99,7 +83,6 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            // return "PrtMachine::ToString()"; // placeholder
             string result = "";
             result += renamedName + ",";
             result += isSafe.ToString() + ",";
@@ -114,7 +97,7 @@ namespace P.Runtime
             result += stateExitReason.ToString() + ",";
             result += currentTrigger.ToString() + ",";
             result += currentPayload.ToString() + ",";
-            result += ( destOfGoto == null ? "0" : destOfGoto.ToString()) + ",";
+            result += ( destOfGoto == null ? "0" : destOfGoto.ToString());
 
             return result;
         }

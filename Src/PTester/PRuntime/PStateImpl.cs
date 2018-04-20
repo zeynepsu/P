@@ -53,10 +53,8 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash();
-            var hash2 = specMachinesMap.Select(tup => tup.Value.GetHashCode()).Hash();
-            //Console.WriteLine("implMachines.hash = {0}", hash1);
-            //Console.WriteLine("specMachines.hash = {0}", hash2);
+            var hash1 = implMachines   .Select(impl => impl      .GetHashCode()).Hash();
+            var hash2 = specMachinesMap.Select(pair => pair.Value.GetHashCode()).Hash();
             return Hashing.Hash(hash1, hash2);
         }
 

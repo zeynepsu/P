@@ -121,7 +121,6 @@ namespace P.Runtime
         {
             var base_hash = base.GetHashCode();
             var evtQ_hash = eventQueue.GetHashCode();
-            // Console.WriteLine("  base.GetHashCode() = {0}, eventQueue.GetHashCode() = {1}", base_hash, evtQ_hash);
             return Hashing.Hash(base_hash, evtQ_hash);
         }
 

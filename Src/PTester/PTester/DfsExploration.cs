@@ -314,13 +314,10 @@ namespace P.Tester
             this.s = (StateImpl)(s.Clone());
             // abstract each ImplMachine
             foreach (var m in this.s.ImplMachines)
-            {
                 m.abstract_me();
-                // Console.WriteLine("Abstract queue size = {0}", implMachines[i].eventQueue.Size());
-            }
         }
 
-        // these would not be required if VState was derived from StateImpl
+        // these wouldn't be required if VState was derived from StateImpl
         public override string ToString() { return s.ToString(); }
         public override int GetHashCode() { return s.GetHashCode(); }
     }

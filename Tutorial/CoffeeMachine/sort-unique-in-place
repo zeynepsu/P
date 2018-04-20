@@ -18,6 +18,6 @@ for file in $*; do
     if diff -q $SORTED $UNIQUE; then
 	echo "equal"
     else
-	echo "not equal. Dduplicates kept in $DUPLIC"
+	echo "not equal. Duplicates kept in $DUPLIC"
     fi
 done
