@@ -119,7 +119,10 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return Hashing.Hash(base.GetHashCode(), eventQueue.GetHashCode());
+            var base_hash = base.GetHashCode();
+            var evtQ_hash = eventQueue.GetHashCode();
+            // Console.WriteLine("  base.GetHashCode() = {0}, eventQueue.GetHashCode() = {1}", base_hash, evtQ_hash);
+            return Hashing.Hash(base_hash, evtQ_hash);
         }
 
         public override void Resolve(StateImpl state)

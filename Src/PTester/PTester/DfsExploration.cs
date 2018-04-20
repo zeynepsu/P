@@ -47,8 +47,9 @@ namespace P.Tester
             StateImpl s = (StateImpl)start.Clone(); // clone this since we need the original 'start', for later iterations of Explore
 
             stack.Push(new BacktrackingState(s));
-            visited.Add(s.GetHashCode());
-            visited_k.WriteLine(s.ToString());
+            int start_hash = s.GetHashCode();
+            visited.Add(start_hash);
+            visited_k.WriteLine(s.ToString()); // + " = " + start_hash.ToString());
 
             var vs = new VState(s);
             visible.Add(vs.GetHashCode(), vs);
@@ -80,14 +81,13 @@ namespace P.Tester
                         throw new NotImplementedException();
                     }
 
-                    // if (!UseStateHashing || !visited.Contains(hash)) // I don't understand this line: if state hashing not used, this will always add next to stack, whether new or not
                     if (!visited.Contains(hash))
                     {
 
                         // a new global states: update the various data structures
                         stack.Push(next);
                         visited.Add(hash);
-                        visited_k.WriteLine(next.State.ToString() + " = " + hash.ToString());
+                        visited_k.WriteLine(next.State.ToString()); // + " = " + hash.ToString());
 
                         // update visible state dictionary
                         var next_vs = new VState(next.State);
@@ -127,9 +127,9 @@ namespace P.Tester
 
             // dump reached visible states into a file
             StreamWriter visible_k = new StreamWriter("visible-" + k.ToString() + ".txt");
-            foreach (KeyValuePair<int, VState> entry in visible)
+            foreach (KeyValuePair<int, VState> pair in visible)
             {
-                visible_k.WriteLine(entry.Value.ToString());
+                visible_k.WriteLine(pair.Value.ToString());
             }
             visible_k.Close();
 
@@ -304,7 +304,7 @@ namespace P.Tester
     // the visible state might contain of the complete local state and the head of the queue of each machine.
     // The abstraction of the rest might be the set of the messages in the rest of the queue, i.e. ignoring ordering and multiplicity.
 
-    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. I guess we need a copy constructor, similar to Clone
+    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. I guess we need a copy constructor, similar to Clone. Too messy ...
     class VState
     {
         private StateImpl s;
@@ -320,9 +320,8 @@ namespace P.Tester
             }
         }
 
-        public override string ToString()
-        {
-            return s.ToString();
-        }
+        // these would not be required if VState was derived from StateImpl
+        public override string ToString() { return s.ToString(); }
+        public override int GetHashCode() { return s.GetHashCode(); }
     }
 }

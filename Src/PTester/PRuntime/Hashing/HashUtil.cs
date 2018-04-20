@@ -44,7 +44,7 @@ namespace P.Runtime
         public static int Hash(this IEnumerable<int> collection)
         {
             var ret = Hash();
-            foreach(var v in collection)
+            foreach (var v in collection)
             {
                 ret = Hash(ret, v);
             }

@@ -55,6 +55,8 @@ namespace P.Runtime
         {
             var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash();
             var hash2 = specMachinesMap.Select(tup => tup.Value.GetHashCode()).Hash();
+            //Console.WriteLine("implMachines.hash = {0}", hash1);
+            //Console.WriteLine("specMachines.hash = {0}", hash2);
             return Hashing.Hash(hash1, hash2);
         }
 
@@ -77,7 +79,7 @@ namespace P.Runtime
         }
 
         /// <summary>
-        /// Stores the exception encoutered during exploration.
+        /// Stores the exception encountered during exploration.
         /// </summary>
         private Exception exception;
         
@@ -189,19 +191,28 @@ namespace P.Runtime
         #endregion
 
         // We use the following printing convention:
-        // | separates machines. Within a machine:
-        //   ; separates base fields from the queue. Within the base machine AND within the queue:
-        //     , separates base machine fields and queue entries
+        // || separates specmachines from implmachines
+        //   | terminates output pertaining to one machine. Within a machine:
+        //     ; separates base fields from the queue. Within the base machine AND within the queue:
+        //       , terminates output pertaining to one base machine field or one queue entry
         public override string ToString()
         {
             string result = "";
+
             // dump each ImplMachine to a string
-            for (ushort i = 0; i < implMachines.Count; ++i)
+            foreach (PrtImplMachine m in implMachines)
             {
-                if (i > 0)
-                    result = result + "|";
-                result = result + implMachines[i].ToString();
+                result += m.ToString() + "|";
             }
+
+            result += "#";
+
+            // dump each specMachine to a string
+            foreach (KeyValuePair<string, PrtSpecMachine> pair in specMachinesMap)
+            {
+                result += pair.Key + "|";
+            }
+
             return result;
         }
 

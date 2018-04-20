@@ -53,6 +53,22 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
+            //Console.WriteLine("    base.fields.GetHashCode(): {0} {1} {2} {3} {4} {5} !{6} {7} {8} {9} {10} {11} {12} {13} ",
+            //    renamedName.GetHashCode(),
+            //    isSafe.GetHashCode(),
+            //    instanceNumber.GetHashCode(),
+            //    fields.Select(v => v.GetHashCode()).Hash(),
+            //    eventValue.GetHashCode(),
+            //    stateStack.GetHashCode(),
+            //    invertedFunStack.GetHashCode(),
+            //    continuation.GetHashCode(),
+            //    currentStatus.GetHashCode(),
+            //    nextSMOperation.GetHashCode(),
+            //    stateExitReason.GetHashCode(),
+            //    currentTrigger.GetHashCode(),
+            //    currentPayload.GetHashCode(),
+            //    destOfGoto == null ? Hashing.Hash() : destOfGoto.GetHashCode());
+
             return Hashing.Hash(
                 renamedName.GetHashCode(),
                 isSafe.GetHashCode(),
@@ -88,17 +104,17 @@ namespace P.Runtime
             result += renamedName + ",";
             result += isSafe.ToString() + ",";
             result += instanceNumber.ToString() + ",";
-            result += fields.Select(v => v.ToString()).Aggregate("", (s1,s2) => s1 + s2); 
-            result += eventValue.ToString();
-            result += stateStack.ToString(); 
-            result += invertedFunStack.ToString(); 
-            result += continuation.ToString();
-            result += currentStatus.ToString();
-            result += nextSMOperation.ToString();
-            result += stateExitReason.ToString();
-            result += currentTrigger.ToString();
-            result += currentPayload.ToString();
-            result += ( destOfGoto == null ? "0" : destOfGoto.ToString() ); 
+            result += fields.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2) + ",";
+            result += eventValue.ToString() + ",";
+            result += stateStack.ToString() + ","; 
+            result += invertedFunStack.ToString() + ","; 
+            result += continuation.ToString() + ",";
+            result += currentStatus.ToString() + ",";
+            result += nextSMOperation.ToString() + ",";
+            result += stateExitReason.ToString() + ",";
+            result += currentTrigger.ToString() + ",";
+            result += currentPayload.ToString() + ",";
+            result += ( destOfGoto == null ? "0" : destOfGoto.ToString()) + ",";
 
             return result;
         }
@@ -550,11 +566,9 @@ namespace P.Runtime
         public override string ToString()
         {
             string result = "";
-            for (ushort i = 0; i < events.Count; ++i)
+            foreach (PrtEventNode n in events)
             {
-                if (i > 0)
-                    result = result + ",";
-                result = result + events[i].ToString();
+                result += n.ToString() + ",";
             }
             return result;
         }
@@ -766,7 +780,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return stateStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2);
+            return stateStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
         }
     }
 
@@ -814,7 +828,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return locals.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2);
+            return "RL" + returnToLocation.ToString() + "," + locals.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
         }
 
         public void Resolve(StateImpl state)
@@ -880,7 +894,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return funStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2);
+            return funStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
         }
 
         public void Resolve(StateImpl state)

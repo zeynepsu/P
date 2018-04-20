@@ -1,15 +1,23 @@
 #/usr/bin/env bash
 
-TMP=$(mktemp)
-
 for file in $*; do
-    echo -n "# of lines (= states) before: "
-    cat $file | wc -l
+    ORIGIN=$file.txt
+    SORTED=$file-sorted.txt
+    UNIQUE=$file-unique.txt
+    DUPLIC=$file-duplic.txt
 
-    sort -u $file > $TMP
+    echo "# of lines (= states) before: $(cat $ORIGIN | wc -l)"
 
-    mv -f $TMP $file
+    sort    $file.txt > $SORTED
+    sort -u $file.txt > $UNIQUE
 
-    echo -n "# of lines (= states) after:  "
-    cat $file | wc -l
+    diff $SORTED $UNIQUE | egrep "^[<>]" | sed "s/^[<>] //g" > $DUPLIC
+
+    echo "# of lines (= states) after:  $(cat $ORIGIN | wc -l)"
+    echo -n "Sanity check: $SORTED and $UNIQUE are "
+    if diff -q $SORTED $UNIQUE; then
+	echo "equal"
+    else
+	echo "not equal. Dduplicates kept in $DUPLIC"
+    fi
 done
