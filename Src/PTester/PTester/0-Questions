@@ -1,4 +1,5 @@
-Concrete suspicious observations we need to address:
+Check out German:
+- is the TestScript ok?
+- why does it not properly execute the build.cmd file??
+- why does it not terminate with /dfs:1 (or it doesn't seem to) ?
 
-- DFS on German does not terminate even with queue bound of 1.
-  (I built my own Test Script.)

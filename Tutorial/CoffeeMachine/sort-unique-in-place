@@ -1,5 +1,7 @@
 #/usr/bin/env bash
 
+# input is filename without .txt extension
+
 for file in $*; do
     ORIGIN=$file.txt
     SORTED=$file-sorted.txt
@@ -14,6 +16,7 @@ for file in $*; do
     diff $SORTED $UNIQUE | egrep "^[<>]" | sed "s/^[<>] //g" > $DUPLIC
 
     echo "# of lines (= states) after:  $(cat $ORIGIN | wc -l)"
+
     echo -n "Sanity check: $SORTED and $UNIQUE are "
     if diff -q $SORTED $UNIQUE; then
 	echo "equal"

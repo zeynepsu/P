@@ -30,6 +30,9 @@ namespace P.Tester
 
         public static void Explore(int k)
         {
+
+            if (!UseStateHashing) throw new NotImplementedException();
+
             Console.WriteLine("Using queue bound of {0}", k);
             P.Runtime.PrtImplMachine.k = k;
 
@@ -72,19 +75,12 @@ namespace P.Tester
 
                 stack.Push(bstate); // after increasing the index, push state back on. This is like modifying bstate "on the stack"
 
-                if (!CheckFailure(next.State, next.depth)) // should we check for "new" first, then check for failure? failure check could become complicated some day
+                var hash = next.State.GetHashCode();
+                if (!visited.Contains(hash)) // a new global state
                 {
-                    var hash = next.State.GetHashCode();
-
-                    if (!UseStateHashing)
+                    if (!CheckFailure(next.State, next.depth))
                     {
-                        throw new NotImplementedException();
-                    }
-
-                    if (!visited.Contains(hash))
-                    {
-
-                        // a new global states: update the various data structures
+                        // update the various data structures
                         stack.Push(next);
                         visited.Add(hash);
                         visited_k.WriteLine(next.State.ToString()); // + " = " + hash.ToString());
@@ -139,9 +135,45 @@ namespace P.Tester
 
         }
 
+        // Step II: compute abstract successors, and check whether all of them are already contained in visible. If so, return true:
+        // for each visible state vs in visible:
+        //   for each abstract successor vs' of vs:
+        //     if vs' not in visible:
+        //       return false;
+        // return true;
         public static bool visible_converged()
         {
-            return false;
+            foreach (KeyValuePair<int, VState> pair in visible)
+            {
+                VState vs = pair.Value;
+                StateImpl s = vs.s;
+
+                var stack = new Stack<BacktrackingState>();
+                stack.Push(new BacktrackingState(s));
+
+                // mini DFS: only immediate successors
+                while (stack.Count != 0)
+                {
+                    var bstate = stack.Pop();
+                    var enabledMachines = bstate.State.EnabledMachines;
+
+                    if (bstate.CurrIndex >= enabledMachines.Count) // if "done" with bstate
+                    {
+                        continue;
+                    }
+
+                    BacktrackingState s_p = Execute(bstate);
+
+                    stack.Push(bstate); // after increasing the index, push state back on. This is like modifying bstate "on the stack"
+
+                    // project to visible state
+                    var vs_p = new VState(s_p.State);
+                    var vs_p_hash = vs_p.GetHashCode();
+                    if (!visible.ContainsKey(vs_p_hash))
+                        return false;
+                }
+            }
+            return true;
         }
 
         public static void OS_Iterate(int k0)
@@ -294,20 +326,24 @@ namespace P.Tester
     }
 
 
-    // Part I: define what an "abstract state" is. The general guidelines are as follows. An abstract state consists of two parts:
-    // 1. the /visible fragment/ of the state, which is a part of the state information that is kept concretely, precisely, in plain text; and
+    // Step I: define what an "abstract state" is. The general guidelines are as follows. An abstract state consists of two parts:
+    // 1. the /visible fragment/ of the state, "visible state" for short, which is a part of the state information that is kept concretely, precisely, in plain text; and
     // 2. an abstraction of the rest of the state information.
     // This state partitioning should satisfy two properties:
     // (a) It defines a finite state space. That is, the set of visible fragments + abstractions of the rest of all conceivable states is finite.
-    // (b) It contains all the information needed to determine fireability of a transition, and the visible fragment of the successor state.
+    // (b) It contains "most" of the information needed to determine fireability of a transition and the visible fragment of the successor state.
+    // (c) It contains enough information to decide whether some target safety property is satisfied.
     // As an example, for the common case of a message passing system with finitely many local states, a finite set of message types, but unbounded queues,
-    // the visible state might contain of the complete local state and the head of the queue of each machine.
-    // The abstraction of the rest might be the set of the messages in the rest of the queue, i.e. ignoring ordering and multiplicity.
+    // the visible state might contain of the complete local state plus the head of the queue of each machine. The abstraction of the rest is empty.
+    // This defines a finite state space and allows us to decide whether e.g. the system is responsive (we don't need the tail of the queue for that).
+    // It is enough info to decide whether a transition is fireable: depends on local state and queue head.
+    // Finally, abstract successors of RECEIVEs cannot be precisely computed since the head of the successor queue is unknown.
+    // We can increase the precision by defining the abstraction of the rest as the /set/ of the messages in the rest of the queue, i.e. ignoring ordering and multiplicity.
 
-    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. I guess we need a copy constructor, similar to Clone. Too messy ...
+    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. I guess we need a copy constructor, similar to Clone. Too messy?
     class VState
     {
-        private StateImpl s;
+        public StateImpl s;
 
         public VState(StateImpl s)
         {
