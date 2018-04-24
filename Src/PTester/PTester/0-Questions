@@ -2,4 +2,18 @@ Check out German:
 - is the TestScript ok?
 - why does it not properly execute the build.cmd file??
 - why does it not terminate with /dfs:1 (or it doesn't seem to) ?
+- what exactle does EnabledMachine depend on: local state + queue head, if we exclude defers?
+- asynchrony: can RECV and SEND actions happen simultanously?
+
+===========================================================================
+
+Some clarification on how Execute works.
+
+- currIndex = 0 .. enabledMachines.Count - 1 switches among enabled machines.
+- choiceIndex switches among nondet choices, presumably made within the same enabled machine?
+
+Both of these are advanced in the Execute method. In fact, choiceIndex
+*only exists inside* the Execute method. currIndex also exists in the main
+DFS routine, but only to detect termination, which is when currIndex =
+enabledMachines.Count.
 

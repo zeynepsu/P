@@ -558,7 +558,12 @@ namespace P.Runtime
 
         public int Size()
         {
-            return events.Count();
+            return events.Count;
+        }
+
+        public bool Empty()
+        {
+            return events.Count == 0;
         }
 
         public int CalculateInstances(PrtValue e)
