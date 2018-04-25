@@ -631,7 +631,7 @@ namespace P.Runtime
         // the current abstraction mechanism: keep the local state and the head of the queue
         public void abstract_me()
         {
-            eventQueue.Make_singleton();
+            eventQueue.abstract_tail();
         }
     }
 }

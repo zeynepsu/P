@@ -1,9 +1,12 @@
 Check out German:
 - is the TestScript ok?
-- why does it not properly execute the build.cmd file??
 - why does it not terminate with /dfs:1 (or it doesn't seem to) ?
 - what exactle does EnabledMachine depend on: local state + queue head, if we exclude defers?
 - asynchrony: can RECV and SEND actions happen simultanously?
+
+Computing one-step successors of a bstate: I'd like to loop over all enabledMachines
+and all (internal) nondet choices. What is the best way to do that? Currently
+I'm mirroring the stack-based exploration, but that seems silly.
 
 ===========================================================================
 

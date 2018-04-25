@@ -515,50 +515,78 @@ namespace P.Runtime
     {
         List<PrtEventNode> events;
 
+        HashSet<PrtEventNode> Tail; // a queue is abstract iff Tail != null
+
         public PrtEventBuffer()
         {
             events = new List<PrtEventNode>();
+            Tail = null;
         }
 
-        // PrtEventBuffer abstraction: cut off all elements after the first, if any, in place
+        // PrtEventBuffer abstraction: keep the head; place the rest of all elements in a set
         // A more precise abstraction keeps, for the rest of the events list, a map<PrtEventNode,bool>
         // which stores the elements in the rest, without ordering, and whether they occur once or more than once (0,1,infinity abstraction)
-        // To use that abstraction, have the Make_singleton method compute and return that map, and store the map with a VState
-        public void Make_singleton()
+        public void abstract_tail()
         {
-            if (events.Count > 1)
+            if (Tail == null)
+                Tail = new HashSet<PrtEventNode>();
+
+            while (events.Count() > 1)
             {
-                PrtEventNode head = events.First().Clone();
-                events.Clear();
-                events.Add(head);
-                // Console.WriteLine("Projected queue to head element {0}", head.ev.ToString());
-                Debug.Assert(events.Count == 1);
+                Tail.Add(events[1].Clone());
+                events.RemoveAt(1);
             }
         }
 
         public PrtEventBuffer Clone()
         {
             var clonedVal = new PrtEventBuffer();
-            foreach(var ev in events)
+
+            foreach (var ev in events)
             {
                 clonedVal.events.Add(ev.Clone());
             }
+
+            if (Tail != null)
+            {
+                clonedVal.Tail = new HashSet<PrtEventNode>();
+                foreach (var ev in Tail)
+                {
+                    clonedVal.Tail.Add(ev.Clone());
+                }
+            }
+
             return clonedVal;
         }
 
         public override string ToString()
         {
-            string result = "";
-            foreach (PrtEventNode n in events)
+            string result = events.Select(ev => ev.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
+
+            // if Tail is null, we skip it in the printed rep
+            if (Tail != null)
             {
-                result += n.ToString() + ",";
+                result += "|" + Tail.Select(ev => ev.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
             }
             return result;
+        }
+
+        public override int GetHashCode()
+        {
+//            if (Tail == null) // the normal case: concrete queue
+                return events.Select(v => v.GetHashCode()).Hash();
+  //          else
+    //            return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(), Tail.Select(v => v.GetHashCode()).Hash());
         }
 
         public int Size()
         {
             return events.Count;
+        }
+
+        public int abstract_Size()
+        {
+            return ( Empty() ? 0 : Tail.Count() + 1 );
         }
 
         public bool Empty()
@@ -646,11 +674,6 @@ namespace P.Runtime
 
             }
             return false;
-        }
-
-        public override int GetHashCode()
-        {
-            return events.Select(v => v.GetHashCode()).Hash();
         }
 
         public void Resolve(StateImpl state)
