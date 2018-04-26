@@ -23,7 +23,7 @@ namespace P.Tester
         public static StateImpl start; // start state. Silly: I assume CommandLineOptions sets the start state. Improve this
 
         public static HashSet<int> visited = new HashSet<int>();
-        public static SortedDictionary<int, VState> visible = new SortedDictionary<int, VState>();
+        public static SortedDictionary<int, StateImpl> visible = new SortedDictionary<int, StateImpl>();
 
         public static int size_Visible_previous = 0;
         public static int size_Visible_previous_previous = 0;
@@ -54,7 +54,7 @@ namespace P.Tester
             visited.Add(start_hash);
             visited_k.WriteLine(s.ToString()); // + " = " + start_hash.ToString());
 
-            var vs = new VState(s);
+            StateImpl vs = (StateImpl) s.Clone(); vs.abstract_me();
             visible.Add(vs.GetHashCode(), vs);
 
             // DFS begin
@@ -72,22 +72,21 @@ namespace P.Tester
                 BacktrackingState next = Execute(bstate); // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
                 stack.Push(bstate);                       // after increasing currIndex/choiceIndex, push state back on. This is like modifying bstate "on the stack"
 
-                if (!CheckFailure(next.State, next.depth))
+                if (!CheckFailure(next.State, next.depth))   // check for failure ...
                 {
                     var hash = next.State.GetHashCode();
-                    if (!visited.Add(hash))  // first check for failure, then (try to) add hash, since the latter has a side effect
+                    if (!visited.Add(hash))                  // ... before adding new state, since failure may be due to failed assume, in which case we don't want to add
                         continue;
                     stack.Push(next);
                     visited_k.WriteLine(next.State.ToString()); // + " = " + hash.ToString());
-
-                    // update visible state dictionary
-                    var next_vs = new VState(next.State);
-                    var vhash = next_vs.GetHashCode();
-
-                    try { visible.Add(vhash, next_vs); /* Console.WriteLine(next_vs.ToString()); */ }
-                    catch (ArgumentException) { } // not new: ignore
 #if DEBUG
                     // diagnostics
+
+                    // Print number of states explored
+                    if (visited.Count % 1000 == 0)
+                    {
+                        Console.WriteLine("-------------- Number of states visited so far = {0}", visited.Count);
+                    }
 
                     // update maximum encountered queue size
                     foreach (PrtImplMachine m in next.State.ImplMachines)
@@ -95,13 +94,12 @@ namespace P.Tester
                         int m_size = m.eventQueue.Size();
                         max_queue_size = (m_size > max_queue_size ? m_size : max_queue_size);
                     }
-
-                    // Print number of states explored
-                    if (visited.Count % 1000 == 0)
-                    {
-                        Console.WriteLine("-------------- Number of states visited so far = {0}", visited.Count);
-                    }
 #endif
+                    // update visible state dictionary
+                    StateImpl next_vs = (StateImpl) next.State.Clone(); next_vs.abstract_me();
+                    int vhash = next_vs.GetHashCode();
+                    try { visible.Add(vhash, next_vs); /* Console.WriteLine(next_vs.ToString()); */ }
+                    catch (ArgumentException) { } // vs_next wasn't new
                 }
             }
 
@@ -114,7 +112,7 @@ namespace P.Tester
 
             // dump reached visible states into a file
             StreamWriter visible_k = new StreamWriter("visible-" + k.ToString() + ".txt");
-            foreach (KeyValuePair<int, VState> pair in visible)
+            foreach (KeyValuePair<int, StateImpl> pair in visible)
             {
                 visible_k.WriteLine(pair.Value.ToString());
             }
@@ -126,65 +124,59 @@ namespace P.Tester
 
         }
 
-        // Step II: compute abstract successors, and return true ("converged") iff all of them are already contained in visible:
-        // for each visible state vs:
-        //   for each abstract successor vs' of vs:
+        // Step II: compute visbile successors, and return true ("converged") iff all of them are already contained in visible:
+        // for each visibile state vs:
+        //   for each successor vs' of vs :
+        //     populate vs' nondet.'ally with info that cannot be deduced from vs
         //     if vs' not in visible:
-        //       return false;
-        // return true;
+        //       return false
+        // return true
         public static bool visible_converged()
         {
             Debug.Assert(visible.Count > 0);
-            return false;
 
-            foreach (KeyValuePair<int, VState> pair in visible)
+            foreach (KeyValuePair<int, StateImpl> vs_pair in visible)
             {
-                VState vs = pair.Value;
-                StateImpl s = vs.s;
-
-                var stack = new Stack<BacktrackingState>(); // doesn't really have to be a stack
-                stack.Push(new BacktrackingState(s));
+                BacktrackingState b_vs = new BacktrackingState(vs_pair.Value);
 
                 // mini DFS: only immediate successors
-                while (stack.Count != 0)
+                while (b_vs.CurrIndex < b_vs.State.EnabledMachines.Count)
                 {
-                    var bstate = stack.Pop();
-
-                    int currIndex = bstate.CurrIndex; // which machine is about to be fired?
-
-                    if (currIndex >= bstate.State.EnabledMachines.Count) // if "done" with bstate
-                    {
-                        continue;
-                    }
+                    int currIndex = b_vs.CurrIndex; // machine being executed
 
                     // skip machines whose event queue is empty (we care only about RECV actions)
-                    if (bstate.State.ImplMachines[currIndex].eventQueue.Empty()) // if queue is empty
+                    if (b_vs.State.ImplMachines[currIndex].eventQueue.Empty()) // if queue is empty
                     {
-                        bstate.CurrIndex++;
-                        // we likely also need to reset the choiceVector. To what?
-                        stack.Push(bstate);
-                        continue;
+                        b_vs.CurrIndex++; continue; // do we need to reset the choiceVector?
                     }
 
-                    BacktrackingState s_succ = Execute(bstate);
-                    stack.Push(bstate);
+                    BacktrackingState b_vs_succ = Execute(b_vs);
+                    StateImpl vs_succ = b_vs_succ.State;
 
                     // Overapproximating RECV actions: we know the current state's queue is non-empty (previous if). Now we require the successor's queue to be empty:
-                    if (s_succ.State.ImplMachines[currIndex].eventQueue.Empty())
+                    if (vs_succ.ImplMachines[currIndex].eventQueue.Empty())
                     {
-                        // abstract to visible state
-                        var vs_succ = new VState(s_succ.State);
-                        Debug.Assert(vs_succ.GetHashCode() == s_succ.GetHashCode()); // there should be no change: the visible state of a state with an empty queue equals that state (all unaffected queues have size 1)
-                        // bstate's queue has an empty tail. We assume for now this does not affect the question what machines are enabled.
-                        //   In the absence of DEFERs this seems to be true; we deal with DEFER separately (we defer it...), as it is kind of a special, non-FIFO feature.
-                        // The tail of the queue does affect the successor state, however, and even the ABSTRACT (visible) successor: namely, it determines the head of the new queue.
-                        // For soundness we have to overapproximate here: after firing a RECEIVE rule we don't know what the new queue head is. So assume it can be anything.
-                        //for each possible message + payload(m, p)
-                        //{
-                        //    s_succ.State.ImplMachines[currIndex].eventQueue.head = (m, p)
-                        //    if (!visible.ContainsKey(vs_succ.GetHashCode()))
-                        //        return false;
-                        //}
+                        // The tail of the queue determines the possible new queue heads. We nondeterministically try them all.
+                        // And for each choice we nondet. decide whether the element moved to the head remains in the tail or not -- we don't know the multiplicity
+                        foreach (KeyValuePair<int, PrtEventNode> ev_pair in vs_succ.ImplMachines[currIndex].eventQueue.Tail)
+                        {
+                            // nondet choice 1: ev exists only once in the tail of the queue. It must disappear from Tail after the dequeue
+                            {
+                                StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
+                                vs_succ_cand.ImplMachines[currIndex].eventQueue.make_head(ev_pair.Value);
+                                vs_succ_cand.ImplMachines[currIndex].eventQueue.remove_from_tail(ev_pair.Key);
+                                if (!visible.ContainsKey(vs_succ_cand.GetHashCode())) // new candidate
+                                    return false;
+                            }
+
+                            // nondet choice 2: ev exits more than once in the tail of the queue. It remains in Tail after the dequeue
+                            {
+                                StateImpl vs_succ_cand = (StateImpl) vs_succ.Clone();
+                                vs_succ_cand.ImplMachines[currIndex].eventQueue.make_head(ev_pair.Value);
+                                if (!visible.ContainsKey(vs_succ_cand.GetHashCode())) // new candidate
+                                    return false;
+                            }
+                        }
                     }
                 }
             }
@@ -340,7 +332,6 @@ namespace P.Tester
 
     }
 
-
     // Step I: define what an "abstract state" is. The general guidelines are as follows. An abstract state consists of two parts:
     // 1. the /visible fragment/ of the state, "visible state" for short, which is a part of the state information that is kept concretely, precisely, in plain text; and
     // 2. an abstraction of the rest of the state information (which may be implicit if the visible fragment is some sort of approximation).
@@ -358,21 +349,7 @@ namespace P.Tester
     // It is enough info to decide whether a transition is fireable: depends on local state and queue head.
     // Finally, abstract successors of RECEIVEs cannot be precisely computed since the head of the successor queue is unknown (but we know it is a member of the tail set).
 
-    // The following implementation is inelegant: a VState should really be derived from a StateImpl, not /have/ a StateImpl. I guess we need a copy constructor, similar to Clone. Too messy?
-    class VState
-    {
-        public StateImpl s;
+    // This is implemented in the StateImpl::abstract_me function
+    // Changing StateImpl is not very elegant: would be better to have a class VState derived from a StateImpl, that adds the abstraction capabilities
 
-        public VState(StateImpl s)
-        {
-            this.s = (StateImpl)(s.Clone());
-            // abstract each ImplMachine
-            foreach (var m in this.s.ImplMachines)
-                m.abstract_me();
-        }
-
-        // these wouldn't be required if VState was derived from StateImpl
-        public override string ToString() { return s.ToString(); }
-        public override int GetHashCode() { return s.GetHashCode(); }
-    }
 }

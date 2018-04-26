@@ -51,7 +51,13 @@ namespace P.Runtime
         /// </summary>
         private Dictionary<string, PrtSpecMachine> specMachinesMap;
 
-        // Implementation note: there are currently three distinct methods that crawl over the hierarchy of a StateImpl and aggregate various kinds of information:
+        public void abstract_me()
+        {
+            foreach (var m in ImplMachines)
+                m.abstract_me();
+        }
+
+        // Implementation note: there are currently three distinct methods that crawl over the hierarchy of a StateImpl and collect various kinds of information:
         // - GetHashCode computes the combined hash value of the state
         // - ToString computes a combined string representation of the state
         // - Clone computes a copy of the state, in fresh memory

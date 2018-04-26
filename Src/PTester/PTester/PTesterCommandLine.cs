@@ -5,9 +5,11 @@ using System.Reflection;
 using P.Runtime;
 using Microsoft.PSharp;
 using Microsoft.PSharp.Utilities;
+using System.Linq;
 
 namespace P.Tester
 {
+
     public enum TestResult
     {
         /// <summary>
@@ -239,7 +241,6 @@ namespace P.Tester
             Console.WriteLine("If none of -psharp, -dfs, -OS are specified: perform random testing");
         }
 
-        //return funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2);
         public static void Main(string[] args)
         {
             var options = ParseCommandLine(args);

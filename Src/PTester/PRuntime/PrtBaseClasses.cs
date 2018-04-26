@@ -87,7 +87,7 @@ namespace P.Runtime
             result += renamedName + ",";
             result += isSafe.ToString() + ",";
             result += instanceNumber.ToString() + ",";
-            result += fields.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2) + ",";
+            result += ( fields.Count == 0 ? "" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + ",";
             result += eventValue.ToString() + ",";
             result += stateStack.ToString() + ","; 
             result += invertedFunStack.ToString() + ","; 
@@ -153,7 +153,7 @@ namespace P.Runtime
             }
         }
 
-        public HashSet<PrtValue> CurrentDefferedSet
+        public HashSet<PrtValue> CurrentDeferredSet
         {
             get
             {
@@ -474,7 +474,7 @@ namespace P.Runtime
         }
     };
 
-    internal class PrtEventNode
+    public class PrtEventNode // changed from 'internal'
     {
         public PrtValue ev;
         public PrtValue arg;
@@ -515,45 +515,58 @@ namespace P.Runtime
     {
         List<PrtEventNode> events;
 
-        HashSet<PrtEventNode> Tail; // a queue is abstract iff Tail != null
+        public SortedDictionary<int,PrtEventNode> Tail;
 
         public PrtEventBuffer()
         {
             events = new List<PrtEventNode>();
-            Tail = null;
+             Tail  = new SortedDictionary<int, PrtEventNode>(); // since Tail is used only in abstract queues, maybe it's better to keep it null until needed
         }
+
+        public void make_head(PrtEventNode ev) { Debug.Assert(Empty()); events.Add(ev.Clone()); }
+
+        public void remove_from_tail(int ev_key) { bool removed = Tail.Remove(ev_key); Debug.Assert(removed); }
 
         // PrtEventBuffer abstraction: keep the head; place the rest of all elements in a set
         // A more precise abstraction keeps, for the rest of the events list, a map<PrtEventNode,bool>
         // which stores the elements in the rest, without ordering, and whether they occur once or more than once (0,1,infinity abstraction)
         public void abstract_tail()
         {
-            if (Tail == null)
-                Tail = new HashSet<PrtEventNode>();
 
+#if DEBUG
+            int concrete_size = events.Count;
+            string concrete_queue = ToString();
+#endif
             while (events.Count() > 1)
             {
-                Tail.Add(events[1].Clone());
+                PrtEventNode ev = events[1].Clone();
+                Tail.Add(ev.GetHashCode(), ev);
                 events.RemoveAt(1);
             }
+
+#if DEBUG
+            if (concrete_size > abstract_Size())
+            {
+                Console.WriteLine("Concrete queue: {0}", concrete_queue);
+                Console.WriteLine("Abstract queue: {0}", ToString());
+            }
+#endif
         }
 
         public PrtEventBuffer Clone()
         {
             var clonedVal = new PrtEventBuffer();
 
-            foreach (var ev in events)
+            clonedVal.events = new List<PrtEventNode>();
+            foreach (PrtEventNode ev in events)
             {
                 clonedVal.events.Add(ev.Clone());
             }
 
-            if (Tail != null)
+            clonedVal.Tail = new SortedDictionary<int, PrtEventNode>();
+            foreach (KeyValuePair<int, PrtEventNode> pair in Tail)
             {
-                clonedVal.Tail = new HashSet<PrtEventNode>();
-                foreach (var ev in Tail)
-                {
-                    clonedVal.Tail.Add(ev.Clone());
-                }
+                clonedVal.Tail.Add(pair.Key, pair.Value.Clone());
             }
 
             return clonedVal;
@@ -561,22 +574,20 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            string result = events.Select(ev => ev.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
+            string result = "";
 
-            // if Tail is null, we skip it in the printed rep
-            if (Tail != null)
-            {
-                result += "|" + Tail.Select(ev => ev.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
-            }
+            result += ( Empty()         ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            result += "|";
+            result += ( Tail.Count == 0 ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+
             return result;
         }
 
         public override int GetHashCode()
         {
-//            if (Tail == null) // the normal case: concrete queue
-                return events.Select(v => v.GetHashCode()).Hash();
-  //          else
-    //            return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(), Tail.Select(v => v.GetHashCode()).Hash());
+            return Hashing.Hash(
+                events.Select(v => v.GetHashCode()).Hash(),
+                 Tail .Select(v => v.GetHashCode()).Hash());
         }
 
         public int Size()
@@ -633,7 +644,7 @@ namespace P.Runtime
             HashSet<PrtValue> deferredSet;
             HashSet<PrtValue> receiveSet;
 
-            deferredSet = owner.CurrentDefferedSet;
+            deferredSet = owner.CurrentDeferredSet;
             receiveSet = owner.receiveSet;
 
             int iter = 0;
@@ -791,7 +802,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return stateStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
+            return ( stateStack.Count == 0 ? "" : stateStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
         }
     }
 
@@ -839,7 +850,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return "RL" + returnToLocation.ToString() + "," + locals.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
+            return returnToLocation.ToString() + "," + ( locals.Count == 0 ? "" : locals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
         }
 
         public void Resolve(StateImpl state)
@@ -905,7 +916,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return funStack.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + "," + s2);
+            return ( funStack.Count == 0 ? "" : funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
         }
 
         public void Resolve(StateImpl state)
@@ -962,7 +973,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return reason.ToString() + "," + retVal.ToString() + "," + retLocals.Select(v => v.ToString()).Aggregate("", (s1, s2) => s1 + s2) + "," + nondet.ToString();
+            return reason.ToString() + "," + retVal.ToString() + "," + ( retLocals.Count == 0 ? "" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2) ) + "," + nondet.ToString();
         }
 
         public void Resolve(StateImpl state)
