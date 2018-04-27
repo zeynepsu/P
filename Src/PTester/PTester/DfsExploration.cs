@@ -7,6 +7,13 @@ using System.Threading.Tasks;
 using P.Runtime;
 using System.Diagnostics;
 
+static class Helper
+{
+    public static string nstring(char c, ushort n)
+    {
+        return (n == 0 ? "" : c.ToString() + nstring(c, (ushort) (n-1)));
+    }
+}
 
 namespace P.Tester
 {

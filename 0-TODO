@@ -1,4 +1,11 @@
+
 Pretty printer: state printout has become unreadable.
+
+---------------------------------------------------------------------------
+
+Fix convergence test: don't use Execute, but instead write a routine that runs
+along the three dimensions of nondeterminism and explores states. The dequeue routine
+needs to be rewritten in the way described in 0-Answers.
 
 ---------------------------------------------------------------------------
 
@@ -8,5 +15,5 @@ Make a toy example (perhaps without defers and receives)
 
 German protocol:
 
-- how to create a usable TestScript?
+- check the way the TestScript was constructed
 - why does it not terminate with /dfs:1 (or it doesn't seem to) ?

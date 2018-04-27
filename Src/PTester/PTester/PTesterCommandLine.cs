@@ -243,6 +243,15 @@ namespace P.Tester
 
         public static void Main(string[] args)
         {
+
+            if (args.Length > 0)
+                if (args[0] == "!")
+                {
+                    Console.WriteLine(Helper.nstring('x', 7));
+
+                    Environment.Exit(0);
+                }
+
             var options = ParseCommandLine(args);
             if (options == null)
             {
