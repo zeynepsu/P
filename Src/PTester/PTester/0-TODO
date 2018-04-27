@@ -1,0 +1,12 @@
+Pretty printer: state printout has become unreadable.
+
+---------------------------------------------------------------------------
+
+Make a toy example (perhaps without defers and receives)
+
+---------------------------------------------------------------------------
+
+German protocol:
+
+- how to create a usable TestScript?
+- why does it not terminate with /dfs:1 (or it doesn't seem to) ?
