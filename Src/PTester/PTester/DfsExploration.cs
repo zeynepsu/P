@@ -25,6 +25,7 @@ namespace P.Tester
         public static HashSet<int> visited = new HashSet<int>();
         public static SortedDictionary<int, StateImpl> visible = new SortedDictionary<int, StateImpl>();
 
+        public static int size_Visited_previous = 0;
         public static int size_Visible_previous = 0;
         public static int size_Visible_previous_previous = 0;
 
@@ -105,7 +106,7 @@ namespace P.Tester
 
             Console.WriteLine("");
 
-            Console.WriteLine("Number of         states visited = {0}", visited.Count);
+            Console.WriteLine("Number of global  states visited = {0}", visited.Count);
             Console.WriteLine("Number of visible states visited = {0}", visible.Count);
 
             visited_k.Close();
@@ -127,53 +128,57 @@ namespace P.Tester
         // Step II: compute visbile successors, and return true ("converged") iff all of them are already contained in visible:
         // for each visibile state vs:
         //   for each successor vs' of vs :
-        //     populate vs' nondet.'ally with info that cannot be deduced from vs
+        //     populate vs' nondeterministically with info that cannot be deduced from vs
         //     if vs' not in visible:
         //       return false
         // return true
-        public static bool visible_converged()
+        static bool visible_converged()
         {
             Debug.Assert(visible.Count > 0);
 
             foreach (KeyValuePair<int, StateImpl> vs_pair in visible)
             {
-                BacktrackingState b_vs = new BacktrackingState(vs_pair.Value);
+                BacktrackingState b_vs = new BacktrackingState((StateImpl)vs_pair.Value.Clone());
+                StateImpl vs = b_vs.State;
 
                 // mini DFS: only immediate successors
-                while (b_vs.CurrIndex < b_vs.State.EnabledMachines.Count)
+                while (b_vs.CurrIndex < vs.EnabledMachines.Count)
                 {
-                    int currIndex = b_vs.CurrIndex; // machine being executed
+                    int machineIndex = vs.ImplMachines.FindIndex(m => m == vs.EnabledMachines[b_vs.CurrIndex]);
+                    Debug.Assert(machineIndex != -1);
 
-                    // skip machines whose event queue is empty (we care only about RECV actions)
-                    if (b_vs.State.ImplMachines[currIndex].eventQueue.Empty()) // if queue is empty
+                    // skip machines whose event queue is empty (we only want RECV actions)
+                    if (b_vs.State.ImplMachines[machineIndex].eventQueue.Empty()) // if queue is empty
                     {
-                        b_vs.CurrIndex++; continue; // do we need to reset the choiceVector?
+                        Debug.Assert(b_vs.ChoiceVector.Count == 0);
+                        b_vs.CurrIndex++;
+                        continue;
                     }
 
                     BacktrackingState b_vs_succ = Execute(b_vs);
                     StateImpl vs_succ = b_vs_succ.State;
 
-                    // Overapproximating RECV actions: we know the current state's queue is non-empty (previous if). Now we require the successor's queue to be empty:
-                    if (vs_succ.ImplMachines[currIndex].eventQueue.Empty())
+                    // We know the current state's queue is non-empty (previous if). Now we require the successor's queue to be empty, so we have actually done a RECV
+                    if (vs_succ.ImplMachines[machineIndex].eventQueue.Empty())
                     {
                         // The tail of the queue determines the possible new queue heads. We nondeterministically try them all.
                         // And for each choice we nondet. decide whether the element moved to the head remains in the tail or not -- we don't know the multiplicity
-                        foreach (KeyValuePair<int, PrtEventNode> ev_pair in vs_succ.ImplMachines[currIndex].eventQueue.Tail)
+                        foreach (KeyValuePair<int, PrtEventNode> ev_pair in vs_succ.ImplMachines[machineIndex].eventQueue.Tail)
                         {
-                            // nondet choice 1: ev exists only once in the tail of the queue. It must disappear from Tail after the dequeue
+                            // nondet choice 1: ev exists only once in the tail of the queue. It disappears from Tail after the dequeue
                             {
                                 StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
-                                vs_succ_cand.ImplMachines[currIndex].eventQueue.make_head(ev_pair.Value);
-                                vs_succ_cand.ImplMachines[currIndex].eventQueue.remove_from_tail(ev_pair.Key);
-                                if (!visible.ContainsKey(vs_succ_cand.GetHashCode())) // new candidate
+                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev_pair.Value);
+                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.remove_from_tail(ev_pair.Key);
+                                if (new_cand(vs_succ_cand, b_vs.State, vs_succ))
                                     return false;
                             }
 
                             // nondet choice 2: ev exits more than once in the tail of the queue. It remains in Tail after the dequeue
                             {
-                                StateImpl vs_succ_cand = (StateImpl) vs_succ.Clone();
-                                vs_succ_cand.ImplMachines[currIndex].eventQueue.make_head(ev_pair.Value);
-                                if (!visible.ContainsKey(vs_succ_cand.GetHashCode())) // new candidate
+                                StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
+                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev_pair.Value);
+                                if (new_cand(vs_succ_cand, b_vs.State, vs_succ))
                                     return false;
                             }
                         }
@@ -181,6 +186,22 @@ namespace P.Tester
                 }
             }
             return true;
+        }
+
+        static bool new_cand(StateImpl vs_succ_cand, StateImpl vs, StateImpl vs_succ)
+        {
+            bool result = !visible.ContainsKey(vs_succ_cand.GetHashCode());
+            if (result) // new candidate
+            {
+                Console.WriteLine("Found a so-far unreached abstract successor state!");
+                Console.WriteLine("Source abstract state (one queue should be non-empty):");
+                Console.WriteLine(vs.ToString());
+                Console.WriteLine("Successor abstract state (same queue should now be empty):");
+                Console.WriteLine(vs_succ.ToString());
+                Console.WriteLine("Successor candidate state (unless tail was empty, queue should now be non-empty again; tail may or may not have changed):");
+                Console.WriteLine(vs_succ_cand.ToString());
+            }
+            return result;
         }
 
         public static void OS_Iterate(int k0)
@@ -201,10 +222,16 @@ namespace P.Tester
 
                 Explore(k);
 
+                if (false/*size_Visited_previous == visited.Count*/)
+                {
+                    Console.WriteLine("Global state sequence converged!");
+                    Environment.Exit(0);
+                }
+
                 // when do we have to run the convergence test?
                 if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
                 { // a new plateau!
-                    Console.Write("Running convergence test ...");
+                    Console.Write("Running abstract state convergence test ...");
                     if (visible_converged())
                     {
                         Console.WriteLine(" Converged!");
@@ -215,6 +242,7 @@ namespace P.Tester
 
                 size_Visible_previous_previous = size_Visible_previous;
                 size_Visible_previous = visible.Count;
+                size_Visited_previous = visited.Count;
 
                 ++k;
 

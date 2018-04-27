@@ -1,27 +1,10 @@
 Discuss:
 
-1. Abstract (visible) states:
+- git add Src/PTester/PRuntime/PrtImplMachine.cs
 
-- abstract state == for each machine, queue is "tail as set". (Originally: tail as empty, but that didn't make sense.)
-- to do that, changed definition of PrtEventBuffer. Does that make sense?
+- Convergence test: computing abstract successors.
 
-2. Convergence test: computing abstract successors.
-
-3. General:
-
-- what exactly does EnabledMachine depend on: if we exclude defers, only local state + queue head?
-
-see deferred-set and receive-set definitions PrtBaseClasses.cs, near line 655
-
-Note that this mechanism operates in a loop, which may dequeue multiple
-messages in one step.
-
-- asynchrony: can RECV and SEND actions happen simultaneously?
-
-When a message is sent, it is enqueued at the receiver's side at the same time.
-I doubt a message can be sent, received (enqueued) and dequeued all in one step.
-
-4. German protocol: I need to debug it. Help:
+- German protocol: I need to debug it. Help:
 
 - is the TestScript ok?
 - why does it not terminate with /dfs:1 (or it doesn't seem to) ?

@@ -11,6 +11,7 @@ namespace P.Runtime
         Blocked,        // The state machine is blocked on a dequeue or receive
         Halted,         // The state machine has halted
     };
+
     public enum PrtNextStatemachineOperation
     {
         ExecuteFunctionOperation,
@@ -18,6 +19,7 @@ namespace P.Runtime
         HandleEventOperation,
         ReceiveOperation
     };
+
     public enum PrtStateExitReason
     {
         NotExit,
@@ -27,6 +29,7 @@ namespace P.Runtime
         OnGotoStatement,
         OnUnhandledEvent
     };
+
     public enum PrtDequeueReturnStatus { SUCCESS, NULL, BLOCKED };
 
     public abstract class PrtImplMachine : PrtMachine
@@ -321,6 +324,12 @@ namespace P.Runtime
             {
                 while (PrtStepStateMachine())
                 {
+                    if (    nextSMOperation == PrtNextStatemachineOperation.DequeueOperation
+                         || nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation) // changed: break if the next SMop dequeues. This prevents multiple dequeues from happening in one step
+                    {
+                        break;
+                    }
+
                     if (numOfStepsTaken > 100000)
                     {
                         throw new PrtInfiniteRaiseLoop();
@@ -628,7 +637,7 @@ namespace P.Runtime
             return hasMoreWork;
         }
 
-        // the current abstraction mechanism: keep the local state and the head of the queue
+        // to abstract a machine means to abstract its queue
         public void abstract_me()
         {
             eventQueue.abstract_tail();

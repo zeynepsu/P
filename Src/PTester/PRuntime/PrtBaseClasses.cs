@@ -474,7 +474,7 @@ namespace P.Runtime
         }
     };
 
-    public class PrtEventNode // changed from 'internal'
+    public class PrtEventNode // had to change from 'internal'
     {
         public PrtValue ev;
         public PrtValue arg;
@@ -641,17 +641,14 @@ namespace P.Runtime
 
         public bool DequeueEvent(PrtImplMachine owner)
         {
-            HashSet<PrtValue> deferredSet;
-            HashSet<PrtValue> receiveSet;
-
-            deferredSet = owner.CurrentDeferredSet;
-            receiveSet = owner.receiveSet;
+            HashSet<PrtValue> deferredSet = owner.CurrentDeferredSet;
+            HashSet<PrtValue>  receiveSet = owner.receiveSet;
 
             int iter = 0;
             while (iter < events.Count)
             { 
-                if ((receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev))
-                    || (receiveSet.Count > 0 && receiveSet.Contains(events[iter].ev)))
+                if (   (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev))
+                    || (receiveSet.Count >  0 &&   receiveSet.Contains(events[iter].ev)))
                 {
                     owner.currentTrigger = events[iter].ev;
                     owner.currentPayload = events[iter].arg;
