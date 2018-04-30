@@ -236,7 +236,7 @@ namespace P.Tester
             Console.WriteLine("-psharp                  Run the PSharp Tester");
             Console.WriteLine("-dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
             Console.WriteLine("-OS:k                    Perform OS exploration (based on DFS) of the state space, starting with a queue bound of k");
-            Console.WriteLine("-hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence both -dfs and -OS imply -hash.)");
+            Console.WriteLine("-hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence -dfs and -OS each imply -hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of -psharp, -dfs, -OS are specified: perform random testing");
         }
@@ -247,8 +247,6 @@ namespace P.Tester
             if (args.Length > 0)
                 if (args[0] == "!")
                 {
-                    Console.WriteLine(StateImpl.Helper.nstring('x', 7));
-
                     Environment.Exit(0);
                 }
 

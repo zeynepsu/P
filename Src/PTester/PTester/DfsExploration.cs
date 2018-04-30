@@ -21,8 +21,8 @@ namespace P.Tester
 
         public static StateImpl start; // start state. Silly: I assume CommandLineOptions sets the start state. Improve this
 
-        public static HashSet<int> visited = new HashSet<int>();
-        public static SortedDictionary<int, StateImpl> visible = new SortedDictionary<int, StateImpl>();
+        public static HashSet<   int   > visited = new HashSet<int>();
+        public static HashSet<StateImpl> visible = new HashSet<StateImpl>(new StateImplComparer());
 
         public static int size_Visited_previous = 0;
         public static int size_Visible_previous = 0;
@@ -47,15 +47,15 @@ namespace P.Tester
 
             StreamWriter visited_k = new StreamWriter("visited-" + k.ToString() + ".txt"); // for dumping visited states as strings into a file
 
-            StateImpl s = (StateImpl)start.Clone(); // we need a fresh clone in each iteration of Explore
+            StateImpl start_k = (StateImpl) start.Clone(); // we need a fresh clone in each iteration (k) of Explore
 
-            stack.Push(new BacktrackingState(s));
-            int start_hash = s.GetHashCode();
+            stack.Push(new BacktrackingState(start_k));
+            int start_hash = start_k.GetHashCode();
             visited.Add(start_hash);
-            visited_k.WriteLine(s.ToString()); // + " = " + start_hash.ToString());
+            visited_k.WriteLine(start_k.ToString()); // + " = " + start_hash.ToString());
 
-            StateImpl vs = (StateImpl) s.Clone(); vs.abstract_me();
-            visible.Add(vs.GetHashCode(), vs);
+            StateImpl vstart_k = (StateImpl) start_k.Clone(); vstart_k.abstract_me();
+            visible.Add(vstart_k);
 
             // DFS begin
             while (stack.Count != 0)
@@ -96,10 +96,11 @@ namespace P.Tester
                     }
 #endif
                     // update visible state dictionary
-                    StateImpl next_vs = (StateImpl) next.State.Clone(); next_vs.abstract_me();
-                    int vhash = next_vs.GetHashCode();
-                    try { visible.Add(vhash, next_vs); /* Console.WriteLine(next_vs.ToString()); */ }
-                    catch (ArgumentException) { } // vs_next wasn't new
+                    StateImpl next_vs = (StateImpl)next.State.Clone(); next_vs.abstract_me();
+                    if (visible.Add(next_vs))
+                    {
+                        /* Console.WriteLine(next_vs.ToString()); */
+                    }
                 }
             }
 
@@ -112,9 +113,9 @@ namespace P.Tester
 
             // dump reached visible states into a file
             StreamWriter visible_k = new StreamWriter("visible-" + k.ToString() + ".txt");
-            foreach (KeyValuePair<int, StateImpl> pair in visible)
+            foreach (StateImpl vs in visible)
             {
-                visible_k.WriteLine(pair.Value.ToString());
+                visible_k.WriteLine(vs.ToString());
             }
             visible_k.Close();
 
@@ -135,9 +136,9 @@ namespace P.Tester
         {
             Debug.Assert(visible.Count > 0);
 
-            foreach (KeyValuePair<int, StateImpl> vs_pair in visible)
+            foreach (StateImpl vs_orig in visible)
             {
-                BacktrackingState b_vs = new BacktrackingState((StateImpl)vs_pair.Value.Clone());
+                BacktrackingState b_vs = new BacktrackingState((StateImpl) vs_orig.Clone());
                 StateImpl vs = b_vs.State;
 
                 // mini DFS: only immediate successors
@@ -147,7 +148,7 @@ namespace P.Tester
                     Debug.Assert(machineIndex != -1);
 
                     // skip machines whose event queue is empty (we only want RECV actions)
-                    if (b_vs.State.ImplMachines[machineIndex].eventQueue.Empty()) // if queue is empty
+                    if (vs.ImplMachines[machineIndex].eventQueue.Empty()) // if queue is empty
                     {
                         Debug.Assert(b_vs.ChoiceVector.Count == 0);
                         b_vs.CurrIndex++;
@@ -155,6 +156,7 @@ namespace P.Tester
                     }
 
                     BacktrackingState b_vs_succ = Execute(b_vs);
+                    vs = b_vs.State; // must "refresh" vs: 'Execute' above assigns to b_vs fresh memory, so previous pointers into b_vs (like vs) are invalid
                     StateImpl vs_succ = b_vs_succ.State;
 
                     // We know the current state's queue is non-empty (previous if). Now we require the successor's queue to be empty, so we have actually done a RECV
@@ -162,13 +164,13 @@ namespace P.Tester
                     {
                         // The tail of the queue determines the possible new queue heads. We nondeterministically try them all.
                         // And for each choice we nondet. decide whether the element moved to the head remains in the tail or not -- we don't know the multiplicity
-                        foreach (KeyValuePair<int, PrtEventNode> ev_pair in vs_succ.ImplMachines[machineIndex].eventQueue.Tail)
+                        foreach (PrtEventNode ev in vs_succ.ImplMachines[machineIndex].eventQueue.Tail)
                         {
                             // nondet choice 1: ev exists only once in the tail of the queue. It disappears from Tail after the dequeue
                             {
                                 StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
-                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev_pair.Value);
-                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.remove_from_tail(ev_pair.Key);
+                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev);
+                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.remove_from_tail(ev);
                                 if (new_cand(vs_succ_cand, b_vs.State, vs_succ))
                                     return false;
                             }
@@ -176,7 +178,7 @@ namespace P.Tester
                             // nondet choice 2: ev exits more than once in the tail of the queue. It remains in Tail after the dequeue
                             {
                                 StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
-                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev_pair.Value);
+                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev);
                                 if (new_cand(vs_succ_cand, b_vs.State, vs_succ))
                                     return false;
                             }
@@ -189,22 +191,34 @@ namespace P.Tester
 
         static bool new_cand(StateImpl vs_succ_cand, StateImpl vs, StateImpl vs_succ)
         {
-            bool result = !visible.ContainsKey(vs_succ_cand.GetHashCode());
+            bool result = !visible.Contains(vs_succ_cand);
             if (result) // new candidate
             {
-                Console.WriteLine("Found a so-far unreached abstract successor state!");
+                StreamWriter source_abstract_state = new StreamWriter("source_abstract_state.txt");
+                StreamWriter successor_abstract_state = new StreamWriter("successor_abstract_state.txt");
+                StreamWriter successor_candidate_state = new StreamWriter("successor_candidate_state.txt");
+
+                Console.WriteLine("found a so-far unreached abstract successor state!");
                 Console.WriteLine("Source abstract state (one queue should be non-empty):");
                 Console.WriteLine(vs.ToString());
-                Console.WriteLine("Pretty:");
-                Console.WriteLine(vs.ToPrettyString(""));
+                // Console.WriteLine("Pretty:");
+                // Console.WriteLine(vs.ToPrettyString(""));
+                source_abstract_state.WriteLine(vs.ToPrettyString(""));
                 Console.WriteLine("Successor abstract state (same queue should now be empty):");
                 Console.WriteLine(vs_succ.ToString());
-                Console.WriteLine("Pretty:");
-                Console.WriteLine(vs_succ.ToPrettyString(""));
+                // Console.WriteLine("Pretty:");
+                // Console.WriteLine(vs_succ.ToPrettyString(""));
+                successor_abstract_state.WriteLine(vs_succ.ToPrettyString(""));
                 Console.WriteLine("Successor candidate state (unless tail was empty, same queue should now be non-empty again; tail may or may not have changed):");
                 Console.WriteLine(vs_succ_cand.ToString());
-                Console.WriteLine("Pretty:");
-                Console.WriteLine(vs_succ_cand.ToPrettyString(""));
+                // Console.WriteLine("Pretty:");
+                // Console.WriteLine(vs_succ_cand.ToPrettyString(""));
+                successor_candidate_state.WriteLine(vs_succ_cand.ToPrettyString(""));
+
+                successor_candidate_state.Close();
+                successor_abstract_state.Close();
+                source_abstract_state.Close();
+                Console.WriteLine("Dumped abstract transition information into three files, for diffing");
             }
             return result;
         }
@@ -236,13 +250,17 @@ namespace P.Tester
                 // when do we have to run the convergence test?
                 if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
                 { // a new plateau!
-                    Console.Write("Running abstract state convergence test ...");
+                    Console.Write("Running abstract state convergence test ... ");
                     if (visible_converged())
                     {
-                        Console.WriteLine(" Converged!");
+                        Console.WriteLine("converged!");
                         Environment.Exit(0);
                     }
-                    Console.WriteLine(" did not converge; continuing");
+                    else
+                    {
+                        Console.WriteLine("did not converge; exiting"); // continuing"); // this should really continue, but for now there is no point
+                        Environment.Exit(-1);
+                    }
                 }
 
                 size_Visible_previous_previous = size_Visible_previous;
@@ -264,7 +282,9 @@ namespace P.Tester
         }
 
         /// <summary>
-        /// Returns the new state, modifies the original state in place (for the next choice)
+        /// - runs the state machine pointed to by CurrIndex, in place, and returns the successor wrapped into a bstate. No clone
+        /// - assigns to argument a clone (!) of the old bstate, and advances its choice vector and currIndex, as appropriate
+        /// So bstate points to new memory after calling Execute, not the returned successor.
         /// </summary>
         /// <param name="bstate"></param>
         /// <returns></returns>

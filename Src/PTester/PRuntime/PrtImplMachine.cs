@@ -95,7 +95,7 @@ namespace P.Runtime
             return base.ToString() + ";" + eventQueue.ToString();
         }
 
-        public new string ToPrettyString(string indent) {
+        public new string ToPrettyString(string indent = "") {
             string result = "";
             result += indent + "Base:\n";
             result += base.ToPrettyString(indent + "  ");
@@ -645,7 +645,7 @@ namespace P.Runtime
             return hasMoreWork;
         }
 
-        // to abstract a machine means to abstract its queue
+        // to abstract a machine currently means to abstract its queue
         public void abstract_me()
         {
             eventQueue.abstract_tail();

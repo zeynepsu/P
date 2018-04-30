@@ -54,13 +54,13 @@ namespace P.Runtime
         public void DbgCompare(StateImpl state)
         {
             Debug.Assert(implMachines.Count == state.implMachines.Count);
-            for(int i = 0; i < implMachines.Count; i++)
+            for (int i = 0; i < implMachines.Count; i++)
             {
                 implMachines[i].DbgCompare(state.implMachines[i]);
             }
 
             Debug.Assert(specMachinesMap.Count == state.specMachinesMap.Count);
-            foreach(var tup in specMachinesMap)
+            foreach (var tup in specMachinesMap)
             {
                 Debug.Assert(state.specMachinesMap.ContainsKey(tup.Key));
                 tup.Value.DbgCompare(state.specMachinesMap[tup.Key]);
@@ -73,7 +73,7 @@ namespace P.Runtime
         /// Stores the exception encountered during exploration.
         /// </summary>
         private Exception exception;
-        
+
         public VisibleTrace currentVisibleTrace;
         public StringBuilder errorTrace;
         public static List<string> visibleEvents = new List<string>();
@@ -102,15 +102,6 @@ namespace P.Runtime
 
         #endregion
 
-        // These functions should be defined somewhere else
-        public static class Helper
-        {
-            public static string nstring(char c, ushort n)
-            {
-                return (n == 0 ? "" : c.ToString() + nstring(c, (ushort)(n - 1)));
-            }
-        }
-
         #region Getters and Setters
         public bool Deadlock
         {
@@ -138,7 +129,7 @@ namespace P.Runtime
             set { exception = value; }
         }
 
-        
+
         #endregion
 
         #region Clone Function
@@ -163,7 +154,7 @@ namespace P.Runtime
             clonedState.exception = this.exception;
 
             clonedState.currentVisibleTrace = new VisibleTrace();
-            foreach(var item in currentVisibleTrace.Trace)
+            foreach (var item in currentVisibleTrace.Trace)
             {
                 clonedState.currentVisibleTrace.Trace.Add(item);
             }
@@ -183,7 +174,7 @@ namespace P.Runtime
                 m.Resolve(this);
             }
 
-            foreach(var m in specMachinesMap.Values)
+            foreach (var m in specMachinesMap.Values)
             {
                 m.Resolve(this);
             }
@@ -235,7 +226,7 @@ namespace P.Runtime
             return result;
         }
 
-        public string ToPrettyString(string indent)
+        public string ToPrettyString(string indent = "")
         {
             string result = "";
 
@@ -282,7 +273,7 @@ namespace P.Runtime
         public PrtInterfaceValue CreateInterface(PrtMachine currMach, string interfaceOrMachineName, PrtValue payload)
         {
             //add visible action to trace
-            if(visibleInterfaces.Contains(interfaceOrMachineName))
+            if (visibleInterfaces.Contains(interfaceOrMachineName))
             {
                 currentVisibleTrace.AddAction(interfaceOrMachineName, payload.ToString());
             }
@@ -311,7 +302,7 @@ namespace P.Runtime
 
         public void CreateMainMachine(string mainInterface)
         {
-            
+
 
             if (!machineDefMap.ContainsKey(mainInterface))
             {
@@ -416,5 +407,12 @@ namespace P.Runtime
         }
     }
 
-    
+    public class StateImplComparer : IEqualityComparer<StateImpl>
+    {
+        public int  GetHashCode(StateImpl s)                { return s.GetHashCode(); }
+        public bool Equals     (StateImpl s1, StateImpl s2) {
+            Console.WriteLine("Comparing!");
+            return s1.GetHashCode() == s2.GetHashCode(); }
+    }
+
 }

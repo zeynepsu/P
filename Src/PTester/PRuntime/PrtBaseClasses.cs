@@ -7,6 +7,7 @@ using System.Diagnostics;
 
 namespace P.Runtime
 {
+
     public abstract class PrtMachine
     {
         #region Fields
@@ -102,7 +103,7 @@ namespace P.Runtime
             return result;
         }
 
-        public string ToPrettyString(string indent)
+        public string ToPrettyString(string indent = "")
         {
             string result = "";
             result += indent + "renamedName:      " + renamedName                 + "\n";
@@ -523,7 +524,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return ev.ToString() + ":" + arg.ToString(); // not including senderMachine data since the image (successor) relation doesn't depend on them
+            return "(" + ev.ToString() + ":" + arg.ToString() + ")"; // not including senderMachine data since the image (successor) relation doesn't depend on them
         }
 
         public void Resolve(StateImpl state)
@@ -533,44 +534,57 @@ namespace P.Runtime
         }
     }
 
+    public class PrtEventNodeComparer : IEqualityComparer<PrtEventNode>
+    {
+        public int  GetHashCode(PrtEventNode ev)                    { return ev.GetHashCode(); }
+        public bool Equals     (PrtEventNode ev1, PrtEventNode ev2) { return ev1.GetHashCode() == ev2.GetHashCode(); }
+    }
+
     public class PrtEventBuffer
     {
         List<PrtEventNode> events;
 
-        public SortedDictionary<int,PrtEventNode> Tail;
+        public HashSet<PrtEventNode> Tail;
 
-        public PrtEventBuffer()
-        {
-            events = new List<PrtEventNode>();
-             Tail  = new SortedDictionary<int, PrtEventNode>(); // since Tail is used only in abstract queues, maybe it's better to keep it null until needed
-        }
+        public PrtEventBuffer() { events = new List<PrtEventNode>(); }
+
+        public bool is_abstract() { return Tail != null; }
+
+        public bool      Empty() { return events.Count == 0; }
+        public bool Tail_Empty() { return ( is_abstract() ? Tail.Count == 0 : true ); }
+
+        public int          Size() { return events.Count; }
+        public int abstract_Size() { Debug.Assert(is_abstract()); return ( Empty() ? 0 : Tail.Count() + 1 ); }
 
         public void make_head(PrtEventNode ev) { Debug.Assert(Empty()); events.Add(ev.Clone()); }
 
-        public void remove_from_tail(int ev_key) { bool removed = Tail.Remove(ev_key); Debug.Assert(removed); }
+        public void remove_from_tail(PrtEventNode ev) { bool removed = Tail.Remove(ev); Debug.Assert(removed); }
 
         // PrtEventBuffer abstraction: keep the head; place the rest of all elements in a set
         // A more precise abstraction keeps, for the rest of the events list, a map<PrtEventNode,bool>
         // which stores the elements in the rest, without ordering, and whether they occur once or more than once (0,1,infinity abstraction)
         public void abstract_tail()
         {
+            Debug.Assert(! is_abstract());
+            Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
 
 #if DEBUG
-            int concrete_size = events.Count;
-            string concrete_queue = ToString();
+            int concrete_size = Size(); // i.e. *before* abstracting
+            string concrete_queue = ToPrettyString();
 #endif
-            while (events.Count() > 1)
+            while (Size() > 1)
             {
-                PrtEventNode ev = events[1].Clone();
-                Tail.Add(ev.GetHashCode(), ev);
+                Tail.Add(events[1].Clone());
                 events.RemoveAt(1);
             }
 
 #if DEBUG
-            if (concrete_size > abstract_Size())
+            if (concrete_size > 1 /*concrete_size > abstract_Size()*/)
             {
-                Console.WriteLine("Concrete queue: {0}", concrete_queue);
-                Console.WriteLine("Abstract queue: {0}", ToString());
+                Console.WriteLine("Concrete queue:");
+                Console.Write(concrete_queue);
+                Console.WriteLine("Abstract queue:");
+                Console.WriteLine(ToPrettyString());
             }
 #endif
         }
@@ -585,10 +599,12 @@ namespace P.Runtime
                 clonedVal.events.Add(ev.Clone());
             }
 
-            clonedVal.Tail = new SortedDictionary<int, PrtEventNode>();
-            foreach (KeyValuePair<int, PrtEventNode> pair in Tail)
-            {
-                clonedVal.Tail.Add(pair.Key, pair.Value.Clone());
+            if (Tail != null) {
+                clonedVal.Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+                foreach (PrtEventNode ev in Tail)
+                {
+                    clonedVal.Tail.Add(ev.Clone());
+                }
             }
 
             return clonedVal;
@@ -598,42 +614,27 @@ namespace P.Runtime
         {
             string result = "";
 
-            result += ( Empty()         ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
-            result += "|";
-            result += ( Tail.Count == 0 ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            result += (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ); result += "|";
+            result += ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
 
             return result;
         }
 
-        public string ToPrettyString(string indent)
+        public string ToPrettyString(string indent = "")
         {
             string result = "";
 
-            result += indent + "events: |" + ( Empty()         ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
-            result += indent + "tail  : |" + ( Tail.Count == 0 ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
+            result += indent + "events: |" + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
+            result += indent + "tail  : |" + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
+
             return result;
         }
 
         public override int GetHashCode()
         {
-            return Hashing.Hash(
-                events.Select(v => v.GetHashCode()).Hash(),
-                 Tail .Select(v => v.GetHashCode()).Hash());
-        }
-
-        public int Size()
-        {
-            return events.Count;
-        }
-
-        public int abstract_Size()
-        {
-            return ( Empty() ? 0 : Tail.Count() + 1 );
-        }
-
-        public bool Empty()
-        {
-            return events.Count == 0;
+            return ( is_abstract() ? Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(),
+                                                    Tail.Select(v => v.GetHashCode()).Hash()) :
+                                     events.Select(v => v.GetHashCode()).Hash() );
         }
 
         public int CalculateInstances(PrtValue e)
