@@ -95,6 +95,14 @@ namespace P.Runtime
             return base.ToString() + ";" + eventQueue.ToString();
         }
 
+        public new string ToPrettyString(string indent) {
+            string result = "";
+            result += indent + "Base:\n";
+            result += base.ToPrettyString(indent + "  ");
+            result += indent + "Queue:\n";
+            result += eventQueue.ToPrettyString(indent + "  ");
+            return result; }
+
         #region Constructor
         public abstract PrtImplMachine MakeSkeleton();
 

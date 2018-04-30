@@ -102,6 +102,28 @@ namespace P.Runtime
             return result;
         }
 
+        public string ToPrettyString(string indent)
+        {
+            string result = "";
+            result += indent + "renamedName:      " + renamedName                 + "\n";
+            result += indent + "isSafe:           " + isSafe.ToString()           + "\n";
+            result += indent + "instanceNumber:   " + instanceNumber.ToString()   + "\n";
+            result += indent + "fields:           " + "|" + ( fields.Count == 0 ? "" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2)) + "|\n";
+            result += indent + "eventValue:       " + eventValue.ToString()       + "\n";
+            result += indent + "stateStack:       " + stateStack.ToString()       + "\n";
+            result += indent + "invertedFunStack: " + invertedFunStack.ToString() + "\n";
+            result += indent + "continuation:     " + continuation.ToString()     + "\n";
+            result += indent + "currentStatus:    " + currentStatus.ToString()    + "\n";
+            result += indent + "nextSMOperation:  " + nextSMOperation.ToString()  + "\n";
+            result += indent + "stateExitReason:  " + stateExitReason.ToString()  + "\n";
+            result += indent + "currentTrigger:   " + currentTrigger.ToString()   + "\n";
+            result += indent + "currentPayload:   " + currentPayload.ToString()   + "\n";
+            result += indent + "destOfGoto:       " + ( destOfGoto == null ? "null" : destOfGoto.ToString() ) + "\n";
+
+            return result;
+        }
+
+
         public virtual void DbgCompare(PrtMachine machine)
         {
             Debug.Assert(renamedName == machine.renamedName);
@@ -580,6 +602,15 @@ namespace P.Runtime
             result += "|";
             result += ( Tail.Count == 0 ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
 
+            return result;
+        }
+
+        public string ToPrettyString(string indent)
+        {
+            string result = "";
+
+            result += indent + "events: |" + ( Empty()         ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
+            result += indent + "tail  : |" + ( Tail.Count == 0 ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
             return result;
         }
 

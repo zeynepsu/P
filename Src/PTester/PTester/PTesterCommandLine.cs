@@ -247,7 +247,7 @@ namespace P.Tester
             if (args.Length > 0)
                 if (args[0] == "!")
                 {
-                    Console.WriteLine(Helper.nstring('x', 7));
+                    Console.WriteLine(StateImpl.Helper.nstring('x', 7));
 
                     Environment.Exit(0);
                 }

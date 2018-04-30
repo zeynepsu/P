@@ -51,25 +51,6 @@ namespace P.Runtime
         /// </summary>
         private Dictionary<string, PrtSpecMachine> specMachinesMap;
 
-        public void abstract_me()
-        {
-            foreach (var m in ImplMachines)
-                m.abstract_me();
-        }
-
-        // Implementation note: there are currently three distinct methods that crawl over the hierarchy of a StateImpl and collect various kinds of information:
-        // - GetHashCode computes the combined hash value of the state
-        // - ToString computes a combined string representation of the state
-        // - Clone computes a copy of the state, in fresh memory
-        // The descent into the StateImpl hierarchy is at least very similar, if not identical. Sometimes we RELY on it being identical, e.g. the hash and the string
-        // (both are used to store a state, in different contexts). This code redundancy is unreliable and error prone.
-        public override int GetHashCode()
-        {
-            var hash1 = implMachines   .Select(impl => impl      .GetHashCode()).Hash();
-            var hash2 = specMachinesMap.Select(pair => pair.Value.GetHashCode()).Hash();
-            return Hashing.Hash(hash1, hash2);
-        }
-
         public void DbgCompare(StateImpl state)
         {
             Debug.Assert(implMachines.Count == state.implMachines.Count);
@@ -120,6 +101,15 @@ namespace P.Runtime
         public StateTransitionCallbackDelegate StateTransitionCallback = null;
 
         #endregion
+
+        // These functions should be defined somewhere else
+        public static class Helper
+        {
+            public static string nstring(char c, ushort n)
+            {
+                return (n == 0 ? "" : c.ToString() + nstring(c, (ushort)(n - 1)));
+            }
+        }
 
         #region Getters and Setters
         public bool Deadlock
@@ -200,6 +190,25 @@ namespace P.Runtime
         }
         #endregion
 
+        public void abstract_me()
+        {
+            foreach (var m in ImplMachines)
+                m.abstract_me();
+        }
+
+        // Implementation note: there are currently three distinct methods that crawl over the hierarchy of a StateImpl and collect various kinds of information:
+        // - GetHashCode computes the combined hash value of the state
+        // -   ToString  computes a combined string representation of the state
+        // -    Clone    computes a copy of the state, in fresh memory
+        // The descent into the StateImpl hierarchy is at least very similar, if not identical. Sometimes we RELY on it being identical, e.g. the hash and the string
+        // (both are used to store a state, in different contexts). This code redundancy is unreliable and error prone.
+        public override int GetHashCode()
+        {
+            var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash();
+            var hash2 = specMachinesMap.Select(pair => pair.Value.GetHashCode()).Hash();
+            return Hashing.Hash(hash1, hash2);
+        }
+
         // We use the following printing convention:
         // || separates specmachines from implmachines
         //   | terminates output pertaining to one machine. Within a machine:
@@ -221,6 +230,38 @@ namespace P.Runtime
             foreach (KeyValuePair<string, PrtSpecMachine> pair in specMachinesMap)
             {
                 result += pair.Key + "|";
+            }
+
+            return result;
+        }
+
+        public string ToPrettyString(string indent)
+        {
+            string result = "";
+
+            if (implMachines.Count == 0)
+                result += indent + "ImplMachines: (none)\n";
+            else
+            {
+                ushort i = 0;
+                // dump each ImplMachine to a string
+                foreach (PrtImplMachine m in implMachines)
+                {
+                    result += indent + "ImplMachine " + (i++).ToString() + ":\n";
+                    result += m.ToPrettyString(indent + "  ");
+                }
+            }
+
+            if (specMachineMap.Count == 0)
+                result += indent + "SpecMachines: (none)\n";
+            else
+            {
+                ushort i = 0;
+                // for each specMachine, why do we print only the key?
+                foreach (KeyValuePair<string, PrtSpecMachine> pair in specMachinesMap)
+                {
+                    result += indent + "SpecMachine " + (i++).ToString() + ": " + pair.Key + "\n";
+                }
             }
 
             return result;

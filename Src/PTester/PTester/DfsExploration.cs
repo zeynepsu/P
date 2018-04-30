@@ -7,14 +7,6 @@ using System.Threading.Tasks;
 using P.Runtime;
 using System.Diagnostics;
 
-static class Helper
-{
-    public static string nstring(char c, ushort n)
-    {
-        return (n == 0 ? "" : c.ToString() + nstring(c, (ushort) (n-1)));
-    }
-}
-
 namespace P.Tester
 {
     static class DfsExploration
@@ -91,7 +83,7 @@ namespace P.Tester
                     // diagnostics
 
                     // Print number of states explored
-                    if (visited.Count % 1000 == 0)
+                    if (visited.Count % 10000 == 0)
                     {
                         Console.WriteLine("-------------- Number of states visited so far = {0}", visited.Count);
                     }
@@ -203,10 +195,16 @@ namespace P.Tester
                 Console.WriteLine("Found a so-far unreached abstract successor state!");
                 Console.WriteLine("Source abstract state (one queue should be non-empty):");
                 Console.WriteLine(vs.ToString());
+                Console.WriteLine("Pretty:");
+                Console.WriteLine(vs.ToPrettyString(""));
                 Console.WriteLine("Successor abstract state (same queue should now be empty):");
                 Console.WriteLine(vs_succ.ToString());
-                Console.WriteLine("Successor candidate state (unless tail was empty, queue should now be non-empty again; tail may or may not have changed):");
+                Console.WriteLine("Pretty:");
+                Console.WriteLine(vs_succ.ToPrettyString(""));
+                Console.WriteLine("Successor candidate state (unless tail was empty, same queue should now be non-empty again; tail may or may not have changed):");
                 Console.WriteLine(vs_succ_cand.ToString());
+                Console.WriteLine("Pretty:");
+                Console.WriteLine(vs_succ_cand.ToPrettyString(""));
             }
             return result;
         }
