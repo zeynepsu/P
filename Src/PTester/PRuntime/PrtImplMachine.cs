@@ -92,6 +92,9 @@ namespace P.Runtime
         // ToString: use same recursive descent as for GetHashCode
         public override string ToString()
         {
+            Console.WriteLine("PrtImplMachine.ToString: error: should not reach this function");
+            throw new NotImplementedException();
+
             return base.ToString() + ";" + eventQueue.ToString();
         }
 
