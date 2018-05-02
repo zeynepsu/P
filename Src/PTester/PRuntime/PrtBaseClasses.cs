@@ -1,9 +1,9 @@
-﻿
+﻿#define __TAIL_ABSTRACT__ // where to put those?
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
-
 
 namespace P.Runtime
 {
@@ -565,27 +565,28 @@ namespace P.Runtime
         // which stores the elements in the rest, without ordering, and whether they occur once or more than once (0,1,infinity abstraction)
         public void abstract_tail()
         {
-            Debug.Assert(! is_abstract());
+            Debug.Assert(!is_abstract());
             Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
 
 #if DEBUG
-            int concrete_size = Size(); // i.e. *before* abstracting
+            int concrete_size = Size(); // i.e. before abstracting
             string concrete_queue = ToPrettyString();
 #endif
-            while (Size() > 1)
+            while (Size() >= 2)
             {
-                Tail.Add(events[1].Clone());
+#if __TAIL_ABSTRACT__ // this macro causes the tail of the queue to be abstracted into a set (no ordering, no multiplicity), which creates a very fine-grained and hence expensive abstraction
+                PrtEventNode ev = (PrtEventNode) events[1].Clone();
+                // ev.arg = PrtValue.@null; // this line abstracts the payload away
+                Tail.Add(ev);
+#endif
                 events.RemoveAt(1);
             }
 
 #if DEBUG
-            if (concrete_size > 1 /*concrete_size > abstract_Size()*/)
-            {
-                Console.WriteLine("Concrete queue:");
-                Console.Write(concrete_queue);
-                Console.WriteLine("Abstract queue:");
-                Console.WriteLine(ToPrettyString());
-            }
+            Console.WriteLine("Concrete queue:");
+            Console.Write(concrete_queue);
+            Console.WriteLine("Abstract queue:");
+            Console.WriteLine(ToPrettyString());
 #endif
         }
 
