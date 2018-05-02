@@ -1,8 +1,3 @@
-
-Pretty printer: state printout has become unreadable.
-
----------------------------------------------------------------------------
-
 Fix convergence test: don't use Execute, but instead write a routine that runs
 along the three dimensions of nondeterminism and explores states. The dequeue routine
 needs to be rewritten in the way described in 0-Answers.
