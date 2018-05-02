@@ -27,8 +27,8 @@ namespace P.Runtime
         public PrtValue currentPayload;
         public Tuple<string, string> currentTriggerSenderInfo;
         public PrtState destOfGoto;
-        //just a reference to stateImpl
-        protected StateImpl stateImpl;
+
+        protected StateImpl stateImpl; //just a reference to stateImpl
         #endregion
 
         #region Constructor
@@ -82,34 +82,13 @@ namespace P.Runtime
             currentPayload.Resolve(state);
         }
 
-        public override string ToString()
-        {
-            string result = "";
-            result += renamedName + ",";
-            result += isSafe.ToString() + ",";
-            result += instanceNumber.ToString() + ",";
-            result += ( fields.Count == 0 ? "" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + ",";
-            result += eventValue.ToString() + ",";
-            result += stateStack.ToString() + ","; 
-            result += invertedFunStack.ToString() + ","; 
-            result += continuation.ToString() + ",";
-            result += currentStatus.ToString() + ",";
-            result += nextSMOperation.ToString() + ",";
-            result += stateExitReason.ToString() + ",";
-            result += currentTrigger.ToString() + ",";
-            result += currentPayload.ToString() + ",";
-            result += ( destOfGoto == null ? "0" : destOfGoto.ToString());
-
-            return result;
-        }
-
         public string ToPrettyString(string indent = "")
         {
             string result = "";
             result += indent + "renamedName:      " + renamedName                 + "\n";
             result += indent + "isSafe:           " + isSafe.ToString()           + "\n";
             result += indent + "instanceNumber:   " + instanceNumber.ToString()   + "\n";
-            result += indent + "fields:           " + "|" + ( fields.Count == 0 ? "" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2)) + "|\n";
+            result += indent + "fields:           " + ( fields.Count == 0 ? "" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
             result += indent + "eventValue:       " + eventValue.ToString()       + "\n";
             result += indent + "stateStack:       " + stateStack.ToString()       + "\n";
             result += indent + "invertedFunStack: " + invertedFunStack.ToString() + "\n";
@@ -524,7 +503,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return "(" + ev.ToString() + ":" + arg.ToString() + ")"; // not including senderMachine data since the image (successor) relation doesn't depend on them
+            return "(" + ev.ToString() + "," + arg.ToString() + ")"; // not including senderMachine data since the image (successor) relation doesn't depend on them
         }
 
         public void Resolve(StateImpl state)
@@ -583,10 +562,10 @@ namespace P.Runtime
             }
 
 #if DEBUG
-            Console.WriteLine("Concrete queue:");
-            Console.Write(concrete_queue);
-            Console.WriteLine("Abstract queue:");
-            Console.WriteLine(ToPrettyString());
+            //Console.WriteLine("Concrete queue:");
+            //Console.Write(concrete_queue);
+            //Console.WriteLine("Abstract queue:");
+            //Console.WriteLine(ToPrettyString());
 #endif
         }
 
@@ -611,22 +590,12 @@ namespace P.Runtime
             return clonedVal;
         }
 
-        public override string ToString()
-        {
-            string result = "";
-
-            result += (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ); result += "|";
-            result += ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
-
-            return result;
-        }
-
         public string ToPrettyString(string indent = "")
         {
             string result = "";
 
-            result += indent + "events: |" + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
-            result += indent + "tail  : |" + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "|\n";
+            result += indent + "events: " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            result += indent + "tail  : " + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
 
             return result;
         }
@@ -1001,9 +970,10 @@ namespace P.Runtime
             return Hashing.Hash(nondet.GetHashCode(), reason.GetHashCode(), retVal.GetHashCode(), retLocals.Select(v => v.GetHashCode()).Hash());
         }
 
+        // warning: I print the Boolean nondet before the List retLocals
         public override string ToString()
         {
-            return reason.ToString() + "," + retVal.ToString() + "," + ( retLocals.Count == 0 ? "" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2) ) + "," + nondet.ToString();
+            return reason.ToString() + "," + retVal.ToString() + "," + nondet.ToString() + "," + ( retLocals.Count == 0 ? "" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2) );
         }
 
         public void Resolve(StateImpl state)
