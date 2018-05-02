@@ -200,13 +200,13 @@ namespace P.Runtime
             return Hashing.Hash(hash1, hash2);
         }
 
-        // We use the following printing convention:
-        // || separates specmachines from implmachines
-        //   | terminates output pertaining to one machine. Within a machine:
-        //     ; separates base fields from the queue. Within the base machine AND within the queue:
-        //       , terminates output pertaining to one base machine field or one queue entry
+        // A good convention for converting a state into a compressed string might be to define a separator char (like '|')
+        // that is used twice, thrice, etc. depending on how deep in the state hierarchy you are. This way you need to reserve only 1 char
         public override string ToString()
         {
+            Console.WriteLine("StateImpl.ToString: error: should not reach this function");
+            throw new NotImplementedException();
+
             string result = "";
 
             // dump each ImplMachine to a string
@@ -409,8 +409,9 @@ namespace P.Runtime
 
     public class StateImplComparer : IEqualityComparer<StateImpl>
     {
-        public int  GetHashCode(StateImpl s)                { return s.GetHashCode(); }
-        public bool Equals     (StateImpl s1, StateImpl s2) {
+        public int GetHashCode(StateImpl s) { return s.GetHashCode(); }
+
+        public bool Equals(StateImpl s1, StateImpl s2) {
             Console.WriteLine("Comparing!");
             return s1.GetHashCode() == s2.GetHashCode(); }
     }
