@@ -354,6 +354,7 @@ namespace P.Runtime
             }
         }
 
+
         public bool PrtStepStateMachine()
         {
             PrtValue currEventValue;
@@ -648,7 +649,7 @@ namespace P.Runtime
             return hasMoreWork;
         }
 
-        // to abstract a machine currently means to abstract its queue
+        // to abstract a machine means to abstract its queue
         public void abstract_me()
         {
             eventQueue.abstract_tail();

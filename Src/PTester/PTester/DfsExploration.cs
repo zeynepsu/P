@@ -79,8 +79,8 @@ namespace P.Tester
 
                 if (!CheckFailure(next.State, next.depth))   // check for failure ...
                 {
-                    var hash = next.State.GetHashCode();
                     // update visited state hashset
+                    var hash = next.State.GetHashCode();
                     if (!visited.Add(hash))                  // ... before adding new state, since failure may be due to failed assume, in which case we don't want to add
                         continue;
 
@@ -134,7 +134,7 @@ namespace P.Tester
         }
 
         // Step II: compute visbile successors, and return true ("converged") iff all of them are already contained in visible:
-        // for each visibile state vs:
+        // for each visible state vs:
         //   for each successor vs' of vs :
         //     populate vs' nondeterministically with info that cannot be deduced from vs
         //     if vs' not in visible:
@@ -142,91 +142,109 @@ namespace P.Tester
         // return true
         static bool visible_converged()
         {
+            int i = 0; //!
             Debug.Assert(visible.Count > 0);
 
-            foreach (StateImpl vs_orig in visible)
+            foreach (StateImpl vs in visible)
             {
-                BacktrackingState b_vs = new BacktrackingState((StateImpl) vs_orig.Clone());
-                StateImpl vs = b_vs.State;
+                Console.WriteLine("Processing {0}. visible state", i++); //!
 
-                // mini DFS: only immediate successors
-                while (b_vs.CurrIndex < vs.EnabledMachines.Count)
+                // iterate through immediate successors
+                int currIndex = 0;
+                while (currIndex < vs.ImplMachines.Count)
                 {
-                    int machineIndex = vs.ImplMachines.FindIndex(m => m == vs.EnabledMachines[b_vs.CurrIndex]);
-                    Debug.Assert(machineIndex != -1);
+                    PrtImplMachine m = vs.ImplMachines[currIndex];
 
-                    // skip machines whose event queue is empty (we only want RECV actions)
-                    if (vs.ImplMachines[machineIndex].eventQueue.Empty()) // if queue is empty
-                    {
-                        Debug.Assert(b_vs.ChoiceVector.Count == 0);
-                        b_vs.CurrIndex++;
+                    // reject machines not enabled
+                    if (!(m.currentStatus == PrtMachineStatus.Enabled))
                         continue;
-                    }
 
-                    BacktrackingState b_vs_succ = Execute(b_vs);
-                    vs = b_vs.State; // must "refresh" vs: 'Execute' above assigns to b_vs fresh memory, so previous pointers into b_vs (like vs) are invalid
-                    StateImpl vs_succ = b_vs_succ.State;
+                    // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
+                    if (! (m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
+                           m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
+                        continue;
 
-                    // We know the current state's queue is non-empty (previous if). Now we require the successor's queue to be empty, so we have actually done a RECV
-                    if (vs_succ.ImplMachines[machineIndex].eventQueue.Empty())
+                    Debug.Assert(!m.eventQueue.Empty()); //! or 'if' ?
+
+                    StateImpl vs_succ;
+                    PrtImplMachine m_succ;
+
+                    // try to dequeue events from head
+                    vs_succ = (StateImpl)vs.Clone();
+                    m_succ = vs_succ.ImplMachines[currIndex];
+                    m_succ.eventQueue.clear_tail(); // only try to dequeue head
+                    m_succ.PrtRunStateMachine();
+                    if (m_succ.eventQueue.Empty()) // dequeing head was successful
                     {
                         // The tail of the queue determines the possible new queue heads. We nondeterministically try them all.
                         // And for each choice we nondet. decide whether the element moved to the head remains in the tail or not -- we don't know the multiplicity
-                        foreach (PrtEventNode ev in vs_succ.ImplMachines[machineIndex].eventQueue.Tail)
+                        foreach (PrtEventNode ev in m.eventQueue.Tail)
                         {
-                            // nondet choice 1: ev exists only once in the tail of the queue. It disappears from Tail after the dequeue
-                            {
-                                StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
-                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev);
-                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.remove_from_tail(ev);
-                                if (new_cand(vs_succ_cand, b_vs.State, vs_succ))
-                                    return false;
-                            }
+                            StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
+                            PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
+                            m_succ_cand.eventQueue.make_head(ev); //! do we need to clone ev? it is later removed
+                            // choice 1: ev exists more than once in the tail of the queue. It remains in Tail after the dequeue, so nothing else to do
+                            if (new_cand(vs, vs_succ_cand))
+                                return false;
+                            // choice 2: ev exists only once in the tail of the queue. It disappears from Tail after the dequeue
+                            m_succ_cand.eventQueue.remove_from_tail(ev);
+                            if (new_cand(vs, vs_succ_cand))
+                                return false;
+                        }
+                        break; // move on: since dequeing the head was successful, there is no other immediate successor
+                    }
 
-                            // nondet choice 2: ev exits more than once in the tail of the queue. It remains in Tail after the dequeue
-                            {
-                                StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
-                                vs_succ_cand.ImplMachines[machineIndex].eventQueue.make_head(ev);
-                                if (new_cand(vs_succ_cand, b_vs.State, vs_succ))
-                                    return false;
-                            }
+                    // try to dequeue tail events. Here we don't know the priority order, so we must try all
+                    foreach (PrtEventNode ev in m.eventQueue.Tail)
+                    {
+                        StateImpl vs_succ_cand = (StateImpl)vs.Clone();
+                        PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
+                        m_succ_cand.eventQueue.make_head(ev);
+                        m_succ_cand.eventQueue.clear_tail(); // only try to dequeue ev here
+                        m_succ_cand.PrtRunStateMachine();
+                        if (m_succ_cand.eventQueue.Empty()) // dequeing ev was successful
+                        {
+                            m_succ_cand.eventQueue.make_head(m.eventQueue.head()); // original head
+                            m_succ_cand.eventQueue.Tail = m.eventQueue.tail(); // original tail
+                            // choice 1: ev exists more than once in the tail of the queue. It remains in Tail after the dequeue, so nothing else to do
+                            if (new_cand(vs, vs_succ_cand))
+                                return false;
+                            // choice 2: ev exists only once in the tail of the queue. It disappears from Tail after the dequeue
+                            m_succ.eventQueue.remove_from_tail(ev);
+                            if (new_cand(vs, vs_succ_cand))
+                                return false;
                         }
                     }
                 }
             }
+
             return true;
         }
 
-        static bool new_cand(StateImpl vs_succ_cand, StateImpl vs, StateImpl vs_succ)
+        static bool new_cand(StateImpl vs, StateImpl vs_succ_cand)
         {
-            bool result = !visible.Contains(vs_succ_cand);
-            if (result) // new candidate
+            if (!visible.Contains(vs_succ_cand)) // new candidate
             {
-                StreamWriter source_abstract_state = new StreamWriter("source_abstract_state.txt");
-                StreamWriter successor_abstract_state = new StreamWriter("successor_abstract_state.txt");
-                StreamWriter successor_candidate_state = new StreamWriter("successor_candidate_state.txt");
+                StreamWriter vs_SW           = new StreamWriter("vs.txt");
+                StreamWriter vs_succ_cand_SW = new StreamWriter("cs_succ_cand.txt");
 
-                Console.WriteLine("found a so-far unreached abstract successor state!");
+                Console.WriteLine("found a so-far unreached successor candidate!");
 
-                Console.WriteLine("Source abstract state (one queue should be non-empty):");
-                Console                 .WriteLine(vs.ToPrettyString());
-                successor_abstract_state.WriteLine(vs.ToPrettyString());
+                Console.WriteLine("Source state (one queue should be non-empty):");
+                Console.WriteLine(vs.ToPrettyString());
+                vs_SW  .WriteLine(vs.ToPrettyString());
 
-                Console.WriteLine("Successor abstract state (same queue should now be empty):");
-                Console                 .WriteLine(vs_succ.ToPrettyString());
-                successor_abstract_state.WriteLine(vs_succ.ToPrettyString());
+                Console.WriteLine("Successor candidate (if tail was empty, same queue should now be empty, otherwise non-empty; tail may or may not have changed):");
+                Console        .WriteLine(vs_succ_cand.ToPrettyString());
+                vs_succ_cand_SW.WriteLine(vs_succ_cand.ToPrettyString());
 
-                Console.WriteLine("Successor candidate state (unless tail was empty, same queue should now be non-empty again; tail may or may not have changed):");
-                Console                  .WriteLine(vs_succ_cand.ToPrettyString());
-                successor_candidate_state.WriteLine(vs_succ_cand.ToPrettyString());
-
-                successor_candidate_state.Close();
-                successor_abstract_state.Close();
-                source_abstract_state.Close();
+                vs_succ_cand_SW.Close();
+                vs_SW.Close();
 
                 Console.WriteLine("Dumped abstract transition information into three files, for diffing");
+                return true;
             }
-            return result;
+            return false;
         }
 
         public static void OS_Iterate(int k0)
@@ -285,9 +303,9 @@ namespace P.Tester
         }
 
         /// <summary>
-        /// - runs the state machine pointed to by CurrIndex, in place, and returns the successor wrapped into a bstate. No clone
+        /// - runs the state machine pointed to by CurrIndex, in place, and returns the successor wrapped into a bstate. Nothing gets cloned.
         /// - assigns to argument a clone (!) of the old bstate, and advances its choice vector and currIndex, as appropriate
-        /// So bstate points to new memory after calling Execute, not the returned successor.
+        /// So bstate points to new memory after calling Execute. The returned successor is stored in old memory.
         /// </summary>
         /// <param name="bstate"></param>
         /// <returns></returns>
@@ -296,6 +314,10 @@ namespace P.Tester
             var origState = (StateImpl)bstate.State.Clone();
 
             int choiceIndex = 0;
+
+            // bstate.State.UserBooleanChoice is a pointer to a function with signature f: {} -> Bool.
+            // The following assigns the code under 'delegate' to this function pointer.
+            // bstate and choiceIndex are global variables
             bstate.State.UserBooleanChoice = delegate ()
             {
                 if (choiceIndex < bstate.ChoiceVector.Count)
@@ -335,7 +357,6 @@ namespace P.Tester
 
             return ret;
         }
-
 
         static bool CheckFailure(StateImpl s, int depth)
         {

@@ -21,7 +21,7 @@ namespace P.Runtime
         protected PrtFunStack invertedFunStack;
         public PrtContinuation continuation;
         public PrtMachineStatus currentStatus;
-        protected PrtNextStatemachineOperation nextSMOperation;
+        public PrtNextStatemachineOperation nextSMOperation;
         protected PrtStateExitReason stateExitReason;
         public PrtValue currentTrigger;
         public PrtValue currentPayload;
@@ -535,9 +535,12 @@ namespace P.Runtime
         public int          Size() { return events.Count; }
         public int abstract_Size() { Debug.Assert(is_abstract()); return ( Empty() ? 0 : Tail.Count() + 1 ); }
 
-        public void make_head(PrtEventNode ev) { Debug.Assert(Empty()); events.Add(ev.Clone()); }
+        public         PrtEventNode  head() { return ( Empty() ? null : events[0] ); }
+        public HashSet<PrtEventNode> tail() { return Tail; }
 
+        public void make_head(PrtEventNode ev) { Debug.Assert(Empty()); events.Add(ev.Clone()); }
         public void remove_from_tail(PrtEventNode ev) { bool removed = Tail.Remove(ev); Debug.Assert(removed); }
+        public void clear_tail() { events.Clear(); }
 
         // PrtEventBuffer abstraction: keep the head; place the rest of all elements in a set
         // A more precise abstraction keeps, for the rest of the events list, a map<PrtEventNode,bool>
@@ -649,7 +652,7 @@ namespace P.Runtime
             int iter = 0;
             while (iter < events.Count)
             { 
-                if (   (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev))
+                if (   (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev))  // we check deferredSet and receiveSet only against ev (event type), not arg
                     || (receiveSet.Count >  0 &&   receiveSet.Contains(events[iter].ev)))
                 {
                     owner.currentTrigger = events[iter].ev;

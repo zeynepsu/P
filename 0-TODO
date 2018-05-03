@@ -12,3 +12,11 @@ German protocol:
 
 - check the way the TestScript was constructed
 - why does it not terminate with /dfs:1 (or it doesn't seem to) ?
+
+===========================================================================
+DONE:
+===========================================================================
+
+- pretty printing of states. This is now only used for debugging purposes
+  (not in comparisons or for storage), so there is no more need for a
+  compressed state printing function.

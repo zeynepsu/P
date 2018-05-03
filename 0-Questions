@@ -1,0 +1,9 @@
+It seems the nondet boolean user choices matter only for "Actions", not for
+deqeue or receive operations. So for computing abstract successors,
+which only fire dequeue or receive, we ignore such choices.
+
+If this is not true, I'd like to know whether the nondet choices have an
+impact on which machines are enabled.
+
+Currently the interaction of the three dimensions of nondeterminstic
+choices is unclear; the implementation too complicated.
