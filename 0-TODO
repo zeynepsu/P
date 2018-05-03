@@ -20,3 +20,15 @@ DONE:
 - pretty printing of states. This is now only used for debugging purposes
   (not in comparisons or for storage), so there is no more need for a
   compressed state printing function.
+
+- abstract execution: we now respect receive and defer sets. That is,
+  not only head events can be dequeued, but also "later" events if the
+  head event is not dequeable.
+
+  Instead of duplicating the code for stepping a PrtImplMachine, I iterate
+  through all events in the queue and set the environment up so that this
+  event and this event only is dequeued (by putting it at the head). This
+  tells me whether the event is dequeable, and it tells me what gets
+  modified in the state machine other than the queue, i.e. the "local"
+  variables. I uses these modifications and then only adjust the queue, to
+  simulate a proper global execution step.
