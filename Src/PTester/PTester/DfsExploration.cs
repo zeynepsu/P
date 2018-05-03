@@ -45,14 +45,19 @@ namespace P.Tester
 
             var stack = new Stack<BacktrackingState>();
 
+#if __FILE_DUMP__
             StreamWriter visited_k = new StreamWriter("visited-" + k.ToString() + ".txt"); // for dumping visited states as strings into a file
+#endif
 
             StateImpl start_k = (StateImpl) start.Clone(); // we need a fresh clone in each iteration (k) of Explore
 
             stack.Push(new BacktrackingState(start_k));
             int start_hash = start_k.GetHashCode();
             visited.Add(start_hash);
-            visited_k.WriteLine(start_k.ToString()); // + " = " + start_hash.ToString());
+
+#if __FILE_DUMP__
+            visited_k.WriteLine(start_k.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
+#endif
 
             StateImpl vstart_k = (StateImpl) start_k.Clone(); vstart_k.abstract_me();
             visible.Add(vstart_k);
@@ -75,10 +80,20 @@ namespace P.Tester
                 if (!CheckFailure(next.State, next.depth))   // check for failure ...
                 {
                     var hash = next.State.GetHashCode();
+                    // update visited state hashset
                     if (!visited.Add(hash))                  // ... before adding new state, since failure may be due to failed assume, in which case we don't want to add
                         continue;
+
+                    // update visible state set
+                    StateImpl next_vs = (StateImpl)next.State.Clone(); next_vs.abstract_me();
+                    visible.Add(next_vs);
+
                     stack.Push(next);
-                    visited_k.WriteLine(next.State.ToString()); // + " = " + hash.ToString());
+
+#if __FILE_DUMP__
+                    visited_k.WriteLine(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
+#endif
+
 #if DEBUG
                     // diagnostics
 
@@ -95,12 +110,6 @@ namespace P.Tester
                         max_queue_size = (m_size > max_queue_size ? m_size : max_queue_size);
                     }
 #endif
-                    // update visible state dictionary
-                    StateImpl next_vs = (StateImpl)next.State.Clone(); next_vs.abstract_me();
-                    if (visible.Add(next_vs))
-                    {
-                        /* Console.WriteLine(next_vs.ToString()); */
-                    }
                 }
             }
 
@@ -109,15 +118,14 @@ namespace P.Tester
             Console.WriteLine("Number of global  states visited = {0}", visited.Count);
             Console.WriteLine("Number of visible states visited = {0}", visible.Count);
 
+#if __FILE_DUMP__
             visited_k.Close();
 
             // dump reached visible states into a file
             StreamWriter visible_k = new StreamWriter("visible-" + k.ToString() + ".txt");
-            foreach (StateImpl vs in visible)
-            {
-                visible_k.WriteLine(vs.ToString());
-            }
+            foreach (StateImpl vs in visible) { visible_k.WriteLine(vs.ToPrettyString()); }
             visible_k.Close();
+#endif
 
 #if DEBUG
             Console.WriteLine("Maximum queue size observed      = {0}", max_queue_size);
@@ -199,25 +207,23 @@ namespace P.Tester
                 StreamWriter successor_candidate_state = new StreamWriter("successor_candidate_state.txt");
 
                 Console.WriteLine("found a so-far unreached abstract successor state!");
+
                 Console.WriteLine("Source abstract state (one queue should be non-empty):");
-                Console.WriteLine(vs.ToString());
-                // Console.WriteLine("Pretty:");
-                // Console.WriteLine(vs.ToPrettyString(""));
-                source_abstract_state.WriteLine(vs.ToPrettyString(""));
+                Console                 .WriteLine(vs.ToPrettyString());
+                successor_abstract_state.WriteLine(vs.ToPrettyString());
+
                 Console.WriteLine("Successor abstract state (same queue should now be empty):");
-                Console.WriteLine(vs_succ.ToString());
-                // Console.WriteLine("Pretty:");
-                // Console.WriteLine(vs_succ.ToPrettyString(""));
-                successor_abstract_state.WriteLine(vs_succ.ToPrettyString(""));
+                Console                 .WriteLine(vs_succ.ToPrettyString());
+                successor_abstract_state.WriteLine(vs_succ.ToPrettyString());
+
                 Console.WriteLine("Successor candidate state (unless tail was empty, same queue should now be non-empty again; tail may or may not have changed):");
-                Console.WriteLine(vs_succ_cand.ToString());
-                // Console.WriteLine("Pretty:");
-                // Console.WriteLine(vs_succ_cand.ToPrettyString(""));
-                successor_candidate_state.WriteLine(vs_succ_cand.ToPrettyString(""));
+                Console                  .WriteLine(vs_succ_cand.ToPrettyString());
+                successor_candidate_state.WriteLine(vs_succ_cand.ToPrettyString());
 
                 successor_candidate_state.Close();
                 successor_abstract_state.Close();
                 source_abstract_state.Close();
+
                 Console.WriteLine("Dumped abstract transition information into three files, for diffing");
             }
             return result;
@@ -257,10 +263,7 @@ namespace P.Tester
                         Environment.Exit(0);
                     }
                     else
-                    {
-                        Console.WriteLine("did not converge; exiting"); // continuing"); // this should really continue, but for now there is no point
-                        Environment.Exit(-1);
-                    }
+                        Console.WriteLine("did not converge; continuing");
                 }
 
                 size_Visible_previous_previous = size_Visible_previous;
