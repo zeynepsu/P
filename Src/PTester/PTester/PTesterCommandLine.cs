@@ -247,6 +247,8 @@ namespace P.Tester
             if (args.Length > 0)
                 if (args[0] == "!")
                 {
+                    if (String.IsNullOrEmpty(Console.ReadLine())) Console.WriteLine("Nothing");
+                    if ("" == String.Empty) Console.WriteLine("same empty");
                     Environment.Exit(0);
                 }
 

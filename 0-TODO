@@ -1,13 +1,3 @@
-Fix convergence test: don't use Execute, but instead write a routine that runs
-along the three dimensions of nondeterminism and explores states. The dequeue routine
-needs to be rewritten in the way described in 0-Answers.
-
----------------------------------------------------------------------------
-
-Make a toy example (perhaps without defers and receives)
-
----------------------------------------------------------------------------
-
 German protocol:
 
 - check the way the TestScript was constructed
@@ -32,3 +22,15 @@ DONE:
   modified in the state machine other than the queue, i.e. the "local"
   variables. I uses these modifications and then only adjust the queue, to
   simulate a proper global execution step.
+
+- made an extensible toy example, for incremental feature addition
+
+- found out how to circumvent the recurring permission problems: during git
+  commit, during git push, even during building.  We suspected at some time
+  that this is due to my mixed use of Cygwin and Windows file access. So I
+  used cygwin in read-only mode (for things like grep and diff). That
+  helped, but sometimes the problem still recurred.
+
+  I then noticed that starting the Developer Command Prompt for VS
+  as Administrator solved all problems. Not sure that this sledge-hammer
+  solution is really the way to go, but it works.
