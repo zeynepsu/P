@@ -22,8 +22,6 @@ namespace P.Tester
 
         public static bool UseStateHashing = true; // currently doesn't make sense without
 
-        public static StateImpl start; // start state. Silly: I assume CommandLineOptions sets the start state. Improve this
-
         public static HashSet<   int   > visited = new HashSet<int>();
         public static HashSet<StateImpl> visible = new HashSet<StateImpl>(new StateImplComparer());
 
@@ -31,7 +29,7 @@ namespace P.Tester
         public static int size_Visible_previous = 0;
         public static int size_Visible_previous_previous = 0;
 
-        public static void Explore(int k)
+        public static void Explore(StateImpl start, int k)
         {
 
             if (!UseStateHashing) throw new NotImplementedException();
@@ -109,7 +107,7 @@ namespace P.Tester
                     // diagnostics
 
                     // Print number of states explored
-                    if (visited.Count % 10000 == 0)
+                    if (visited.Count % 100 == 0)
                     {
                         Console.WriteLine("-------------- Number of states visited so far = {0}", visited.Count);
                     }
@@ -132,6 +130,7 @@ namespace P.Tester
 #if __FILE_DUMP__
             visited_k.Close();
 
+#if  __VISIBLE_ABSTRACTION__
             // dump reached visible states into a file
             StreamWriter visible_k = new StreamWriter("visible-" + k.ToString() + ".txt");
             foreach (StateImpl vs in visible)
@@ -140,6 +139,8 @@ namespace P.Tester
                 visible_k.WriteLine("==================================================");
             }
             visible_k.Close();
+#endif
+            
 #endif
 
 #if DEBUG
@@ -157,7 +158,6 @@ namespace P.Tester
         // return true
         static bool visible_converged()
         {
-            int i = 0; //!
             Debug.Assert(visible.Count > 0);
 
             foreach (StateImpl vs in visible)
@@ -260,7 +260,7 @@ namespace P.Tester
             return false;
         }
 
-        public static void OS_Iterate(int k0)
+        public static void OS_Iterate(StateImpl start, int k0)
         {
 #if ! __VISIBLE_ABSTRACTION__
             Console.WriteLine("OS_Iterate: Error: visible-state abstraction is disabled; aborting");
@@ -270,25 +270,25 @@ namespace P.Tester
             if (k0 == 0)
             {
                 Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)");
-                OS_Iterate(1);
+                OS_Iterate(start, 1);
             }
 
             int k = k0;
             do
             {
-                Console.Write("About to explore state space for bound k = {0}. Press <ENTER> to continue, anything else to exit(0): ", k);
+                Console.Write("About to explore state space for bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", k);
                 if (!String.IsNullOrEmpty(Console.ReadLine()))
                 {
                     Console.WriteLine("Exiting.");
                     Environment.Exit(0);
                 }
 
-                Explore(k);
+                Explore(start, k);
 
                 if (size_Visited_previous == visited.Count)
                 {
                     Console.WriteLine("Global state sequence converged!");
-                    Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to exit(0): ");
+                    Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
                     if (!String.IsNullOrEmpty(Console.ReadLine()))
                     {
                         Console.WriteLine("Exiting.");

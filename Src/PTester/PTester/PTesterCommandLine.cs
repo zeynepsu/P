@@ -302,14 +302,12 @@ namespace P.Tester
             else if (options.DfsExploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.start = s;
-                DfsExploration.Explore(options.k); // single exploration with queue bound k
+                DfsExploration.Explore(s, options.k); // single exploration from s with queue bound k
             }
             else if (options.OS_Exploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.start = s;
-                DfsExploration.OS_Iterate(options.k); // OS exploration starting with queue bound k
+                DfsExploration.OS_Iterate(s, options.k); // OS exploration from s starting with queue bound k
             }
             else
             {

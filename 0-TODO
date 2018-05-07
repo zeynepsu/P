@@ -11,7 +11,7 @@ DONE:
   (not in comparisons or for storage), so there is no more need for a
   compressed state printing function.
 
-- abstract execution: we now respect receive and defer sets. That is,
+- abstract execution: now respects receive and defer sets. That is,
   not only head events can be dequeued, but also "later" events if the
   head event is not dequeable.
 
@@ -25,12 +25,27 @@ DONE:
 
 - made an extensible toy example, for incremental feature addition
 
-- found out how to circumvent the recurring permission problems: during git
-  commit, during git push, even during building.  We suspected at some time
-  that this is due to my mixed use of Cygwin and Windows file access. So I
-  used cygwin in read-only mode (for things like grep and diff). That
-  helped, but sometimes the problem still recurred.
+- [technical] found out how to circumvent the recurring permission
+  problems: during git commit, during git push, even during building. We
+  suspected at some time that this is due to my mixed use of Cygwin and
+  Windows file access. So I used cygwin in read-only mode (for things like
+  grep and diff). That helped, but sometimes the problem still recurred.
 
   I then noticed that starting the Developer Command Prompt for VS
   as Administrator solved all problems. Not sure that this sledge-hammer
   solution is really the way to go, but it works.
+
+- made a specific example for stuttering. It works, but it stutters much
+  later than it "should", due to the enormous extra information that we
+  keep. To do:
+
+  * what happens if we use only the queue head for abstraction, not the tail?
+    Once done, check that it really doesn't see '6' until k=3 or so.
+
+  * if unsuccessful: why exactly it does not stutter earlier, i.e. what
+    distinguishes the earlier states?
+
+  * should we really use the complete "local" state info for abstraction,
+    or only the "fields" entry: this is the *semantic* information
+
+  * why does it not converge?

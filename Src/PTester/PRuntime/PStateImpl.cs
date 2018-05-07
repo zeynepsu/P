@@ -411,9 +411,7 @@ namespace P.Runtime
     {
         public int GetHashCode(StateImpl s) { return s.GetHashCode(); }
 
-        public bool Equals(StateImpl s1, StateImpl s2) {
-            Console.WriteLine("Comparing!");
-            return s1.GetHashCode() == s2.GetHashCode(); }
+        public bool Equals(StateImpl s1, StateImpl s2) { return s1.GetHashCode() == s2.GetHashCode(); }
     }
 
 }
