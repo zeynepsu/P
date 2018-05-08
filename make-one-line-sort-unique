@@ -1,0 +1,17 @@
+#/usr/bin/env bash
+
+# This script assumes a stream of pretty-printed states in /dev/stdin
+# where states are separated by lines of the form
+# ===========================================================================
+# (except for the leading # ) and produces a stream of states in /dev/stdout,
+# one state per line, sorted. The script warns if there are duplicate lines
+# (there shouldn't be if the input is a /set/ of states).
+
+SEP="@"
+TMP=$(mktemp)
+
+sed -e "s/^[=]\+$/$SEP/g" | tr -d "\n" | tr "$SEP" "\n" | sort > $TMP
+
+{ sort -cu $TMP || echo "$0: warning: given stream of states contains duplicates"; } > /dev/stderr
+
+cat $TMP

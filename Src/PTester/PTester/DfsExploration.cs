@@ -4,9 +4,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+//using System.Linq;
+//using System.Text;
+//using System.Threading.Tasks;
 using P.Runtime;
 using System.Diagnostics;
 
@@ -51,7 +51,7 @@ namespace P.Tester
             var stack = new Stack<BacktrackingState>();
 
 #if __FILE_DUMP__
-            StreamWriter visited_k = new StreamWriter("visited-" + k.ToString() + ".txt"); // for dumping visited states as strings into a file
+            StreamWriter visited_k = new StreamWriter("visited-" + (k < 10 ? "0" : "") + k.ToString() + ".txt"); // for dumping visited states as strings into a file
 #endif
 
             StateImpl start_k = (StateImpl) start.Clone(); // we need a fresh clone in each iteration (k) of Explore
@@ -132,7 +132,7 @@ namespace P.Tester
 
 #if  __VISIBLE_ABSTRACTION__
             // dump reached visible states into a file
-            StreamWriter visible_k = new StreamWriter("visible-" + k.ToString() + ".txt");
+            StreamWriter visible_k = new StreamWriter("visible-" + (k < 10 ? "0" : "") + k.ToString() +  ".txt");
             foreach (StateImpl vs in visible)
             {
                 visible_k.Write(vs.ToPrettyString());
@@ -276,7 +276,7 @@ namespace P.Tester
             int k = k0;
             do
             {
-                Console.Write("About to explore state space for bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", k);
+                Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", k);
                 if (!String.IsNullOrEmpty(Console.ReadLine()))
                 {
                     Console.WriteLine("Exiting.");

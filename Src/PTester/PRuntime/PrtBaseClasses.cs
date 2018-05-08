@@ -1,4 +1,4 @@
-﻿#define __TAIL_ABSTRACT__ // where to put those?
+﻿//#define __TAIL_ABSTRACT__ // where to put those?
 
 using System;
 using System.Collections.Generic;
@@ -529,8 +529,8 @@ namespace P.Runtime
 
         public bool is_abstract() { return Tail != null; }
 
-        public bool      Empty() { return events.Count == 0; }
-        public bool Tail_Empty() { return ( is_abstract() ? Tail.Count == 0 : true ); }
+        public bool      Empty() {                              return events.Count == 0; }
+        public bool Tail_Empty() { Debug.Assert(is_abstract()); return  Tail .Count == 0; }
 
         public int          Size() { return events.Count; }
         public int abstract_Size() { Debug.Assert(is_abstract()); return ( Empty() ? 0 : Tail.Count() + 1 ); }
@@ -550,26 +550,23 @@ namespace P.Runtime
             Debug.Assert(!is_abstract());
             Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
 
-#if DEBUG
-            int concrete_size = Size(); // i.e. before abstracting
-            string concrete_queue = ToPrettyString();
-#endif
             while (Size() >= 2)
             {
-#if __TAIL_ABSTRACT__ // this macro causes the tail of the queue to be abstracted into a set (no ordering, no multiplicity), which creates a very fine-grained and hence expensive abstraction
+                // The following macro causes the tail of the queue to be abstracted into a set (no ordering, no multiplicity), which creates a very fine-grained and hence expensive abstraction.
+                // Without this macro the tail remains empty, which means the abstraction tracks only the queue head. This is not really compatible with defer and receive ... requires more work.
+#if __TAIL_ABSTRACT__
                 PrtEventNode ev = (PrtEventNode) events[1].Clone();
                 // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                Tail.Add(ev);
+                if (! Tail.Add(ev))
+                {
+#if DEBUG
+                    Console.WriteLine("PrtEventBuffer.abstract_me: success: duplicate event {0} dropped from tail of queue", ev.ToString());
+#endif
+                }
 #endif
                 events.RemoveAt(1);
             }
 
-#if DEBUG
-            //Console.WriteLine("Concrete queue:");
-            //Console.Write(concrete_queue);
-            //Console.WriteLine("Abstract queue:");
-            //Console.WriteLine(ToPrettyString());
-#endif
         }
 
         public PrtEventBuffer Clone()
@@ -595,10 +592,9 @@ namespace P.Runtime
 
         public string ToPrettyString(string indent = "")
         {
-            string result = "";
-
-            result += indent + "events: " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
-            result += indent + "tail  : " + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            string result = indent + "events:           " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            if (is_abstract())
+                result +=   indent + "tail:             " + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
 
             return result;
         }

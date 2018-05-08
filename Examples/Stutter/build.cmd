@@ -10,4 +10,4 @@ if NOT errorlevel 0 goto :eof
 echo %pc% /generate:C# /link /r:stutter.4ml
 call %pc% /generate:C# /link /r:stutter.4ml
 
-echo now consider running something like "pt /dfs linker.dll"
+echo now consider running something like "pt /os linker.dll"

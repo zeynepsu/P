@@ -9,7 +9,11 @@ DONE:
 
 - pretty printing of states. This is now only used for debugging purposes
   (not in comparisons or for storage), so there is no more need for a
-  compressed state printing function.
+  compressed state printing function. But:
+
+  I also wrote a script for flattening (one-state-per-line), sorting, and
+  unique-checking a pretty-printed stream of states. This is great for
+  finding diffs in sets of states.
 
 - abstract execution: now respects receive and defer sets. That is,
   not only head events can be dequeued, but also "later" events if the
@@ -35,17 +39,17 @@ DONE:
   as Administrator solved all problems. Not sure that this sledge-hammer
   solution is really the way to go, but it works.
 
-- made a specific example for stuttering. It works, but it stutters much
-  later than it "should", due to the enormous extra information that we
-  keep. To do:
+- made a specific example for stuttering. It works (it stutters 1 step
+  later than it "should", due to the extra information that a state keeps
+  around?).
 
-  * what happens if we use only the queue head for abstraction, not the tail?
-    Once done, check that it really doesn't see '6' until k=3 or so.
+  To do:
 
   * if unsuccessful: why exactly it does not stutter earlier, i.e. what
     distinguishes the earlier states?
 
   * should we really use the complete "local" state info for abstraction,
     or only the "fields" entry: this is the *semantic* information
+    What about "null" (uninitialized) entries? There are many!
 
   * why does it not converge?
