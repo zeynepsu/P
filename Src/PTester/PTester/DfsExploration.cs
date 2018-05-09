@@ -29,7 +29,7 @@ namespace P.Tester
         public static int size_Visible_previous = 0;
         public static int size_Visible_previous_previous = 0;
 
-        public static void Explore(StateImpl start, int k)
+        public static void Dfs(StateImpl start, int k, bool TAIL_SET_ABSTRACTION = false)
         {
 
             if (!UseStateHashing) throw new NotImplementedException();
@@ -40,6 +40,7 @@ namespace P.Tester
 
             Console.WriteLine("Using queue bound of {0}", k);
             P.Runtime.PrtImplMachine.k = k;
+            P.Runtime.PrtImplMachine.TAIL_SET_ABSTRACTION = TAIL_SET_ABSTRACTION;
 
             visited.Clear();
             visible.Clear();
@@ -54,7 +55,7 @@ namespace P.Tester
             StreamWriter visited_k = new StreamWriter("visited-" + (k < 10 ? "0" : "") + k.ToString() + ".txt"); // for dumping visited states as strings into a file
 #endif
 
-            StateImpl start_k = (StateImpl) start.Clone(); // we need a fresh clone in each iteration (k) of Explore
+            StateImpl start_k = (StateImpl) start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
 
             stack.Push(new BacktrackingState(start_k));
             int start_hash = start_k.GetHashCode();
@@ -182,10 +183,11 @@ namespace P.Tester
                     StateImpl vs_succ;
                     PrtImplMachine m_succ;
 
-                    // try to dequeue events from head
+                    // try to dequeue head event
                     vs_succ = (StateImpl)vs.Clone();
                     m_succ = vs_succ.ImplMachines[currIndex];
-                    m_succ.eventQueue.clear_tail(); // only try to dequeue head
+                    Debug.Assert(m_succ.eventQueue.Size() == 1);
+                    // m_succ.eventQueue.clear_all_but_head(); // only try to dequeue head
                     m_succ.PrtRunStateMachine();
                     if (m_succ.eventQueue.Empty()) // dequeing head was successful
                     {
@@ -196,15 +198,15 @@ namespace P.Tester
                             StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
                             PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
                             m_succ_cand.eventQueue.make_head(ev); //! do we need to clone ev? it is later removed
-                            // choice 1: ev exists more than once in the tail of the queue. It remains in Tail after the dequeue, so nothing else to do
+                            // choice 1: ev exists more than once in the tail of the queue. It remains in the tail after the dequeue, so nothing else to do
                             if (new_cand(vs, vs_succ_cand, currIndex))
                                 return false;
-                            // choice 2: ev exists only once in the tail of the queue. It disappears from Tail after the dequeue
+                            // choice 2: ev exists only once in the tail of the queue. It disappears from the tail now that we have moved one instance to the head
                             m_succ_cand.eventQueue.remove_from_tail(ev);
                             if (new_cand(vs, vs_succ_cand, currIndex))
                                 return false;
                         }
-                        break; // move on: since dequeing the head was successful, there is no other immediate successor
+                        break; // move on: since dequeing the head was successful, we do not need to check the tail, so there is no other immediate successor
                     }
 
                     // try to dequeue tail events. Here we don't know the priority order, so we must try all
@@ -213,7 +215,8 @@ namespace P.Tester
                         StateImpl vs_succ_cand = (StateImpl)vs.Clone();
                         PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
                         m_succ_cand.eventQueue.make_head(ev);
-                        m_succ_cand.eventQueue.clear_tail(); // only try to dequeue ev here
+                        Debug.Assert(m_succ_cand.eventQueue.Size() == 1);
+                        // m_succ_cand.eventQueue.clear_all_but_head(); // only try to dequeue ev here
                         m_succ_cand.PrtRunStateMachine();
                         if (m_succ_cand.eventQueue.Empty()) // dequeuing ev was successful
                         {
@@ -260,7 +263,7 @@ namespace P.Tester
             return false;
         }
 
-        public static void OS_Iterate(StateImpl start, int k0)
+        public static void OS_Iterate(StateImpl start, int k0, bool TAIL_SET_ABSTRACTION)
         {
 #if ! __VISIBLE_ABSTRACTION__
             Console.WriteLine("OS_Iterate: Error: visible-state abstraction is disabled; aborting");
@@ -270,7 +273,7 @@ namespace P.Tester
             if (k0 == 0)
             {
                 Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)");
-                OS_Iterate(start, 1);
+                OS_Iterate(start, 1, TAIL_SET_ABSTRACTION);
             }
 
             int k = k0;
@@ -283,7 +286,7 @@ namespace P.Tester
                     Environment.Exit(0);
                 }
 
-                Explore(start, k);
+                Dfs(start, k, TAIL_SET_ABSTRACTION);
 
                 if (size_Visited_previous == visited.Count)
                 {

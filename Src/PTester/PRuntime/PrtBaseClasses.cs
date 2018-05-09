@@ -1,6 +1,4 @@
-﻿//#define __TAIL_ABSTRACT__ // where to put those?
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
@@ -536,37 +534,53 @@ namespace P.Runtime
         public int abstract_Size() { Debug.Assert(is_abstract()); return ( Empty() ? 0 : Tail.Count() + 1 ); }
 
         public         PrtEventNode  head() { return ( Empty() ? null : events[0] ); }
-        public HashSet<PrtEventNode> tail() { return Tail; }
+        public HashSet<PrtEventNode> tail() { Debug.Assert(is_abstract()); return Tail; }
 
-        public void make_head(PrtEventNode ev) { Debug.Assert(Empty()); events.Add(ev.Clone()); }
+        public void make_head(PrtEventNode ev)
+        {
+            Debug.Assert(is_abstract());
+            events.Clear();
+            events.Add(ev.Clone());
+        }
+
         public void remove_from_tail(PrtEventNode ev) { bool removed = Tail.Remove(ev); Debug.Assert(removed); }
-        public void clear_tail() { events.Clear(); }
 
-        // PrtEventBuffer abstraction: keep the head; place the rest of all elements in a set
-        // A more precise abstraction keeps, for the rest of the events list, a map<PrtEventNode,bool>
-        // which stores the elements in the rest, without ordering, and whether they occur once or more than once (0,1,infinity abstraction)
-        public void abstract_tail()
+        private void abstract_tail_init()
         {
             Debug.Assert(!is_abstract());
             Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+        }
 
+        // discard all tail elements
+        public void abstract_tail_empty()
+        {
+            abstract_tail_init();
+            if (Size() >= 2)
+            {
+                PrtEventNode head = (PrtEventNode)events[0].Clone();
+                events.Clear();
+                make_head(head);
+            }
+        }
+
+        // Place the tail elements in a set (no ordering, no multiplicity), which creates a very fine-grained abstraction.
+        // A more precise abstraction keeps the tail in a map<PrtEventNode,bool> , which stores the tail elements
+        // AND whether they occur once or more than once (0,1,infinity abstraction)
+        public void abstract_tail_set()
+        {
+            abstract_tail_init();
             while (Size() >= 2)
             {
-                // The following macro causes the tail of the queue to be abstracted into a set (no ordering, no multiplicity), which creates a very fine-grained and hence expensive abstraction.
-                // Without this macro the tail remains empty, which means the abstraction tracks only the queue head. This is not really compatible with defer and receive ... requires more work.
-#if __TAIL_ABSTRACT__
-                PrtEventNode ev = (PrtEventNode) events[1].Clone();
+                PrtEventNode ev = (PrtEventNode)events[1].Clone();
                 // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                if (! Tail.Add(ev))
+                if (!Tail.Add(ev))
                 {
 #if DEBUG
                     Console.WriteLine("PrtEventBuffer.abstract_me: success: duplicate event {0} dropped from tail of queue", ev.ToString());
 #endif
                 }
-#endif
                 events.RemoveAt(1);
             }
-
         }
 
         public PrtEventBuffer Clone()
@@ -592,10 +606,15 @@ namespace P.Runtime
 
         public string ToPrettyString(string indent = "")
         {
-            string result = indent + "events:           " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            string result = "";
+            
             if (is_abstract())
-                result +=   indent + "tail:             " + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
-
+            {
+                result += indent + "head:             " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+                result += indent + "tail:             " + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            }
+            else
+                result += indent + "events:           " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
             return result;
         }
 

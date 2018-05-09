@@ -43,6 +43,7 @@ namespace P.Runtime
         public PrtInterfaceValue self;
 
         public static int k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
+        public static bool TAIL_SET_ABSTRACTION = true; // how to abstract the queue tail. See abstract_me() function
 
         #endregion
 
@@ -652,7 +653,10 @@ namespace P.Runtime
         // to abstract a machine means to abstract its queue
         public void abstract_me()
         {
-            eventQueue.abstract_tail();
+            if (TAIL_SET_ABSTRACTION)
+                eventQueue.abstract_tail_set();
+            else
+                eventQueue.abstract_tail_empty();
         }
     }
 }

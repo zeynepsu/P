@@ -68,6 +68,7 @@ namespace P.Tester
         public bool DfsExploration;
         public bool OS_Exploration;
         public int k; // queue bound
+        public bool TAIL_SET_ABSTRACTION;
         public bool UseStateHashing;
         public bool isRefinement;
         public string LHSModel;
@@ -89,6 +90,7 @@ namespace P.Tester
             DfsExploration = false;
             OS_Exploration = false;
             k = 0;
+            TAIL_SET_ABSTRACTION = true;
             UseStateHashing = false;
         }
     }
@@ -120,7 +122,7 @@ namespace P.Tester
                         return null;
                     }
 
-                    // note: the case string must consist of SMALL letters! Otherwise it won't find it (:-( Found out the hard way
+                    // note: the case string must consist of SMALL letters! Otherwise it won't find it (:-(   Found out the hard way
                     switch (option)
                     {
                         case "?":
@@ -144,10 +146,18 @@ namespace P.Tester
                             options.k = (param.Length != 0 ? int.Parse(param) : 0); // default = 0
                             break;
 
-                        case "os":
+                        case "os-empty":
                             options.OS_Exploration = true;
                             options.UseStateHashing = true; // ditto
                             options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
+                            options.TAIL_SET_ABSTRACTION = false;
+                            break;
+
+                        case "os-set":
+                            options.OS_Exploration = true;
+                            options.UseStateHashing = true; // ditto
+                            options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
+                            options.TAIL_SET_ABSTRACTION = true;
                             break;
 
                         case "hash": options.UseStateHashing = true; break;
@@ -228,17 +238,18 @@ namespace P.Tester
             Console.WriteLine("---------------------------------------------");
             Console.WriteLine("Options ::");
             Console.WriteLine("---------------------------------------------");
-            Console.WriteLine("-h                       Print the help message");
-            Console.WriteLine("-v or -verbose           Print the execution trace during exploration");
-            Console.WriteLine("-ns:<int>                Number of schedulers <int> to explore");
-            Console.WriteLine("-lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
-            Console.WriteLine("-rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
-            Console.WriteLine("-psharp                  Run the PSharp Tester");
-            Console.WriteLine("-dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
-            Console.WriteLine("-OS:k                    Perform OS exploration (based on DFS) of the state space, starting with a queue bound of k");
-            Console.WriteLine("-hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence -dfs and -OS each imply -hash.)");
+            Console.WriteLine("/h                       Print the help message");
+            Console.WriteLine("/v or /verbose           Print the execution trace during exploration");
+            Console.WriteLine("/ns:<int>                Number of schedulers <int> to explore");
+            Console.WriteLine("/lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
+            Console.WriteLine("/rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
+            Console.WriteLine("/psharp                  Run the PSharp Tester");
+            Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
+            Console.WriteLine("/os-empty:k              Perform OS exploration (based on DFS) of the state space, with empty queue tail abstraction, and starting with a queue bound of k");
+            Console.WriteLine("/os-set:k                Perform OS exploration (based on DFS) of the state space, with  queue tail  set abstraction, and starting with a queue bound of k");
+            Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence /dfs and /os each imply /hash.)");
             Console.WriteLine();
-            Console.WriteLine("If none of -psharp, -dfs, -OS are specified: perform random testing");
+            Console.WriteLine("If none of /psharp, /dfs, /os are specified: perform random testing");
         }
 
         public static void Main(string[] args)
@@ -302,12 +313,12 @@ namespace P.Tester
             else if (options.DfsExploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.Explore(s, options.k); // single exploration from s with queue bound k
+                DfsExploration.Dfs(s, options.k);                                      // single exploration from s with queue bound k, default abstraction strategy
             }
             else if (options.OS_Exploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.OS_Iterate(s, options.k); // OS exploration from s starting with queue bound k
+                DfsExploration.OS_Iterate(s, options.k, options.TAIL_SET_ABSTRACTION); // OS exploration from s starting with queue bound k
             }
             else
             {
