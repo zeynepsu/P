@@ -258,7 +258,7 @@ namespace P.Runtime
             {
                 if (currentStatus == PrtMachineStatus.Blocked)
                 {
-                    throw new PrtInternalException("Internal error: Tyring to execute blocked machine");
+                    throw new PrtInternalException("Internal error: Trying to execute blocked machine");
                 }
 
                 stateImpl.TraceLine(
@@ -273,7 +273,7 @@ namespace P.Runtime
             {
                 if (currentStatus == PrtMachineStatus.Blocked)
                 {
-                    throw new PrtInternalException("Internal error: Tyring to execute blocked machine");
+                    throw new PrtInternalException("Internal error: Trying to execute blocked machine");
                 }
                 stateImpl.TraceLine(
                     "<NullTransLog> Null transition taken by Machine {0}-{1}",
@@ -287,7 +287,7 @@ namespace P.Runtime
             {
                 if (currentStatus == PrtMachineStatus.Blocked)
                 {
-                    throw new PrtInternalException("Internal error: Tyring to execute blocked machine");
+                    throw new PrtInternalException("Internal error: Trying to execute blocked machine");
                 }
                 stateImpl.TraceLine(
                     "<NullActionLog> Null action taken by Machine {0}-{1}",

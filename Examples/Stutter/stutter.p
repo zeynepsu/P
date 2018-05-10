@@ -15,7 +15,7 @@ machine Main {
 
   start state Init {
     entry {
-      client = new Client(this);
+      client = new Client();
       goto SendPrefix; }}
 
   state SendPrefix {

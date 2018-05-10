@@ -48,8 +48,19 @@ DONE:
   * if unsuccessful: why exactly it does not stutter earlier, i.e. what
     distinguishes the earlier states?
 
+    Found that the difference visible-04 -> visible-05 was the addition of two visible states.
+    These two new states were almost identical. Difference:
+
+    continuation:     Return,null,False,null vs.
+                      Return,null,False,Main(1)
+
+    nextSMOperation:  ExecuteFunctionOperation vs.
+                      DequeueOperation
+
   * should we really use the complete "local" state info for abstraction,
-    or only the "fields" entry: this is the *semantic* information
+    or only the "fields" entry: this is the *semantic* information.
+    There are many examples where there is a "semantic stutter",
+    yet the complete local state vector differs, due to internal trackage.
     What about "null" (uninitialized) entries? There are many!
 
   * why does it not converge?

@@ -86,7 +86,7 @@ namespace P.Runtime
             result += indent + "renamedName:      " + renamedName                 + "\n";
             result += indent + "isSafe:           " + isSafe.ToString()           + "\n";
             result += indent + "instanceNumber:   " + instanceNumber.ToString()   + "\n";
-            result += indent + "fields:           " + ( fields.Count == 0 ? "" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            result += indent + "fields:           " + ( fields.Count == 0 ? "null" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
             result += indent + "eventValue:       " + eventValue.ToString()       + "\n";
             result += indent + "stateStack:       " + stateStack.ToString()       + "\n";
             result += indent + "invertedFunStack: " + invertedFunStack.ToString() + "\n";
@@ -576,7 +576,7 @@ namespace P.Runtime
                 if (!Tail.Add(ev))
                 {
 #if DEBUG
-                    Console.WriteLine("PrtEventBuffer.abstract_me: success: duplicate event {0} dropped from tail of queue", ev.ToString());
+                    // Console.WriteLine("PrtEventBuffer.abstract_me: success: duplicate event {0} dropped from tail of queue", ev.ToString());
 #endif
                 }
                 events.RemoveAt(1);
@@ -610,11 +610,11 @@ namespace P.Runtime
             
             if (is_abstract())
             {
-                result += indent + "head:             " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
-                result += indent + "tail:             " + ( Tail_Empty() ? "" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+                result += indent + "head:             " + (      Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+                result += indent + "tail:             " + ( Tail_Empty() ? "null" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
             }
             else
-                result += indent + "events:           " + (      Empty() ? "" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+                result += indent + "events:           " + (      Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
             return result;
         }
 
@@ -819,7 +819,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return ( stateStack.Count == 0 ? "" : stateStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            return ( stateStack.Count == 0 ? "null" : stateStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
         }
     }
 
@@ -867,7 +867,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return returnToLocation.ToString() + "," + ( locals.Count == 0 ? "" : locals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            return returnToLocation.ToString() + "," + ( locals.Count == 0 ? "null" : locals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
         }
 
         public void Resolve(StateImpl state)
@@ -933,7 +933,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return ( funStack.Count == 0 ? "" : funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            return ( funStack.Count == 0 ? "null" : funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
         }
 
         public void Resolve(StateImpl state)
@@ -991,7 +991,7 @@ namespace P.Runtime
         // warning: I print the Boolean nondet before the List retLocals
         public override string ToString()
         {
-            return reason.ToString() + "," + retVal.ToString() + "," + nondet.ToString() + "," + ( retLocals.Count == 0 ? "" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2) );
+            return reason.ToString() + "," + retVal.ToString() + "," + nondet.ToString() + "," + ( retLocals.Count == 0 ? "null" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2) );
         }
 
         public void Resolve(StateImpl state)

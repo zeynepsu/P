@@ -244,7 +244,7 @@ namespace P.Tester
             Console.WriteLine("/lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
             Console.WriteLine("/rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
             Console.WriteLine("/psharp                  Run the PSharp Tester");
-            Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k");
+            Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k)");
             Console.WriteLine("/os-empty:k              Perform OS exploration (based on DFS) of the state space, with empty queue tail abstraction, and starting with a queue bound of k");
             Console.WriteLine("/os-set:k                Perform OS exploration (based on DFS) of the state space, with  queue tail  set abstraction, and starting with a queue bound of k");
             Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence /dfs and /os each imply /hash.)");
