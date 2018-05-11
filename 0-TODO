@@ -63,4 +63,23 @@ DONE:
     yet the complete local state vector differs, due to internal trackage.
     What about "null" (uninitialized) entries? There are many!
 
-  * why does it not converge?
+- added CheckFailure to all runs of StateMachine. When we encounter a
+  PrtAssumeFailureException, we ignore this execution.  For all other
+  failures, such as "failed to handle event", we stop and let the user fix
+  this first.
+
+  I came across this when I noticed that my machine produced invalid
+  intermediate states due to not handling certain events. Since I did not
+  catch "failed to handle event XYZ" exceptions, these intermediate states
+  were treated as valid and caused the algorithm to fail to terminate.
+
+  Now the algorithm will abort unless the system is "responsive", which I
+  understand to mean: for every state S and every event E, S must either
+  handle E or DEFER E.
+
+- I also added a simple facility to introduce STATE INVARIANTS. The Stutter
+  example, for instance, can be proved correct using SET ABSTRACTION with
+  two simple state invariants,
+
+  (Currently the invariant specification is not user friendly, but that can
+  easily be improved.)

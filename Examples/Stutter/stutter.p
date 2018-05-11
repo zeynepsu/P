@@ -35,7 +35,8 @@ machine Main {
 
 machine Client {
   start state Init {
-    defer WAIT;
+    defer WAIT, PING;                // normally PING will never arrive in state Init. But the verification algorithm does not know that,
+                                     // so for increased precision I explicitly specify it here
     on DONE goto Consume; }
 
   state Consume { ignore WAIT, DONE, PING; }}

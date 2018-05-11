@@ -67,7 +67,7 @@ namespace P.Tester
         public bool UsePSharp = false;
         public bool DfsExploration;
         public bool OS_Exploration;
-        public int k; // queue bound
+        public int k;
         public bool TAIL_SET_ABSTRACTION;
         public bool UseStateHashing;
         public bool isRefinement;
@@ -244,9 +244,9 @@ namespace P.Tester
             Console.WriteLine("/lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
             Console.WriteLine("/rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
             Console.WriteLine("/psharp                  Run the PSharp Tester");
-            Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k)");
-            Console.WriteLine("/os-empty:k              Perform OS exploration (based on DFS) of the state space, with empty queue tail abstraction, and starting with a queue bound of k");
-            Console.WriteLine("/os-set:k                Perform OS exploration (based on DFS) of the state space, with  queue tail  set abstraction, and starting with a queue bound of k");
+            Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: unbounded)");
+            Console.WriteLine("/os-empty:k              Perform OS exploration (based on DFS) of the state space, with empty queue tail abstraction, and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/os-set:k                Perform OS exploration (based on DFS) of the state space, with  queue tail  set abstraction, and starting with a queue bound of k (default: 1)");
             Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence /dfs and /os each imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os are specified: perform random testing");
@@ -313,12 +313,13 @@ namespace P.Tester
             else if (options.DfsExploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.Dfs(s, options.k);                                      // single exploration from s with queue bound k, default abstraction strategy
+                PrtEventBuffer.k = options.k;
+                DfsExploration.Dfs(s);                                                 // single exploration from s with queue bound k, default abstraction strategy
             }
             else if (options.OS_Exploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.OS_Iterate(s, options.k, options.TAIL_SET_ABSTRACTION); // OS exploration from s starting with queue bound k
+                DfsExploration.OS_Iterate(s, options.k, options.TAIL_SET_ABSTRACTION); // OS exploration from s starting with queue bound k, using given abstraction strategy
             }
             else
             {

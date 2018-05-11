@@ -42,9 +42,6 @@ namespace P.Runtime
         public bool doAssume;
         public PrtInterfaceValue self;
 
-        public static int k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
-        public static bool TAIL_SET_ABSTRACTION = true; // how to abstract the queue tail. See abstract_me() function
-
         #endregion
 
         #region Clone
@@ -93,9 +90,11 @@ namespace P.Runtime
         // ToString: use same recursive descent as for GetHashCode
         public override string ToString()
         {
+            // the debugger seems to use the following code to print
+#if !DEBUG
             Console.WriteLine("PrtImplMachine.ToString: error: should not reach this function");
             throw new NotImplementedException();
-
+#endif
             return base.ToString() + ";" + eventQueue.ToString();
         }
 
@@ -106,6 +105,8 @@ namespace P.Runtime
             result += indent + "Queue:\n";
             result += eventQueue.ToPrettyString(indent + "  ");
             return result; }
+
+        public PrtValue get_eventValue() { return eventValue; }
 
         #region Constructor
         public abstract PrtImplMachine MakeSkeleton();
@@ -130,7 +131,7 @@ namespace P.Runtime
             //Push the start state function on the funStack.
             PrtPushState(StartState);
         }
-        #endregion
+#endregion
 
         public override int GetHashCode()
         {
@@ -152,11 +153,11 @@ namespace P.Runtime
             Debug.Assert(GetHashCode() == machine.GetHashCode());
         }
 
-        #region getters and setters
+#region getters and setters
         public abstract int NextInstanceNumber(StateImpl app);
-        #endregion
+#endregion
 
-        #region State machine helper functions
+#region State machine helper functions
         public void PrtResetTriggerAndPayload()
         {
             currentTrigger = PrtValue.@null;
@@ -221,6 +222,8 @@ namespace P.Runtime
                     ev.evt.name, arg.ToString(), this.Name, this.instanceNumber, source.Name, source.instanceNumber);
 
                 // k-bounded queue semantics
+                int k = PrtEventBuffer.k; // const ref would be better, but I guess that's not possible in C#
+
                 if (k > 0 && eventQueue.Size() == k)
                 {
                     // Console.WriteLine("PrtImplMachine::PrtEnqueueEvent: warning: queue bound {0} reached in machine {1}; rejecting send event", k, Name);
@@ -324,7 +327,7 @@ namespace P.Runtime
         {
             return receiveSet.Contains(PrtValue.halt);
         }
-        #endregion
+#endregion
 
 
         public void PrtRunStateMachine()
@@ -651,7 +654,7 @@ namespace P.Runtime
         }
 
         // to abstract a machine means to abstract its queue
-        public void abstract_me()
+        public void abstract_me(bool TAIL_SET_ABSTRACTION)
         {
             if (TAIL_SET_ABSTRACTION)
                 eventQueue.abstract_tail_set();

@@ -523,6 +523,8 @@ namespace P.Runtime
 
         public HashSet<PrtEventNode> Tail;
 
+        public static int k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
+
         public PrtEventBuffer() { events = new List<PrtEventNode>(); }
 
         public bool is_abstract() { return Tail != null; }
@@ -576,30 +578,46 @@ namespace P.Runtime
                 if (!Tail.Add(ev))
                 {
 #if DEBUG
-                    // Console.WriteLine("PrtEventBuffer.abstract_me: success: duplicate event {0} dropped from tail of queue", ev.ToString());
+                    // Console.WriteLine("PrtEventBuffer.abstract_tail_set: success: duplicate event {0} dropped from tail of queue", ev.ToString());
 #endif
                 }
                 events.RemoveAt(1);
             }
         }
 
-        public PrtEventBuffer Clone()
+        public bool tail_contains_event_name(string name)
+        {
+            Debug.Assert(is_abstract());
+
+            foreach (PrtEventNode ev in Tail)
+                if (ev.ev.ToString() == name)
+                    return true;
+            return false;
+        }
+
+        public bool tail_contains_event_name_other(string name)
+        {
+            Debug.Assert(is_abstract());
+
+            foreach (PrtEventNode ev in Tail)
+                if (ev.ev.ToString() != name)
+                    return true;
+            return false;
+        }
+
+    public PrtEventBuffer Clone()
         {
             var clonedVal = new PrtEventBuffer();
 
-            clonedVal.events = new List<PrtEventNode>();
             foreach (PrtEventNode ev in events)
-            {
                 clonedVal.events.Add(ev.Clone());
-            }
 
-            if (Tail != null) {
-                clonedVal.Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
-                foreach (PrtEventNode ev in Tail)
-                {
-                    clonedVal.Tail.Add(ev.Clone());
-                }
-            }
+            if (!is_abstract())
+                return clonedVal;
+
+            clonedVal.Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+            foreach (PrtEventNode ev in Tail)
+                clonedVal.Tail.Add(ev.Clone());
 
             return clonedVal;
         }

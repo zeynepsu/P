@@ -7,3 +7,9 @@ impact on which machines are enabled.
 
 Currently the interaction of the three dimensions of nondeterminstic
 choices is unclear; the implementation too complicated.
+
+===========================================================================
+
+Where to put #define's, so they can be included by any file as needed?
+Currently I put them at the beginning of each source file where they matter,
+which is a bit ridiculous.

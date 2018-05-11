@@ -1,5 +1,6 @@
-﻿#define __VISIBLE_ABSTRACTION__ // where to put those?
+﻿#define __VISIBLE_ABSTRACTION__
 #define __FILE_DUMP__
+#define __STATE_INVARIANTS__
 
 using System;
 using System.Collections.Generic;
@@ -29,7 +30,7 @@ namespace P.Tester
         public static int size_Visible_previous = 0;
         public static int size_Visible_previous_previous = 0;
 
-        public static void Dfs(StateImpl start, int k, bool TAIL_SET_ABSTRACTION = false)
+        public static void Dfs(StateImpl start, bool TAIL_SET_ABSTRACTION = false)
         {
 
             if (!UseStateHashing) throw new NotImplementedException();
@@ -38,9 +39,8 @@ namespace P.Tester
             Console.WriteLine("Warning: visible-state abstraction turned off; some diagnostic output about visible states is meaningless");
 #endif
 
+            int k = PrtEventBuffer.k; // const ref would be better
             Console.WriteLine("Using queue bound of {0}", k);
-            P.Runtime.PrtImplMachine.k = k;
-            P.Runtime.PrtImplMachine.TAIL_SET_ABSTRACTION = TAIL_SET_ABSTRACTION;
 
             visited.Clear();
             visible.Clear();
@@ -52,7 +52,7 @@ namespace P.Tester
             var stack = new Stack<BacktrackingState>();
 
 #if __FILE_DUMP__
-            StreamWriter visited_k = new StreamWriter("visited-" + (k < 10 ? "0" : "") + k.ToString() + ".txt"); // for dumping visited states as strings into a file
+            StreamWriter visited_k = new StreamWriter("visited-" + ( k < 10 ? "0" : "" ) + k.ToString() + ".txt"); // for dumping visited states as strings into a file
 #endif
 
             StateImpl start_k = (StateImpl) start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
@@ -66,7 +66,7 @@ namespace P.Tester
             visited_k.WriteLine("==================================================");
 #endif
 
-            StateImpl vstart_k = (StateImpl) start_k.Clone(); vstart_k.abstract_me();
+            StateImpl vstart_k = (StateImpl) start_k.Clone(); vstart_k.abstract_me(TAIL_SET_ABSTRACTION);
             visible.Add(vstart_k);
 
             
@@ -94,17 +94,8 @@ namespace P.Tester
 
 #if __VISIBLE_ABSTRACTION__
                     // update visible state set
-                    StateImpl next_vs = (StateImpl)next.State.Clone(); next_vs.abstract_me();
+                    StateImpl next_vs = (StateImpl)next.State.Clone(); next_vs.abstract_me(TAIL_SET_ABSTRACTION);
                     visible.Add(next_vs);
-                    //if (hash == -331678283) // !!!
-                    //                        // next_vs.ImplMachines[1].eventQueue.Tail.Count == 3) // !!!
-                    //{
-                    //    StateImpl copy = (StateImpl)next.State.Clone();
-                    //    copy.ImplMachines[1].PrtRunStateMachine();
-                    //    Console.WriteLine("State (hash {0}):", next.State.GetHashCode()); Console.WriteLine(next.State.ToPrettyString());
-                    //    Console.WriteLine("Succ (hash {0}):", copy.GetHashCode());        Console.WriteLine(copy      .ToPrettyString());
-                    //    Environment.Exit(0);
-                    //}
 #endif
 
                     stack.Push(next);
@@ -143,7 +134,7 @@ namespace P.Tester
 
 #if  __VISIBLE_ABSTRACTION__
             // dump reached visible states into a file
-            StreamWriter visible_k = new StreamWriter("visible-" + (k < 10 ? "0" : "") + k.ToString() +  ".txt");
+            StreamWriter visible_k = new StreamWriter("visible-" + ( k < 10 ? "0" : "" ) + k.ToString() +  ".txt");
             foreach (StateImpl vs in visible)
             {
                 visible_k.Write(vs.ToPrettyString());
@@ -161,12 +152,6 @@ namespace P.Tester
         }
 
         // Step II: compute visbile successors, and return true ("converged") iff all of them are already contained in visible:
-        // for each visible state vs:
-        //   for each successor vs' of vs :
-        //     populate vs' nondeterministically with info that cannot be deduced from vs
-        //     if vs' not in visible:
-        //       return false
-        // return true
         static bool visible_converged()
         {
             Debug.Assert(visible.Count > 0);
@@ -182,7 +167,7 @@ namespace P.Tester
                         continue;
 
                     // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
-                    if (! (m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation   ||
+                    if (!(m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
                            m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
                         continue;
 
@@ -196,9 +181,9 @@ namespace P.Tester
                     vs_succ = (StateImpl)vs.Clone();
                     m_succ = vs_succ.ImplMachines[currIndex];
                     Debug.Assert(m_succ.eventQueue.Size() == 1);
-                    PrtEventNode m_succ_head = m_succ.eventQueue.head(); // for diagnostics only
+                    string m_succ_head_str = m_succ.eventQueue.head().ToString(); // for diagnostics only
                     m_succ.PrtRunStateMachine();
-                    if (m_succ.eventQueue.Empty()) // dequeing head was successful
+                    if (m_succ.eventQueue.Empty() && !CheckFailure(vs_succ,0)) // if dequeing head was successful
                     {
                         // The tail of the queue determines the possible new queue heads. We nondeterministically try them all.
                         // And for each choice we nondet. decide whether the element moved to the head remains in the tail or not -- we don't know the multiplicity
@@ -208,20 +193,17 @@ namespace P.Tester
                             PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
                             m_succ_cand.eventQueue.make_head(ev);
                             // choice 1: ev exists more than once in the tail of the queue. It remains in the tail after the dequeue, so nothing else to do
-                            if (ev.ev.ToString() != "DONE") // THIS IS A LEMMA ONLY VALID FOR THE STUTTER EXAMPLE
-                                if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head.ToString()))
-                                    return false;
+                            if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head_str))
+                                return false;
                             // choice 2: ev exists only once in the tail of the queue. It disappears from the tail now that we have moved one instance to the head
-                            var temp = (PrtEventNode)ev.Clone();
-                            m_succ_cand.eventQueue.remove_from_tail(temp);
-                            if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head.ToString()))
+                            m_succ_cand.eventQueue.remove_from_tail(ev);
+                            if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head_str))
                                 return false;
                         }
                     }
                     else
                     {
                         // if dequeing the head was not successful, try to dequeue tail events. Here we don't know the priority order, so we must try all
-                        // var temp = (HashSet<PrtEventNode>)m.eventQueue.Tail.Clone();
                         foreach (PrtEventNode ev in m.eventQueue.Tail)
                         {
                             StateImpl vs_succ_cand = (StateImpl)vs.Clone();
@@ -229,17 +211,15 @@ namespace P.Tester
                             m_succ_cand.eventQueue.make_head(ev);
                             Debug.Assert(m_succ_cand.eventQueue.Size() == 1);
                             m_succ_cand.PrtRunStateMachine();
-                            if (m_succ_cand.eventQueue.Empty()) // dequeuing ev was successful
+                            if (m_succ_cand.eventQueue.Empty() && !CheckFailure(vs_succ_cand, 0)) // dequeuing ev was successful. All fields are now correctly set, but we need to adjust the event queue
                             {
-                                m_succ_cand.eventQueue.make_head(m.eventQueue.head()); // original head
-                                m_succ_cand.eventQueue.Tail = m.eventQueue.tail();     // original tail
+                                m_succ_cand.eventQueue.make_head(m.eventQueue.head()); // restore original head
                                 // choice 1: ev exists more than once in the tail of the queue. It remains in the tail after the dequeue, so nothing else to do
-                                if (ev.ev.ToString() != "DONE") // THIS IS A LEMMA ONLY VALID FOR THE STUTTER EXAMPLE
+                                // if (ev.ev.ToString() != "DONE") // THIS IS A LEMMA ONLY VALID FOR THE STUTTER EXAMPLE
                                     if (new_cand(vs, vs_succ_cand, currIndex, "tail event " + ev.ToString()))
                                         return false;
                                 // choice 2: ev exists only once in the tail of the queue. It disappears from the tail after the dequeue
-                                var temp = (PrtEventNode)ev.Clone();
-                                m_succ_cand.eventQueue.remove_from_tail(temp);
+                                m_succ_cand.eventQueue.remove_from_tail(ev);
                                 if (new_cand(vs, vs_succ_cand, currIndex, "tail event " + ev.ToString()))
                                     return false;
                             }
@@ -253,78 +233,81 @@ namespace P.Tester
 
         static bool new_cand(StateImpl vs, StateImpl vs_succ_cand, int currIndex, string dequeued_event)
         {
-            if (!visible.Contains(vs_succ_cand)) // new candidate
-            {
-                Console.WriteLine("did not converge.");
-                Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue {1}.", currIndex, dequeued_event);
+            if (visible.Contains(vs_succ_cand)
+#if __STATE_INVARIANTS__
+                || !vs_succ_cand.state_invariant(currIndex)
+#endif
+                )
+                return false;
 
-                StreamWriter vs_SW           = new StreamWriter("vs.txt");           vs_SW          .WriteLine(vs.ToPrettyString());           vs_SW          .Close();
-                StreamWriter vs_succ_cand_SW = new StreamWriter("vs_succ_cand.txt"); vs_succ_cand_SW.WriteLine(vs_succ_cand.ToPrettyString()); vs_succ_cand_SW.Close();
+            // candidate is new and "valid"
 
-                Console.WriteLine("Dumped abstract source state and successor candidate state into files.");
-                Console.WriteLine("In source state, ImplMachine {0}: queue should be non-empty.", currIndex);
-                Console.WriteLine("In successor candidate state, ImplMachine {0}: if tail was empty, its queue should now be empty, otherwise non-empty; tail may or may not have changed.", currIndex);
-                
-                return true;
-            }
-            return false;
+            Console.WriteLine("did not converge.");
+            Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue {1}.", currIndex, dequeued_event);
+
+            StreamWriter vs_SW = new StreamWriter("vs.txt"); vs_SW.WriteLine(vs.ToPrettyString()); vs_SW.Close();
+            StreamWriter vs_succ_cand_SW = new StreamWriter("vs_succ_cand.txt"); vs_succ_cand_SW.WriteLine(vs_succ_cand.ToPrettyString()); vs_succ_cand_SW.Close();
+
+            Console.WriteLine("Dumped abstract source state and successor candidate state into files. There hashes are {0} and {1}.", vs.GetHashCode(), vs_succ_cand.GetHashCode());
+            Console.WriteLine("In source state, ImplMachine {0}: queue should be non-empty.", currIndex);
+            Console.WriteLine("In successor candidate state, ImplMachine {0}: if tail was empty, its queue should now be empty, otherwise non-empty; tail may or may not have changed.", currIndex);
+
+            return true;
         }
 
-        public static void OS_Iterate(StateImpl start, int k0, bool TAIL_SET_ABSTRACTION)
+        public static void OS_Iterate(StateImpl start, int k, bool TAIL_SET_ABSTRACTION)
         {
 #if ! __VISIBLE_ABSTRACTION__
             Console.WriteLine("OS_Iterate: Error: visible-state abstraction is disabled; aborting");
             Environment.Exit(-1);
 #endif
 
-            if (k0 == 0)
+            if (k == 0)
             {
                 Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)");
                 OS_Iterate(start, 1, TAIL_SET_ABSTRACTION);
             }
 
-            int k = k0;
-            do
+            Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", k);
+            if (!String.IsNullOrEmpty(Console.ReadLine()))
             {
-                Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", k);
+                Console.WriteLine("Exiting.");
+                Environment.Exit(0);
+            }
+
+            PrtEventBuffer.k = k;
+            Dfs(start, TAIL_SET_ABSTRACTION);
+
+            if (size_Visited_previous == visited.Count)
+            {
+                Console.WriteLine("Global state sequence converged!");
+                Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
                 if (!String.IsNullOrEmpty(Console.ReadLine()))
                 {
                     Console.WriteLine("Exiting.");
                     Environment.Exit(0);
                 }
+            }
 
-                Dfs(start, k, TAIL_SET_ABSTRACTION);
+            // when do we have to run the abstract convergence test?
+            if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
+            {
+                Console.WriteLine("New plateau detected.");
+                Console.Write("Running abstract state convergence test with " + (TAIL_SET_ABSTRACTION ? "tail-set" : "empty-tail") + " abstraction ... ");
 
-                if (size_Visited_previous == visited.Count)
+                if (visible_converged())
                 {
-                    Console.WriteLine("Global state sequence converged!");
-                    Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
-                    if (!String.IsNullOrEmpty(Console.ReadLine()))
-                    {
-                        Console.WriteLine("Exiting.");
-                        Environment.Exit(0);
-                    }
+                    Console.WriteLine("converged!");
+                    Environment.Exit(0);
                 }
+            }
 
-                // when do we have to run the abstract convergence test?
-                if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
-                {
-                    Console.WriteLine("New plateau detected.");
-                    Console.Write("Running abstract state convergence test ... ");
-                    if (visible_converged())
-                    {
-                        Console.WriteLine("converged!");
-                        Environment.Exit(0);
-                    }
-                }
+            size_Visible_previous_previous = size_Visible_previous;
+            size_Visible_previous = visible.Count;
+            size_Visited_previous = visited.Count;
 
-                size_Visible_previous_previous = size_Visible_previous;
-                size_Visible_previous = visible.Count;
-                size_Visited_previous = visited.Count;
+            OS_Iterate(start, k + 1, TAIL_SET_ABSTRACTION);
 
-                ++k;
-
-            } while (true);
         }
 
         static void PrintStackDepth(int depth)
