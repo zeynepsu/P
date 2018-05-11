@@ -7,7 +7,7 @@ German protocol:
 DONE:
 ===========================================================================
 
-- pretty printing of states. This is now only used for debugging purposes
+- pretty printing of states. This is now used only for debugging purposes
   (not in comparisons or for storage), so there is no more need for a
   compressed state printing function. But:
 
@@ -17,17 +17,15 @@ DONE:
 
 - abstract execution: now respects receive and defer sets. That is,
   not only head events can be dequeued, but also "later" events if the
-  head event is not dequeable.
+  head event is not dequeueable.
 
   Instead of duplicating the code for stepping a PrtImplMachine, I iterate
-  through all events in the queue and set the environment up so that this
-  event and this event only is dequeued (by putting it at the head). This
-  tells me whether the event is dequeable, and it tells me what gets
-  modified in the state machine other than the queue, i.e. the "local"
-  variables. I uses these modifications and then only adjust the queue, to
-  simulate a proper global execution step.
-
-- made an extensible toy example, for incremental feature addition
+  through all events in the tail and set the environment up so that this
+  event and this event only is dequeued, by putting it at the head of the
+  otherwise empty queue. This tells me whether the event is dequeueable,
+  and it tells me what gets modified in the state machine other than the
+  queue, i.e. the "local" variables. I use these modifications and then
+  only adjust the queue, to simulate a proper global execution step.
 
 - [technical] found out how to circumvent the recurring permission
   problems: during git commit, during git push, even during building. We
@@ -39,20 +37,12 @@ DONE:
   as Administrator solved all problems. Not sure that this sledge-hammer
   solution is really the way to go, but it works.
 
-- made a specific example for stuttering. It works (it stutters 1 step
-  later than it "should", due to the extra information that a state keeps
-  around?).
+- made a specific example for stuttering. It turns out it doesn't actually
+  stutter, and it plateaus 1 step later (at k=5) than it "should" (at
+  k=4). Here is why:
 
-  To do:
-
-  * if unsuccessful: why exactly it does not stutter earlier, i.e. what
-    distinguishes the earlier states?
-
-    Found that the difference visible-04 -> visible-05 was the addition of two visible states.
-    These two new states were almost identical. Difference:
-
-    continuation:     Return,null,False,null vs.
-                      Return,null,False,Main(1)
+    The difference visible-05 \ visible-04 consists of two visible states,
+    which are almost identical. The difference is in nextSMOperation:
 
     nextSMOperation:  ExecuteFunctionOperation vs.
                       DequeueOperation
@@ -78,8 +68,9 @@ DONE:
   handle E or DEFER E.
 
 - I also added a simple facility to introduce STATE INVARIANTS. The Stutter
-  example, for instance, can be proved correct using SET ABSTRACTION with
-  two simple state invariants,
+  example, for instance, can be proved correct using TAIL-SET abstraction
+  with two simple state invariants. It can also be proved correct WITHOUT
+  ANY LEMMAS using EMPTY-TAIL abstraction.
 
   (Currently the invariant specification is not user friendly, but that can
   easily be improved.)

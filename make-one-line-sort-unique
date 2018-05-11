@@ -7,7 +7,7 @@
 # one state per line, sorted. The script warns if there are duplicate lines
 # (there shouldn't be if the input is a /set/ of states).
 
-# Example usage: cat pretty-printed-states.txt | make-one-line-sort-unique > sorted-compact-states.txt
+# Usage example: cat pretty-printed-states.txt | make-one-line-sort-unique > sorted-compact-states.txt
 
 SEP="@"
 TMP=$(mktemp)

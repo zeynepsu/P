@@ -22,7 +22,7 @@ machine Main {
     entry {
       var i:int;
       i = 0;
-      while (i < 3) {               // change this constant to create longer plateaus
+      while (i < 3) {               // let X be this constant (how to define in P?). The OS will start plateauing at k=X+1. In the P implementation it starts plateauing at k=X+2 and converge at k=X+3.
         send client, WAIT;
         i = i + 1; }
       send client, DONE;
