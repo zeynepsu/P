@@ -1,1 +1,1 @@
-../cleanup.cmd
+../../cleanup.cmd

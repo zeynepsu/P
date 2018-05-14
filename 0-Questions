@@ -1,11 +1,11 @@
-It seems the nondet boolean user choices matter only for "Actions", not for
+It seems the nondet Boolean user choices matter only for "Actions", not for
 deqeue or receive operations. So for computing abstract successors,
 which only fire dequeue or receive, we ignore such choices.
 
 If this is not true, I'd like to know whether the nondet choices have an
 impact on which machines are enabled.
 
-Currently the interaction of the three dimensions of nondeterminstic
+Currently the interaction of the three dimensions of nondeterministic
 choices is unclear; the implementation too complicated.
 
 ===========================================================================
@@ -13,3 +13,20 @@ choices is unclear; the implementation too complicated.
 Where to put #define's, so they can be included by any file as needed?
 Currently I put them at the beginning of each source file where they matter,
 which is a bit ridiculous.
+
+===========================================================================
+
+Empty-Tail Abstraction: this is a bit more subtle than I thought.
+
+Suppose we indeed keep the queue tail completely empty. Then, after
+dequeing, to compute successor queue heads we must consider ALL
+SYNTACTICALLY POSSIBLE messages, not just those that have been sent in the
+past so far. The reason is that a new message, call it N, may show up in
+the tail of some queue later. Since the tail is not kept, the abstraction
+does not "see" this messages. Eventually, based on N, a new abstract state
+may emerge (when N propagates to the head of the queue in question).
+
+Alternative: suppose we keep and update a global set MSG of all messages
+ever sent, and make that part of the abstract state. Individual abstract
+message tails remain empty. Now, to dequeue, I believe it is sufficient to
+consider possible successor queue heads from that set.

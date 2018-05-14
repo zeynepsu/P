@@ -1,1 +1,1 @@
-../clean.cmd
+../../clean.cmd

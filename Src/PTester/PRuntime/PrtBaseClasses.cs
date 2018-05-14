@@ -525,6 +525,8 @@ namespace P.Runtime
 
         public static int k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
 
+        public static HashSet<PrtEventNode> Messages = new HashSet<PrtEventNode>(new PrtEventNodeComparer()); // set of all messages ever sent
+
         public PrtEventBuffer() { events = new List<PrtEventNode>(); }
 
         public bool is_abstract() { return Tail != null; }
@@ -554,7 +556,7 @@ namespace P.Runtime
         }
 
         // discard all tail elements
-        public void abstract_tail_empty()
+        public void abstract_empty_tail()
         {
             abstract_tail_init();
             if (Size() >= 2)
@@ -588,8 +590,7 @@ namespace P.Runtime
         public bool tail_contains_event_name(string name)
         {
             Debug.Assert(is_abstract());
-
-            foreach (PrtEventNode ev in Tail)
+            foreach (PrtEventNode ev in Tail) // can ev be null??
                 if (ev.ev.ToString() == name)
                     return true;
             return false;
@@ -598,14 +599,13 @@ namespace P.Runtime
         public bool tail_contains_event_name_other(string name)
         {
             Debug.Assert(is_abstract());
-
             foreach (PrtEventNode ev in Tail)
                 if (ev.ev.ToString() != name)
                     return true;
             return false;
         }
 
-    public PrtEventBuffer Clone()
+        public PrtEventBuffer Clone()
         {
             var clonedVal = new PrtEventBuffer();
 
@@ -648,33 +648,39 @@ namespace P.Runtime
             return events.Select(en => en.ev).Where(ev => ev == e).Count();
         }
 
+
         public void EnqueueEvent(PrtValue e, PrtValue arg, string senderMachineName, string senderMachineStateName)
         {
             Debug.Assert(e is PrtEventValue, "Illegal enqueue of null event");
             PrtEventValue ev = e as PrtEventValue;
-            if (ev.evt.maxInstances == PrtEvent.DefaultMaxInstances)
+
+            // k-bounded queue semantics
+
+            if (k > 0 && Size() == k)
             {
-                events.Add(new PrtEventNode(e, arg, senderMachineName, senderMachineStateName));
+                // Console.WriteLine("PrtEventBuffer.EnqueueEvent: queue bound {0} reached in attempt to enqueue; rejecting send event", k);
+                throw new PrtAssumeFailureException();
+                return;
             }
-            else
-            {
+            if (ev.evt.maxInstances != PrtEvent.DefaultMaxInstances) // instance counter is used
                 if (CalculateInstances(e) == ev.evt.maxInstances)
                 {
                     if (ev.evt.doAssume)
                     {
                         throw new PrtAssumeFailureException();
+                        return;
                     }
                     else
                     {
                         throw new PrtMaxEventInstancesExceededException(
                             String.Format(@"< Exception > Attempting to enqueue event {0} more than max instance of {1}\n", ev.evt.name, ev.evt.maxInstances));
+                        return;
                     }
                 }
-                else
-                {
-                    events.Add(new PrtEventNode(e, arg, senderMachineName, senderMachineStateName));
-                }
-            }
+
+            var en = new PrtEventNode(e, arg, senderMachineName, senderMachineStateName);
+            events.Add(en); // !! only when doing empty-tail abstraction
+            Messages.Add(en.Clone());
         }
 
         public bool DequeueEvent(PrtImplMachine owner)

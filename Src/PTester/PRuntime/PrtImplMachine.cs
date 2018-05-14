@@ -131,7 +131,7 @@ namespace P.Runtime
             //Push the start state function on the funStack.
             PrtPushState(StartState);
         }
-#endregion
+        #endregion
 
         public override int GetHashCode()
         {
@@ -153,11 +153,11 @@ namespace P.Runtime
             Debug.Assert(GetHashCode() == machine.GetHashCode());
         }
 
-#region getters and setters
+        #region getters and setters
         public abstract int NextInstanceNumber(StateImpl app);
-#endregion
+        #endregion
 
-#region State machine helper functions
+        #region State machine helper functions
         public void PrtResetTriggerAndPayload()
         {
             currentTrigger = PrtValue.@null;
@@ -204,7 +204,7 @@ namespace P.Runtime
 
 
             //add action to the trace
-            if(StateImpl.visibleEvents.Contains(ev.evt.name))
+            if (StateImpl.visibleEvents.Contains(ev.evt.name))
             {
                 stateImpl.currentVisibleTrace.AddAction(new Tuple<string, int>(target.mach.renamedName, target.mach.instanceNumber), ev, arg);
             }
@@ -221,28 +221,19 @@ namespace P.Runtime
                     @"<EnqueueLog> Enqueued Event <{0},{1}> in machine {2}-{3} by machine {4}-{5}",
                     ev.evt.name, arg.ToString(), this.Name, this.instanceNumber, source.Name, source.instanceNumber);
 
-                // k-bounded queue semantics
-                int k = PrtEventBuffer.k; // const ref would be better, but I guess that's not possible in C#
-
-                if (k > 0 && eventQueue.Size() == k)
+                eventQueue.EnqueueEvent(e, arg, source.Name, source.CurrentState.name);
+                // Console.WriteLine("Queue size of machine {0} = {1}", Name, eventQueue.Size());
+                if (this.maxBufferSize != DefaultMaxBufferSize && this.eventQueue.Size() > this.maxBufferSize)
                 {
-                    // Console.WriteLine("PrtImplMachine::PrtEnqueueEvent: warning: queue bound {0} reached in machine {1}; rejecting send event", k, Name);
-                    throw new PrtAssumeFailureException();
-                }
-                else
-                {
-                    this.eventQueue.EnqueueEvent(e, arg, source.Name, source.CurrentState.name);
-                    // Console.WriteLine("Queue size of machine {0} = {1}", Name, eventQueue.Size());
-                    if (this.maxBufferSize != DefaultMaxBufferSize && this.eventQueue.Size() > this.maxBufferSize)
+                    if (this.doAssume)
                     {
-                        if (this.doAssume)
-                        {
-                            throw new PrtAssumeFailureException();
-                        }
-                        else
-                        {
-                            throw new PrtMaxBufferSizeExceededException(String.Format(@"<EXCEPTION> Event Buffer Size Exceeded {0} in Machine {1}-{2}", this.maxBufferSize, this.Name, this.instanceNumber));
-                        }
+                        throw new PrtAssumeFailureException();
+                    }
+                    else
+                    {
+                        throw new PrtMaxBufferSizeExceededException(
+                            String.Format(@"<EXCEPTION> Event Buffer Size Exceeded {0} in Machine {1}-{2}",
+                            this.maxBufferSize, this.Name, this.instanceNumber));
                     }
                 }
                 if (currentStatus == PrtMachineStatus.Blocked && this.eventQueue.IsEnabled(this))
@@ -659,7 +650,7 @@ namespace P.Runtime
             if (TAIL_SET_ABSTRACTION)
                 eventQueue.abstract_tail_set();
             else
-                eventQueue.abstract_tail_empty();
+                eventQueue.abstract_empty_tail();
         }
     }
 }

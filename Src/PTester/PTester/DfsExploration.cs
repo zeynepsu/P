@@ -1,6 +1,7 @@
 ﻿#define __VISIBLE_ABSTRACTION__
 #define __FILE_DUMP__
-//#define __STATE_INVARIANTS__
+#define __STATE_INVARIANTS__
+#define __TRANS_INVARIANTS__
 
 using System;
 using System.Collections.Generic;
@@ -15,11 +16,6 @@ namespace P.Tester
 {
     static class DfsExploration
     {
-
-        // !!
-        public static StreamWriter vs_SW = new StreamWriter("vs.txt");
-        public static StreamWriter vs_succ_cand_SW = new StreamWriter("vs_succ_cand.txt");
-
         private static int max_queue_size;
 
         public static bool UseDepthBounding = false;
@@ -33,10 +29,10 @@ namespace P.Tester
         public static int size_Visited_previous = 0;
         public static int size_Visible_previous = 0;
         public static int size_Visible_previous_previous = 0;
+        public static int size_Messages_previous = 0;
 
         public static void Dfs(StateImpl start, bool TAIL_SET_ABSTRACTION = false)
         {
-
             if (!UseStateHashing) throw new NotImplementedException();
 
 #if ! __VISIBLE_ABSTRACTION__
@@ -155,8 +151,9 @@ namespace P.Tester
 
         }
 
-        // Step II: compute visbile successors, and return true ("converged") iff all of them are already contained in visible:
-        static bool visible_converged()
+        // Empty-tail abstraction:
+        // Step II: compute visible successors, and return true ("converged") iff all of them are already contained in visible:
+        static bool visible_converged_empty_tail()
         {
             Debug.Assert(visible.Count > 0);
             foreach (StateImpl vs in visible)
@@ -172,7 +169,78 @@ namespace P.Tester
 
                     // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
                     if (!(m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
-                           m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
+                          m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
+                        continue;
+
+                    if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
+                        continue;
+
+                    StateImpl vs_succ;
+                    PrtImplMachine m_succ;
+
+                    // try to dequeue head event
+                    vs_succ = (StateImpl)vs.Clone();
+                    m_succ = vs_succ.ImplMachines[currIndex];
+                    Debug.Assert(m_succ.eventQueue.Size() == 1);
+                    string m_succ_head_str = m_succ.eventQueue.head().ToString(); // for diagnostics only
+                    m_succ.PrtRunStateMachine();
+                    if (m_succ.eventQueue.Empty() && !CheckFailure(vs_succ, 0)) // if dequeueing head was successful
+                    {
+                        // choice 1: concrete tail is empty
+                        if (new_cand(vs, vs_succ, currIndex, "head event " + m_succ_head_str))
+                            return false;
+                        // choice 2: concrete tail is non-empty. Put *anything* machine m_succ receives into the head of the queue
+                        foreach (PrtEventNode ev in PrtEventBuffer.Messages)
+                        {
+                            StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
+                            PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
+                            m_succ_cand.eventQueue.make_head(ev);
+                            if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head_str))
+                                return false;
+                        }
+                    }
+                    else
+                    {
+                        // if dequeing the head was not successful, try to dequeue any tail event. Since we don't know what they are, we must try all
+                        foreach (PrtEventNode ev in PrtEventBuffer.Messages)
+                        {
+                            StateImpl vs_succ_cand = (StateImpl)vs.Clone();
+                            PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
+                            m_succ_cand.eventQueue.make_head(ev);
+                            Debug.Assert(m_succ_cand.eventQueue.Size() == 1);
+                            m_succ_cand.PrtRunStateMachine();
+                            if (m_succ_cand.eventQueue.Empty() && !CheckFailure(vs_succ_cand, 0)) // dequeuing ev was successful. All fields are now correctly set, but we need to adjust the event queue
+                            {
+                                m_succ_cand.eventQueue.make_head(m.eventQueue.head()); // restore original head
+                                if (new_cand(vs, vs_succ_cand, currIndex, "tail event " + ev.ToString()))
+                                    return false;
+                            }
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        // Tail-set abstraction:
+        // Step II: compute visible successors, and return true ("converged") iff all of them are already contained in visible:
+        static bool visible_converged_tail_set()
+        {
+            Debug.Assert(visible.Count > 0);
+            foreach (StateImpl vs in visible)
+            {
+                // iterate through immediate successors
+                for (int currIndex = 0; currIndex < vs.ImplMachines.Count; ++currIndex)
+                {
+                    PrtImplMachine m = vs.ImplMachines[currIndex];
+
+                    // reject disabled machines
+                    if (!(m.currentStatus == PrtMachineStatus.Enabled))
+                        continue;
+
+                    // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
+                    if (!(m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
+                          m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
                         continue;
 
                     if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
@@ -189,20 +257,29 @@ namespace P.Tester
                     m_succ.PrtRunStateMachine();
                     if (m_succ.eventQueue.Empty() && !CheckFailure(vs_succ,0)) // if dequeing head was successful
                     {
-                        // The tail of the queue determines the possible new queue heads. We nondeterministically try them all.
-                        // And for each choice we nondet. decide whether the element moved to the head remains in the tail or not -- we don't know the multiplicity
-                        foreach (PrtEventNode ev in m.eventQueue.Tail)
+                        // if the tail set is empty, the concrete queue tail is empty, so there is no new head. vs_succ is the candidate abstract successor
+                        if (m.eventQueue.Tail.Count == 0)
                         {
-                            StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
-                            PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
-                            m_succ_cand.eventQueue.make_head(ev);
-                            // choice 1: ev exists more than once in the tail of the queue. It remains in the tail after the dequeue, so nothing else to do
-                            if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head_str))
+                            if (new_cand(vs, vs_succ, currIndex, "head event " + m_succ_head_str))
                                 return false;
-                            // choice 2: ev exists only once in the tail of the queue. It disappears from the tail now that we have moved one instance to the head
-                            m_succ_cand.eventQueue.remove_from_tail(ev);
-                            if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head_str))
-                                return false;
+                        }
+                        else
+                        {
+                            // The tail of the queue determines the possible new queue heads. We nondeterministically try them all.
+                            // And for each choice we nondet. decide whether the element moved to the head remains in the tail or not -- we don't know the multiplicity
+                            foreach (PrtEventNode ev in m.eventQueue.Tail)
+                            {
+                                StateImpl vs_succ_cand = (StateImpl)vs_succ.Clone();
+                                PrtImplMachine m_succ_cand = vs_succ_cand.ImplMachines[currIndex];
+                                m_succ_cand.eventQueue.make_head(ev);
+                                // choice 1: ev exists more than once in the tail of the queue. It remains in the tail after the dequeue, so nothing else to do
+                                if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head_str))
+                                    return false;
+                                // choice 2: ev exists only once in the tail of the queue. It disappears from the tail now that we have moved one instance to the head
+                                m_succ_cand.eventQueue.remove_from_tail(ev);
+                                if (new_cand(vs, vs_succ_cand, currIndex, "head event " + m_succ_head_str))
+                                    return false;
+                            }
                         }
                     }
                     else
@@ -219,9 +296,8 @@ namespace P.Tester
                             {
                                 m_succ_cand.eventQueue.make_head(m.eventQueue.head()); // restore original head
                                 // choice 1: ev exists more than once in the tail of the queue. It remains in the tail after the dequeue, so nothing else to do
-                                // if (ev.ev.ToString() != "DONE") // THIS IS A LEMMA ONLY VALID FOR THE STUTTER EXAMPLE
-                                    if (new_cand(vs, vs_succ_cand, currIndex, "tail event " + ev.ToString()))
-                                        return false;
+                                if (new_cand(vs, vs_succ_cand, currIndex, "tail event " + ev.ToString()))
+                                    return false;
                                 // choice 2: ev exists only once in the tail of the queue. It disappears from the tail after the dequeue
                                 m_succ_cand.eventQueue.remove_from_tail(ev);
                                 if (new_cand(vs, vs_succ_cand, currIndex, "tail event " + ev.ToString()))
@@ -231,21 +307,17 @@ namespace P.Tester
                     }
                 }
             }
-            vs_SW.Close();
-            vs_succ_cand_SW.Close();
             return true;
         }
 
         static bool new_cand(StateImpl vs, StateImpl vs_succ_cand, int currIndex, string dequeued_event)
         {
-            Console.WriteLine("HERE");
-            // !!
-            vs_SW.WriteLine(vs.ToPrettyString());
-            vs_succ_cand_SW.WriteLine(vs_succ_cand.ToPrettyString());
-
             if (visible.Contains(vs_succ_cand)
 #if __STATE_INVARIANTS__
                 || !vs_succ_cand.state_invariant(currIndex)
+#endif
+#if __TRANS_INVARIANTS__
+                || !vs_succ_cand.trans_invariant(currIndex, vs)
 #endif
                 )
                 return false;
@@ -255,10 +327,10 @@ namespace P.Tester
             Console.WriteLine("did not converge.");
             Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue {1}.", currIndex, dequeued_event);
 
-            // !! StreamWriter vs_SW = new StreamWriter("vs.txt"); vs_SW.WriteLine(vs.ToPrettyString()); vs_SW.Close();
-            //StreamWriter vs_succ_cand_SW = new StreamWriter("vs_succ_cand.txt"); vs_succ_cand_SW.WriteLine(vs_succ_cand.ToPrettyString()); vs_succ_cand_SW.Close();
+            StreamWriter vs_SW = new StreamWriter("vs.txt"); vs_SW.WriteLine(vs.ToPrettyString()); vs_SW.Close();
+            StreamWriter vs_succ_cand_SW = new StreamWriter("vs_succ_cand.txt"); vs_succ_cand_SW.WriteLine(vs_succ_cand.ToPrettyString()); vs_succ_cand_SW.Close();
 
-            Console.WriteLine("Dumped abstract source state and successor candidate state into files. There hashes are {0} and {1}.", vs.GetHashCode(), vs_succ_cand.GetHashCode());
+            Console.WriteLine("Dumped abstract source state and successor candidate state into files. Their hashes are {0} and {1}.", vs.GetHashCode(), vs_succ_cand.GetHashCode());
             Console.WriteLine("In source state, ImplMachine {0}: queue should be non-empty.", currIndex);
             Console.WriteLine("In successor candidate state, ImplMachine {0}: if tail was empty, its queue should now be empty, otherwise non-empty; tail may or may not have changed.", currIndex);
 
@@ -300,12 +372,17 @@ namespace P.Tester
             }
 
             // when do we have to run the abstract convergence test?
-            if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
+            bool new_plateau = size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count;
+            if (!TAIL_SET_ABSTRACTION) // if empty-tail abstraction
+                new_plateau &= size_Messages_previous == PrtEventBuffer.Messages.Count;
+
+            if (new_plateau)
             {
                 Console.WriteLine("New plateau detected.");
                 Console.Write("Running abstract state convergence test with " + (TAIL_SET_ABSTRACTION ? "tail-set" : "empty-tail") + " abstraction ... ");
 
-                if (visible_converged())
+                bool converged = ( TAIL_SET_ABSTRACTION ? visible_converged_tail_set() : visible_converged_empty_tail() );
+                    if (converged)
                 {
                     Console.WriteLine("converged!");
                     Environment.Exit(0);
@@ -315,6 +392,7 @@ namespace P.Tester
             size_Visible_previous_previous = size_Visible_previous;
             size_Visible_previous = visible.Count;
             size_Visited_previous = visited.Count;
+            size_Messages_previous = PrtEventBuffer.Messages.Count;
 
             OS_Iterate(start, k + 1, TAIL_SET_ABSTRACTION);
 

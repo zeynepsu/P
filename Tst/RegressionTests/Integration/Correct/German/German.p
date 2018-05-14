@@ -1,6 +1,6 @@
 //Event declaration
 event unit assert 1;
-event req_share assert 3 : machine;
+event req_share assert 3 : machine; // at most 3 instances of req_share may exist in *any* input queue. Payload type is machine
 event req_excl assert 3 : machine;
 event need_invalidate assert 1;
 event invalidate_ack assert 3;
@@ -15,8 +15,9 @@ event wait assert 1;
 event invalidate_sharers assert 1 : int;
 event sharer_id assert 3 : machine;
 
-//Host machine 
+// host machine 
 machine Main {
+
 	var curr_client : machine;
 	var clients : (machine, machine, machine);
 	var curr_cpu : machine;
@@ -24,22 +25,18 @@ machine Main {
 	var is_curr_req_excl : bool;
 	var is_excl_granted : bool;
 	var i, s :int;
-	var temp: machine;
+        var temp: machine;
+
 	start state init {
 		entry {
-			
-			temp = new Client(this, false);
-			clients.0 = temp;
-			temp = new Client(this, false);
-			clients.1 = temp;
-			temp = new Client(this, false);
-			clients.2 = temp;
+			temp = new Client(this, false); clients.0 = temp;
+			temp = new Client(this, false); clients.1 = temp;
+			temp = new Client(this, false); clients.2 = temp;
 			curr_client = null;
 			curr_cpu = new CPU(clients);
 			assert(sizeof(sharer_list) == 0);
-			raise unit;
+		        goto receiveState;
 		}
-		on unit goto receiveState;
 	}
 	
 	state receiveState {
@@ -47,27 +44,23 @@ machine Main {
 		entry {}
 		
 		on req_share goto ShareRequest;
-		on req_excl goto ExclRequest;		
+		on req_excl  goto ExclRequest;		
 	}
 	
 	state ShareRequest {
 		entry (payload: machine) {
 			curr_client = payload;
 			is_curr_req_excl = false;
-			raise unit;
+			goto ProcessReq;
 		}
-		
-		on unit goto ProcessReq;	
 	}
 	
 	state ExclRequest {
 		entry (payload: machine) {
 		        curr_client = payload;
 			is_curr_req_excl = true;
-			raise unit;
+			goto ProcessReq;
 		}
-		
-		on unit goto ProcessReq;
 	}
 	
 	state ProcessReq {
@@ -75,13 +68,11 @@ machine Main {
 			if (is_curr_req_excl || is_excl_granted)
 			{
 				// need to invalidate before giving access
-				raise need_invalidate;
+				goto inv;
 			}
 			else
-				raise grant;
+				goto grantAccess;
 		}
-		on need_invalidate goto inv;
-		on grant goto grantAccess;
 	}
 	
 	state inv {
@@ -90,7 +81,7 @@ machine Main {
 			i = 0;
 			s = sizeof(sharer_list);
 			if (s == 0)
-				raise grant;
+				goto grantAccess;
 			while (i < s)
 			{
 				send sharer_list[i], invalidate;
@@ -98,14 +89,13 @@ machine Main {
 			}
 		}
 		on invalidate_ack do rec_ack;
-		on grant goto grantAccess;
 	}
 	
 	fun rec_ack() {
-		sharer_list -= 0;
+		sharer_list -= 0; // ??
 		s = sizeof(sharer_list);
 		if (s == 0)
-			raise grant;
+			goto grantAccess;
 	}
 	
 	state grantAccess {
@@ -120,13 +110,12 @@ machine Main {
 				send curr_client, grant_share;
 			}
 			sharer_list += (0, curr_client);
-			raise unit;
+			goto receiveState;
 		}
-		on unit goto receiveState;
 	}
 }
 
-//Client Machine
+// client Machine
 machine Client {
 	var host : machine;
 	var pending : bool;
@@ -134,14 +123,12 @@ machine Client {
 		entry (payload: (machine,bool)) {
 		        host = payload.0; 
 		        pending = payload.1;
-			raise unit;
+			goto invalid;
 		}
-		on unit goto invalid;
 	}
 
 	state invalid {
 		entry { 
-			
 		}
 		on ask_share goto asked_share;
 		on ask_excl goto asked_excl;
@@ -154,18 +141,16 @@ machine Client {
 		entry{
 			send host, req_share, this;
 			pending = true;
-			raise unit;
+			goto invalid_wait;
 		}
-		on unit goto invalid_wait;
 	}
 	
 	state asked_excl {
 		entry {
 			send host, req_excl, this;
 			pending = true;
-			raise unit;
+			goto invalid_wait;
 		}
-		on unit goto invalid_wait;
 	}
 	
 	state invalid_wait {
@@ -179,9 +164,8 @@ machine Client {
 		entry {
 			send host, req_excl, this;
 			pending = true;
-			raise unit;
+			goto sharing_wait;
 		}
-		on unit goto sharing_wait;
 	}
 	
 	state sharing {
@@ -219,27 +203,24 @@ machine Client {
 			send host, invalidate_ack;
 			if (pending)
 			{
-				raise wait;
+				goto invalid_wait;
 			}
 			else
-				raise normal;
+				goto invalid;
 		}
-		on wait goto invalid_wait;
-		on normal goto invalid;
 	}
 }
 
 
-//Environment machine in the form of a CPU which makes request to the clients
+// environment machine in the form of a CPU which makes request to the clients
 machine CPU {
 	var cache : (machine, machine, machine);
 
 	start state init {
 		entry (payload: (machine, machine, machine)) {
 			cache = payload;
-			raise unit;
+			goto makeReq;
 		}
-		on unit goto makeReq;
 	}
 	
 	state makeReq {
@@ -261,19 +242,11 @@ machine CPU {
 			else
 			{
 				if ($)
-				{
 				    send cache.2, ask_share;
-				}
 				else
-				{
 				    send cache.2, ask_excl;
-				}
 			}
-			raise unit;
+			goto makeReq;
 		}
-		on unit goto makeReq;
 	}
 }
-
-
-
