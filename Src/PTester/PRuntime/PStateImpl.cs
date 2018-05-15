@@ -181,23 +181,29 @@ namespace P.Runtime
         }
         #endregion
 
-        public void abstract_me(bool TAIL_SET_ABSTRACTION)
+        public void abstract_me()
         {
             foreach (var m in ImplMachines)
-                m.abstract_me(TAIL_SET_ABSTRACTION);
+                m.abstract_me();
         }
 
-        // State invariants. currIndex is the index of the ImplMachine that has changed last (mostly relevant when symmetric machines are present)
-        // This is application dependent, so eventually this needs to be done differently
-        public bool state_invariant(int currIndex)
-        {
-            PrtImplMachine  Main  = implMachines[0];
-            PrtImplMachine Client = implMachines[1];
+        // STATE AND TRANSITION INVARIANTS.
+        // This is application dependent, so eventually this needs to be done differently.
 
-            Debug.Assert( Main .eventQueue.is_abstract());
-            Debug.Assert(Client.eventQueue.is_abstract());
+        // 1. STATE INVARIANTS
+
+        // Abstract states obtained by abstraction from a reachable concrete state satisfy all invariants by construction.
+        // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
+        public bool state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has been run last (other machines have not changed, so their invariants need not be checked)
+        {
+
+            PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
+            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
 
             // THE FOLLOWING LEMMAS APPLY TO THE STUTTER EXAMPLE
+
+            // 1. Multiplicity constraints: for each message type, how many copies of this message can there be?
+            // Using static analysis, we find that there is only one DONE message ever sent.
 
             // DONE can occur only once in the queue. This can be violated in an abstractly built successor as follows:
             // eventValue == DONE && tail.contains(DONE)
@@ -205,50 +211,11 @@ namespace P.Runtime
             if (Client.get_eventValue().ToString() == "DONE" && Client.eventQueue.tail_contains_event_name("DONE"))
                 return false;
 
-            // PING cannot be followed by other events (only more PINGs). Hence, an abstract state in which the HEAD is PING cannot contain
-            // anything other than PING in the tail
-            PrtEventBuffer q_Cl = Client.eventQueue;
-            if (!q_Cl.Empty())
-                if (q_Cl.head().ev.ToString() == "PING" && q_Cl.tail_contains_event_name_other("PING"))
-                    return false;
-
-            // for empty-tail abstraction only:
-
-            // If Main is in state Flood, the final message (before empty) must be PING
-            if (Main.CurrentState.name == "Main_Flood" && Client.get_eventValue().ToString() == "WAIT" && Client.eventQueue.Empty())
-                return false;
-
-            // In Consume state, there are no more DONE's
-            if (Client.CurrentState.name == "Client_Consume" && !Client.eventQueue.Empty() && Client.eventQueue.head().ev.ToString() == "DONE")
-                return false;
-
-            if (Client.get_eventValue().ToString() == "PING" && !(Client.eventQueue.Empty() || Client.eventQueue.head().ev.ToString() == "PING"))
-                return false;
-
-            if (Main.CurrentState.name == "Main_SendPrefix" && !Client.eventQueue.Empty() && Client.eventQueue.head().ev.ToString() == "PING")
-                return false;
-
-            if (Main.destOfGoto.name == "Main_SendPrefix" && Client.get_eventValue().ToString() == "DONE")
-                return false;
-
             return true;
         }
 
         public bool trans_invariant(int currIndex, StateImpl pred)
         {
-            PrtImplMachine  Main  = implMachines[0];
-            PrtImplMachine Client = implMachines[1];
-
-            Debug.Assert( Main .eventQueue.is_abstract());
-            Debug.Assert(Client.eventQueue.is_abstract());
-
-            // THE FOLLOWING LEMMAS APPLY TO THE STUTTER EXAMPLE
-
-            // If DONE was just processed and we DEQUEUE, the queue must contain WAIT
-            PrtEventBuffer q_M = Main.eventQueue;
-            if (pred.implMachines[0].get_eventValue().ToString() == "DONE" && (q_M.Empty() || q_M.head().ev.ToString() != "WAIT"))
-                return false;
-
             return true;
         }
 

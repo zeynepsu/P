@@ -68,7 +68,6 @@ namespace P.Tester
         public bool DfsExploration;
         public bool OS_Exploration;
         public int k;
-        public bool TAIL_SET_ABSTRACTION;
         public bool UseStateHashing;
         public bool isRefinement;
         public string LHSModel;
@@ -90,7 +89,6 @@ namespace P.Tester
             DfsExploration = false;
             OS_Exploration = false;
             k = 0;
-            TAIL_SET_ABSTRACTION = true;
             UseStateHashing = false;
         }
     }
@@ -147,17 +145,17 @@ namespace P.Tester
                             break;
 
                         case "os-empty":
+                            PTesterUtil.PrintErrorMessage(String.Format("Error: os-empty tail abstraction not implemented"));
+                            Environment.Exit(-1);
                             options.OS_Exploration = true;
                             options.UseStateHashing = true; // ditto
                             options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
-                            options.TAIL_SET_ABSTRACTION = false;
                             break;
 
-                        case "os-set":
+                        case "os-list":
                             options.OS_Exploration = true;
                             options.UseStateHashing = true; // ditto
                             options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
-                            options.TAIL_SET_ABSTRACTION = true;
                             break;
 
                         case "hash": options.UseStateHashing = true; break;
@@ -246,7 +244,7 @@ namespace P.Tester
             Console.WriteLine("/psharp                  Run the PSharp Tester");
             Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: unbounded)");
             Console.WriteLine("/os-empty:k              Perform OS exploration (based on DFS) of the state space, with empty queue tail abstraction, and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/os-set:k                Perform OS exploration (based on DFS) of the state space, with  queue tail  set abstraction, and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/os-list:k               Perform OS exploration (based on DFS) of the state space, with  queue tail list abstraction, and starting with a queue bound of k (default: 1)");
             Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence /dfs and /os each imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os are specified: perform random testing");
@@ -314,12 +312,12 @@ namespace P.Tester
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
-                DfsExploration.Dfs(s);                                                 // single exploration from s with queue bound k, default abstraction strategy
+                DfsExploration.Dfs(s);                                         // single exploration from s with queue bound k
             }
             else if (options.OS_Exploration)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
-                DfsExploration.OS_Iterate(s, options.k, options.TAIL_SET_ABSTRACTION); // OS exploration from s starting with queue bound k, using given abstraction strategy
+                DfsExploration.OS_Iterate(s, options.k);                       // OS exploration from s starting with queue bound k
             }
             else
             {

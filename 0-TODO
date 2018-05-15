@@ -74,3 +74,16 @@ DONE:
 
   (Currently the invariant specification is not user friendly, but that can
   easily be improved.)
+
+- Implememnted empty-tail abstraction. This keeps ZERO info about the tail
+  of the queue, only the head. It worked, but poorly: needed to add a lot
+  of invariants to make it converge, and only reduces the number of reached
+  visible states slightly. For STUTTER it did not reduce the cutoff size at
+  all.
+
+- improved tail abstraction: I now keep a list (instead of a set) of
+  tail elements, in the correct order, ignoring duplicate occurrences.
+  This costs same storage but greatly improves precision:
+  - when dequeing, I know what the new head is: the first element in tail!
+  - when the head event cannot fire and we fire non-head elements, I know
+    exactly which one the first dequeable tail event is. Can stop after that!

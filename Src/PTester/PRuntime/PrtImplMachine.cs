@@ -98,13 +98,15 @@ namespace P.Runtime
             return base.ToString() + ";" + eventQueue.ToString();
         }
 
-        public new string ToPrettyString(string indent = "") {
+        public new string ToPrettyString(string indent = "")
+        {
             string result = "";
             result += indent + "Base:\n";
             result += base.ToPrettyString(indent + "  ");
             result += indent + "Queue:\n";
             result += eventQueue.ToPrettyString(indent + "  ");
-            return result; }
+            return result;
+        }
 
         public PrtValue get_eventValue() { return eventValue; }
 
@@ -277,7 +279,7 @@ namespace P.Runtime
                 receiveSet = new HashSet<PrtValue>();
                 return PrtDequeueReturnStatus.NULL;
             }
-            else if(CurrentActionSet.Contains(PrtValue.@null))
+            else if (CurrentActionSet.Contains(PrtValue.@null))
             {
                 if (currentStatus == PrtMachineStatus.Blocked)
                 {
@@ -318,7 +320,7 @@ namespace P.Runtime
         {
             return receiveSet.Contains(PrtValue.halt);
         }
-#endregion
+        #endregion
 
 
         public void PrtRunStateMachine()
@@ -330,7 +332,7 @@ namespace P.Runtime
             {
                 while (PrtStepStateMachine())
                 {
-                    if (    nextSMOperation == PrtNextStatemachineOperation.DequeueOperation
+                    if (nextSMOperation == PrtNextStatemachineOperation.DequeueOperation
                          || nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation) // changed: break if the next SMop dequeues. This prevents multiple dequeues from happening in one step
                     {
                         break;
@@ -368,7 +370,7 @@ namespace P.Runtime
                     goto DoReceive;
             }
 
-            DoExecuteFunction:
+        DoExecuteFunction:
             /*
              * Note that we have made an assumption that when a state is pushed on state stack or a transition is taken (update to a state)
              * the action set and deferred set is updated appropriately
@@ -385,7 +387,7 @@ namespace P.Runtime
             invertedFunStack.TopOfStack.fun.Execute(stateImpl, this);
             goto CheckFunLastOperation;
 
-            DoAction:
+        DoAction:
             currAction = PrtFindActionHandler(eventValue);
             if (currAction == PrtFun.IgnoreFun)
             {
@@ -414,7 +416,7 @@ namespace P.Runtime
             }
             goto CheckFunLastOperation;
 
-            CheckFunLastOperation:
+        CheckFunLastOperation:
 
             switch (continuation.reason)
             {
@@ -547,7 +549,7 @@ namespace P.Runtime
                     }
             }
 
-            DoDequeue:
+        DoDequeue:
             Debug.Assert(receiveSet.Count == 0, "Machine cannot be blocked at receive when here");
             var dequeueStatus = PrtDequeueEvent(CurrentState.hasNullTransition);
             if (dequeueStatus == PrtDequeueReturnStatus.BLOCKED)
@@ -571,7 +573,7 @@ namespace P.Runtime
                 goto Finish;
             }
 
-            DoHandleEvent:
+        DoHandleEvent:
             Debug.Assert(receiveSet.Count == 0, "The machine must not be blocked on a receive");
             if (!currentTrigger.Equals(PrtValue.@null))
             {
@@ -612,7 +614,7 @@ namespace P.Runtime
                 goto DoExecuteFunction;
             }
 
-            DoReceive:
+        DoReceive:
             if (receiveSet.Count == 0)
             {
                 stateExitReason = PrtStateExitReason.NotExit;
@@ -639,18 +641,12 @@ namespace P.Runtime
                 goto Finish;
             }
 
-            Finish:
+        Finish:
             Debug.Assert(!hasMoreWork || currentStatus == PrtMachineStatus.Enabled, "hasMoreWork is true but the statemachine is blocked");
             return hasMoreWork;
         }
 
         // to abstract a machine means to abstract its queue
-        public void abstract_me(bool TAIL_SET_ABSTRACTION)
-        {
-            if (TAIL_SET_ABSTRACTION)
-                eventQueue.abstract_tail_set();
-            else
-                eventQueue.abstract_empty_tail();
-        }
+        public void abstract_me() { eventQueue.abstract_tail(); }
     }
 }

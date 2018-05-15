@@ -33,6 +33,8 @@ machine Main {
       send client, PING;
       goto Flood; }}}
 
+///////////////////////////////////////////////////////////////////////////
+
 machine Client {
   start state Init {
     defer WAIT, PING;                // PING will never arrive in state Init. But the verification algorithm does not know that,

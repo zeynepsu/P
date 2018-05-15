@@ -474,7 +474,7 @@ namespace P.Runtime
         }
     };
 
-    public class PrtEventNode // had to change from 'internal'
+    public class PrtEventNode : IEquatable<PrtEventNode> // IEquatable<PrtEventNode> needed for List<PrtEventNode>
     {
         public PrtValue ev;
         public PrtValue arg;
@@ -499,6 +499,11 @@ namespace P.Runtime
             return Hashing.Hash(ev.GetHashCode(), arg.GetHashCode());
         }
 
+        public bool Equals(PrtEventNode other)
+        {
+            return GetHashCode() == other.GetHashCode();
+        }
+
         public override string ToString()
         {
             return "(" + ev.ToString() + "," + arg.ToString() + ")"; // not including senderMachine data since the image (successor) relation doesn't depend on them
@@ -513,32 +518,30 @@ namespace P.Runtime
 
     public class PrtEventNodeComparer : IEqualityComparer<PrtEventNode>
     {
-        public int  GetHashCode(PrtEventNode ev)                    { return ev.GetHashCode(); }
-        public bool Equals     (PrtEventNode ev1, PrtEventNode ev2) { return ev1.GetHashCode() == ev2.GetHashCode(); }
+        public int GetHashCode(PrtEventNode ev) { return ev.GetHashCode(); }
+        public bool Equals(PrtEventNode ev1, PrtEventNode ev2) { return ev1.GetHashCode() == ev2.GetHashCode(); }
     }
 
     public class PrtEventBuffer
     {
         List<PrtEventNode> events;
 
-        public HashSet<PrtEventNode> Tail;
+        public List<PrtEventNode> Tail;
 
         public static int k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
 
-        public static HashSet<PrtEventNode> Messages = new HashSet<PrtEventNode>(new PrtEventNodeComparer()); // set of all messages ever sent
-
         public PrtEventBuffer() { events = new List<PrtEventNode>(); }
 
-        public bool is_abstract() { return Tail != null; }
+        public bool is_concrete() { return Tail == null; }
+        public bool is_abstract() { return ! is_concrete(); }
 
         public bool      Empty() {                              return events.Count == 0; }
         public bool Tail_Empty() { Debug.Assert(is_abstract()); return  Tail .Count == 0; }
 
-        public int          Size() { return events.Count; }
-        public int abstract_Size() { Debug.Assert(is_abstract()); return ( Empty() ? 0 : Tail.Count() + 1 ); }
+        public int Size() { return events.Count; }
 
-        public         PrtEventNode  head() { return ( Empty() ? null : events[0] ); }
-        public HashSet<PrtEventNode> tail() { Debug.Assert(is_abstract()); return Tail; }
+        public      PrtEventNode  head() { return ( Empty() ? null : events[0] ); }
+        public List<PrtEventNode> tail() { Debug.Assert(is_abstract()); return Tail; }
 
         public void make_head(PrtEventNode ev)
         {
@@ -547,50 +550,56 @@ namespace P.Runtime
             events.Add(ev.Clone());
         }
 
-        public void remove_from_tail(PrtEventNode ev) { bool removed = Tail.Remove(ev); Debug.Assert(removed); }
+        public bool remove_from_tail(PrtEventNode ev) { Debug.Assert(is_abstract()); return Tail.Remove(ev); }
 
-        private void abstract_tail_init()
-        {
-            Debug.Assert(!is_abstract());
-            Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
-        }
+        //// discard all tail elements
+        //public void abstract_empty_tail()
+        //{
+        //    abstract_tail_init();
+        //    if (Size() >= 2)
+        //    {
+        //        PrtEventNode head = (PrtEventNode)events[0].Clone();
+        //        events.Clear();
+        //        make_head(head);
+        //    }
+        //}
 
-        // discard all tail elements
-        public void abstract_empty_tail()
-        {
-            abstract_tail_init();
-            if (Size() >= 2)
-            {
-                PrtEventNode head = (PrtEventNode)events[0].Clone();
-                events.Clear();
-                make_head(head);
-            }
-        }
-
-        // Place the tail elements in a set (no ordering, no multiplicity), which creates a very fine-grained abstraction.
+        // Place the tail elements in a list that keeps the ordering restricted to first-time occurrence but ignores multiplicity. This creates a very fine-grained abstraction.
+        // For instance,
+        // [X,X,Y] -> [X,Y]            but also
+        // [X,Y,X] -> [X,Y]
         // A more precise abstraction keeps the tail in a map<PrtEventNode,bool> , which stores the tail elements
-        // AND whether they occur once or more than once (0,1,infinity abstraction)
-        public void abstract_tail_set()
+        // and whether they occur once or more than once (0,1,infinity abstraction). (This would still not distinguish the above two examples.)
+        public void abstract_tail()
         {
-            abstract_tail_init();
+            Debug.Assert(is_concrete());
+            Tail = new List<PrtEventNode>();
+
+            var temp_Cmp = new PrtEventNodeComparer();
+            var temp_tail_set = new HashSet<PrtEventNode>(temp_Cmp);
+
             while (Size() >= 2)
             {
                 PrtEventNode ev = (PrtEventNode)events[1].Clone();
+                events.RemoveAt(1);
                 // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                if (!Tail.Add(ev))
+                if (temp_tail_set.Add(ev))
+                {
+                    Tail.Add(ev);
+                }
+                else
                 {
 #if DEBUG
-                    // Console.WriteLine("PrtEventBuffer.abstract_tail_set: success: duplicate event {0} dropped from tail of queue", ev.ToString());
+                    // Console.WriteLine("PrtEventBuffer.abstract_tail: success: duplicate event {0} dropped from tail of queue", ev.ToString())
 #endif
                 }
-                events.RemoveAt(1);
             }
         }
 
         public bool tail_contains_event_name(string name)
         {
             Debug.Assert(is_abstract());
-            foreach (PrtEventNode ev in Tail) // can ev be null??
+            foreach (PrtEventNode ev in Tail) // can ev be null?? then the below may crash
                 if (ev.ev.ToString() == name)
                     return true;
             return false;
@@ -599,7 +608,7 @@ namespace P.Runtime
         public bool tail_contains_event_name_other(string name)
         {
             Debug.Assert(is_abstract());
-            foreach (PrtEventNode ev in Tail)
+            foreach (PrtEventNode ev in Tail) // ditto
                 if (ev.ev.ToString() != name)
                     return true;
             return false;
@@ -612,10 +621,10 @@ namespace P.Runtime
             foreach (PrtEventNode ev in events)
                 clonedVal.events.Add(ev.Clone());
 
-            if (!is_abstract())
+            if (is_concrete())
                 return clonedVal;
 
-            clonedVal.Tail = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+            clonedVal.Tail = new List<PrtEventNode>();
             foreach (PrtEventNode ev in Tail)
                 clonedVal.Tail.Add(ev.Clone());
 
@@ -662,25 +671,18 @@ namespace P.Runtime
                 throw new PrtAssumeFailureException();
                 return;
             }
+
             if (ev.evt.maxInstances != PrtEvent.DefaultMaxInstances) // instance counter is used
                 if (CalculateInstances(e) == ev.evt.maxInstances)
                 {
                     if (ev.evt.doAssume)
-                    {
                         throw new PrtAssumeFailureException();
-                        return;
-                    }
                     else
-                    {
-                        throw new PrtMaxEventInstancesExceededException(
-                            String.Format(@"< Exception > Attempting to enqueue event {0} more than max instance of {1}\n", ev.evt.name, ev.evt.maxInstances));
-                        return;
-                    }
+                        throw new PrtMaxEventInstancesExceededException(String.Format(@"< Exception > Attempting to enqueue event {0} more than max instance of {1}\n", ev.evt.name, ev.evt.maxInstances));
+                    return;
                 }
 
-            var en = new PrtEventNode(e, arg, senderMachineName, senderMachineStateName);
-            events.Add(en); // !! only when doing empty-tail abstraction
-            Messages.Add(en.Clone());
+            events.Add(new PrtEventNode(e, arg, senderMachineName, senderMachineStateName));
         }
 
         public bool DequeueEvent(PrtImplMachine owner)
@@ -718,8 +720,8 @@ namespace P.Runtime
             receiveSet = owner.receiveSet;
             foreach (var evNode in events)
             {
-                if ((receiveSet.Count == 0 && !deferredSet.Contains(evNode.ev))
-                    || (receiveSet.Count > 0 && receiveSet.Contains(evNode.ev)))
+                if (    (receiveSet.Count == 0 && !deferredSet.Contains(evNode.ev) )
+                     || (receiveSet.Count >  0 &&   receiveSet.Contains(evNode.ev) ))
                 {
                     return true;
                 }
@@ -1012,7 +1014,7 @@ namespace P.Runtime
             return Hashing.Hash(nondet.GetHashCode(), reason.GetHashCode(), retVal.GetHashCode(), retLocals.Select(v => v.GetHashCode()).Hash());
         }
 
-        // warning: I print the Boolean nondet before the List retLocals
+        // warning: I print the Boolean nondet before the List retLocals (easier since list length varies)
         public override string ToString()
         {
             return reason.ToString() + "," + retVal.ToString() + "," + nondet.ToString() + "," + ( retLocals.Count == 0 ? "null" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2) );
