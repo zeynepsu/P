@@ -524,32 +524,22 @@ namespace P.Runtime
 
     public class PrtEventBuffer
     {
-        List<PrtEventNode> events;
+        public List<PrtEventNode> events;
 
-        public List<PrtEventNode> Tail;
+        public bool is_concrete_q;
 
         public static int k = 0;  // queue size bound. '0' is interpreted as 'unbounded'
 
-        public PrtEventBuffer() { events = new List<PrtEventNode>(); }
+        public PrtEventBuffer() { events = new List<PrtEventNode>(); is_concrete_q = true; }
 
-        public bool is_well_def()
-        {
-            return
-                Tail == null                    // concrete queue
-                || (Empty() && Tail.Count == 0) //     empty abstract queue
-                || events.Count == 1;           // non-empty abstract queue
-        }
-
-        public bool is_concrete() { return Tail == null; }
+        public bool is_concrete() { return is_concrete_q; }
         public bool is_abstract() { return !is_concrete(); }
                 
         public bool      Empty() {                              return events.Count == 0; }
-        public bool Tail_Empty() { Debug.Assert(is_abstract()); return  Tail .Count == 0; }
 
         public int Size() { return events.Count; }
 
-        public      PrtEventNode  head() { Debug.Assert(is_abstract()); return ( Empty() ? null : events[0] ); }
-        public List<PrtEventNode> tail() { Debug.Assert(is_abstract()); return Tail; }
+        public PrtEventNode head() { return ( Empty() ? null : events[0] ); }
 
         public void make_head(PrtEventNode ev)
         {
@@ -558,7 +548,7 @@ namespace P.Runtime
             events.Add(ev.Clone());
         }
 
-        public bool remove_from_tail(PrtEventNode ev) { Debug.Assert(is_abstract()); return Tail.Remove(ev); }
+        //        public bool remove_from_tail(PrtEventNode ev) { Debug.Assert(is_abstract()); return Tail.Remove(ev); }
 
         //// discard all tail elements
         //public void abstract_empty_tail()
@@ -578,49 +568,48 @@ namespace P.Runtime
         // [X,Y,X] -> [X,Y]
         // A more precise abstraction keeps the tail in a map<PrtEventNode,bool> , which stores the tail elements
         // and whether they occur once or more than once (0,1,infinity abstraction). (This would still not distinguish the above two examples.)
-        public void abstract_tail()
+        public void abstract_me()
         {
             Debug.Assert(is_concrete());
-            Tail = new List<PrtEventNode>();
 
             var temp_Cmp = new PrtEventNodeComparer();
-            var temp_tail_set = new HashSet<PrtEventNode>(temp_Cmp);
+            var temp_prefix_set = new HashSet<PrtEventNode>(temp_Cmp);
 
-            while (Size() >= 2)
+            int i = 0;
+            while (i < events.Count)
             {
-                PrtEventNode ev = (PrtEventNode)events[1].Clone();
-                events.RemoveAt(1);
+                PrtEventNode ev = events[i];
                 // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                if (temp_tail_set.Add(ev))
-                {
-                    Tail.Add(ev);
-                }
+                if (temp_prefix_set.Add(ev))
+                    ++i;
                 else
                 {
+                    events.RemoveAt(i);
 #if DEBUG
                     // Console.WriteLine("PrtEventBuffer.abstract_tail: success: duplicate event {0} dropped from tail of queue", ev.ToString())
 #endif
                 }
             }
+            is_concrete_q = false;
         }
 
-        public bool tail_contains_event_name(string name)
-        {
-            Debug.Assert(is_abstract());
-            foreach (PrtEventNode ev in Tail) // can ev be null?? then the below may crash
-                if (ev.ev.ToString() == name)
-                    return true;
-            return false;
-        }
+        //public bool tail_contains_event_name(string name)
+        //{
+        //    Debug.Assert(is_abstract());
+        //    foreach (PrtEventNode ev in Tail) // can ev be null?? then the below may crash
+        //        if (ev.ev.ToString() == name)
+        //            return true;
+        //    return false;
+        //}
 
-        public bool tail_contains_event_name_other(string name)
-        {
-            Debug.Assert(is_abstract());
-            foreach (PrtEventNode ev in Tail) // ditto
-                if (ev.ev.ToString() != name)
-                    return true;
-            return false;
-        }
+        //public bool tail_contains_event_name_other(string name)
+        //{
+        //    Debug.Assert(is_abstract());
+        //    foreach (PrtEventNode ev in Tail) // ditto
+        //        if (ev.ev.ToString() != name)
+        //            return true;
+        //    return false;
+        //}
 
         public PrtEventBuffer Clone()
         {
@@ -629,35 +618,19 @@ namespace P.Runtime
             foreach (PrtEventNode ev in events)
                 clonedVal.events.Add(ev.Clone());
 
-            if (is_concrete())
-                return clonedVal;
-
-            clonedVal.Tail = new List<PrtEventNode>();
-            foreach (PrtEventNode ev in Tail)
-                clonedVal.Tail.Add(ev.Clone());
+            clonedVal.is_concrete_q = is_concrete_q;
 
             return clonedVal;
         }
 
         public string ToPrettyString(string indent = "")
         {
-            string result = "";
-            
-            if (is_abstract())
-            {
-                result += indent + "head:             " + (      Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
-                result += indent + "tail:             " + ( Tail_Empty() ? "null" :  Tail .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
-            }
-            else
-                result += indent + "events:           " + (      Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
-            return result;
+            return indent + "events" + ( is_abstract() ? " (abstract)" : "" ) + ":    " + ( Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
         }
 
         public override int GetHashCode()
         {
-            return ( is_abstract() ? Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(),
-                                                    Tail.Select(v => v.GetHashCode()).Hash()) :
-                                     events.Select(v => v.GetHashCode()).Hash() );
+            return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(), is_concrete_q.GetHashCode());
         }
 
         public int CalculateInstances(PrtValue e)
@@ -674,13 +647,8 @@ namespace P.Runtime
 
             if (is_abstract())    // the abstract version of EnqueueEvent does not honor the bounded semantics, instance counters, etc.
             {
-                if (Empty())
+                if (!events.Contains(en))
                     events.Add(en);
-                else
-                {
-                    if (!Tail.Contains(en))
-                        Tail.Add(en);
-                }
                 return;
             }
 

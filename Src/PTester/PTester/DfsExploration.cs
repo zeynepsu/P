@@ -1,6 +1,6 @@
 ﻿#define __VISIBLE_ABSTRACTION__
 #define __FILE_DUMP__
-#define __STATE_INVARIANTS__
+// #define __STATE_INVARIANTS__
 // #define __TRANS_INVARIANTS__
 
 using System;
@@ -227,13 +227,13 @@ namespace P.Tester
         // Step II: compute visible successors, and return true ("converged") iff all of them are already contained in visible:
         static bool visible_converged()
         {
-            Debug.Assert(visible.Count > 0);
             foreach (StateImpl vs in visible)
             {
                 // iterate through immediate successors
                 for (int currIndex = 0; currIndex < vs.ImplMachines.Count; ++currIndex)
                 {
                     PrtImplMachine m = vs.ImplMachines[currIndex];
+                    PrtEventBuffer m_q = m.eventQueue;
 
                     // reject disabled machines
                     if (!(m.currentStatus == PrtMachineStatus.Enabled))
@@ -247,68 +247,44 @@ namespace P.Tester
                     if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
                         continue;
 
-                    // try to dequeue head event
+                    // try to dequeue an event
                     StateImpl vs_succ = (StateImpl)vs.Clone();
                     PrtImplMachine m_succ = vs_succ.ImplMachines[currIndex];
-                    Debug.Assert(m_succ.eventQueue.Size() == 1);
-                    string m_succ_head_str = m_succ.eventQueue.head().ToString(); // for diagnostics only
+                    PrtEventBuffer m_succ_q = m_succ.eventQueue;
                     m_succ.PrtRunStateMachine();
-                    if (m_succ.eventQueue.Empty() && !CheckFailure(vs_succ,0)) // if dequeing head was successful
+                    if (m_succ_q.Size() < m_q.Size() && !CheckFailure(vs_succ, 0)) // if dequeing was successful
                     {
-                        // if the abstract tail is empty, the concrete tail is empty, so there is no new head. vs_succ is the candidate abstract successor
-                        if (m.eventQueue.Tail.Count == 0)
+                        Debug.Assert(m_q.Size() == m_succ_q.Size() + 1); // we have dequeued exactly one event. Now we have to find it, to correct the abstract queue
+                        int i;
+                        for (i = 0; i < m_q.Size(); ++i)
+                            if (i == m_succ_q.Size() || m_q.events[i] != m_succ_q.events[i])
+                                break;
+                        Debug.Assert(i < m_q.Size());
+                        PrtEventNode dequeued_ev = m_q.events[i];
+                        Debug.Assert(! m_succ_q.events.Contains(dequeued_ev)); // we just dequeued it!
+                        // choice 1: dequeued_ev existed exactly once in m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state is valid.
+                        if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
+                            return false;
+                        // choice 2: dequeued_ev existed >= twice in m_q. Now we need to find the positions where to re-introduce in the abstract, and try them all non-deterministically
+                        for (int j = i; j < m_succ_q.Size(); ++j)
                         {
-                            if (new_cand(vs, vs_succ, currIndex, "head event " + m_succ_head_str))
+                            // insert dequeue_ev at position j
+                            m_succ_q.events.Insert(j, dequeued_ev); // restore previous state
+                            if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
                                 return false;
+                            m_succ_q.events.RemoveAt(j); // restore previous state
                         }
-                        else
-                        {
-                            // The first element of the tail is the new head. We nondet. decide whether, after moving to head position,
-                            // it remains in the tail or not -- we don't know the multiplicity
-                            PrtEventNode ev = m.eventQueue.Tail[0];
-                            m_succ.eventQueue.make_head(ev);
-                            // choice 1: ev exists more than once in the tail of the queue. It remains in the tail after the dequeue, so nothing else to do
-                            if (new_cand(vs, vs_succ, currIndex, "head event " + m_succ_head_str))
-                                return false;
-                            // choice 2: ev exists only once in the tail of the queue. It disappears from the tail now that we have moved one instance to the head
-                            bool removed = m_succ.eventQueue.remove_from_tail(ev); Debug.Assert(removed);
-                            if (new_cand(vs, vs_succ, currIndex, "head event " + m_succ_head_str))
-                                return false;
-                        }
-                    }
-                    else
-                    {
-                        // if dequeuing the head was not successful, try dequeuing tail events. After the first successful dequeue we can break out of this for loop
-                        foreach (PrtEventNode ev in m.eventQueue.Tail)
-                        {
-                            vs_succ = (StateImpl)vs.Clone();
-                            m_succ = vs_succ.ImplMachines[currIndex];
-                            m_succ.eventQueue.make_head(ev);
-                            Debug.Assert(m_succ.eventQueue.Size() == 1);
-                            m_succ.PrtRunStateMachine();
-                            if (m_succ.eventQueue.Empty() && !CheckFailure(vs_succ, 0)) // dequeuing ev was successful. All fields are now correctly set, but we need to adjust the event queue
-                            {
-                                m_succ.eventQueue.make_head(m.eventQueue.head()); // restore original head
-                                // choice 1: ev exists more than once in the concrete tail of the queue. It remains in the tail after the dequeue, so nothing else to do
-                                if (new_cand(vs, vs_succ, currIndex, "tail event " + ev.ToString()))
-                                    return false;
-                                // choice 2: ev exists only once in the tail of the queue. It disappears from the tail after the dequeue
-                                bool removed = m_succ.eventQueue.remove_from_tail(ev); Debug.Assert(removed);
-                                if (new_cand(vs, vs_succ, currIndex, "tail event " + ev.ToString()))
-                                    return false;
-                                break; // break out of foreach (PrtEventNode ev ...) and continue with next machine
-                            }
-                        }
+                        m_succ_q.events.Add(dequeued_ev);
+                        if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
+                            return false;
                     }
                 }
             }
             return true;
         }
 
-        static bool new_cand(StateImpl vs, StateImpl vs_succ, int currIndex, string dequeued_event)
+        static bool new_cand(StateImpl vs, StateImpl vs_succ, int currIndex, PrtEventNode ev)
         {
-            Debug.Assert(vs_succ.is_well_defined_abstract());
-
             if (visible.Contains(vs_succ)
 #if __STATE_INVARIANTS__
                 || !vs_succ.state_invariant(currIndex)
@@ -319,10 +295,10 @@ namespace P.Tester
                 )
                 return false;
 
-            // candidate is new and "valid"
+            // candidate is new and satisfies the invariants
 
             Console.WriteLine("did not converge.");
-            Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue {1}.", currIndex, dequeued_event);
+            Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue event {1}.", currIndex, ev.ToString());
 
             StreamWriter vs_SW      = new StreamWriter("vs.txt");      vs_SW     .WriteLine(vs     .ToPrettyString()); vs_SW     .Close();
             StreamWriter vs_succ_SW = new StreamWriter("vs_succ.txt"); vs_succ_SW.WriteLine(vs_succ.ToPrettyString()); vs_succ_SW.Close();

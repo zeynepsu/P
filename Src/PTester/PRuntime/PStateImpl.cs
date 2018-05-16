@@ -1,4 +1,4 @@
-﻿#define __STUTTER_EXAMPLE__
+﻿// #define __STUTTER_EXAMPLE__
 // #define __GERMAN_EXAMPLE__
 
 using System;
@@ -190,12 +190,11 @@ namespace P.Runtime
                 m.abstract_me();
         }
 
-        public bool is_well_defined_abstract()
+        public bool is_abstract()
         {
             foreach (var m in ImplMachines)
             {
                 PrtEventBuffer q = m.eventQueue;
-                Debug.Assert(q.is_well_def(), "inconsistent internal state: "          + q.ToPrettyString());
                 Debug.Assert(q.is_abstract(), "non-abstract queue in abstract state: " + q.ToPrettyString());
             }
             return true;
