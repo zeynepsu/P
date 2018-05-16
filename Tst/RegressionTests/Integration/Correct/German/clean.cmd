@@ -1,1 +1,1 @@
-c:/users/t-thwahl/Git-Home/P/clean.cmd
+../../../../../clean.cmd

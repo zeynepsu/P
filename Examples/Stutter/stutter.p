@@ -6,6 +6,8 @@
 // (but not at k=4, which is where DONE and PING show up for the first time!).
 // The global states sets never converge due to flooding.
 
+enum Global { ZERO=0, X=3 } // for some reason, at least one enum element must be numbered 0
+
 event WAIT;
 event DONE;
 event PING;
@@ -22,7 +24,7 @@ machine Main {
     entry {
       var i:int;
       i = 0;
-      while (i < 3) {               // let X be this constant (how to define in P?). The OS will start plateauing at k=X+1. In the P implementation it starts plateauing at k=X+2 and converge at k=X+3.
+      while (i < X) {               // the OS will start plateauing at k=X+1. In the P implementation it starts plateauing at k=X+2 and converge at k=X+3.
         send client, WAIT;
         i = i + 1; }
       send client, DONE;

@@ -332,7 +332,7 @@ namespace P.Runtime
             {
                 while (PrtStepStateMachine())
                 {
-                    if (nextSMOperation == PrtNextStatemachineOperation.DequeueOperation
+                    if (    nextSMOperation == PrtNextStatemachineOperation.DequeueOperation
                          || nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation) // changed: break if the next SMop dequeues. This prevents multiple dequeues from happening in one step
                     {
                         break;

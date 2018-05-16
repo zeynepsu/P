@@ -1,4 +1,7 @@
-﻿using System;
+﻿#define __STUTTER_EXAMPLE__
+// #define __GERMAN_EXAMPLE__
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,7 +13,7 @@ namespace P.Runtime
     public abstract class StateImpl : ICloneable
     {
 
-        #region Constructors
+#region Constructors
         /// <summary>
         /// This function is called when the stateimp is loaded first time.
         /// </summary>
@@ -22,9 +25,9 @@ namespace P.Runtime
             currentVisibleTrace = new VisibleTrace();
             errorTrace = new StringBuilder();
         }
-        #endregion
+#endregion
 
-        #region Fields
+#region Fields
 
         /// <summary>
         /// Map from the statemachine id to the instance of the statemachine.
@@ -100,9 +103,9 @@ namespace P.Runtime
         public delegate void StateTransitionCallbackDelegate(PrtImplMachine machine, PrtState from, PrtState to, string reason);
         public StateTransitionCallbackDelegate StateTransitionCallback = null;
 
-        #endregion
+#endregion
 
-        #region Getters and Setters
+#region Getters and Setters
         public bool Deadlock
         {
             get
@@ -130,9 +133,9 @@ namespace P.Runtime
         }
 
 
-        #endregion
+#endregion
 
-        #region Clone Function
+#region Clone Function
         public abstract StateImpl MakeSkeleton();
 
         public object Clone()
@@ -179,12 +182,23 @@ namespace P.Runtime
                 m.Resolve(this);
             }
         }
-        #endregion
+#endregion
 
         public void abstract_me()
         {
             foreach (var m in ImplMachines)
                 m.abstract_me();
+        }
+
+        public bool is_well_defined_abstract()
+        {
+            foreach (var m in ImplMachines)
+            {
+                PrtEventBuffer q = m.eventQueue;
+                Debug.Assert(q.is_well_def(), "inconsistent internal state: "          + q.ToPrettyString());
+                Debug.Assert(q.is_abstract(), "non-abstract queue in abstract state: " + q.ToPrettyString());
+            }
+            return true;
         }
 
         // STATE AND TRANSITION INVARIANTS.
@@ -196,21 +210,23 @@ namespace P.Runtime
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
         public bool state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has been run last (other machines have not changed, so their invariants need not be checked)
         {
-
+#if __STUTTER_EXAMPLE__
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
-
-            // THE FOLLOWING LEMMAS APPLY TO THE STUTTER EXAMPLE
-
-            // 1. Multiplicity constraints: for each message type, how many copies of this message can there be?
-            // Using static analysis, we find that there is only one DONE message ever sent.
 
             // DONE can occur only once in the queue. This can be violated in an abstractly built successor as follows:
             // eventValue == DONE && tail.contains(DONE)
             // which is hence an error
             if (Client.get_eventValue().ToString() == "DONE" && Client.eventQueue.tail_contains_event_name("DONE"))
                 return false;
+#endif
 
+#if __GERMAN_EXAMPLE__
+            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
+            if (Client.eventQueue.head().ev.ToString() == "ask_share" && Client.eventQueue.tail_contains_event_name("ask_share") ||
+                Client.eventQueue.head().ev.ToString() == "ask_excl"  && Client.eventQueue.tail_contains_event_name("ask_excl"))
+                return false;
+#endif
             return true;
         }
 

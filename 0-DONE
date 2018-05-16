@@ -1,0 +1,78 @@
+===========================================================================
+DONE:
+===========================================================================
+
+- improved tail abstraction: I now keep a list (instead of a set) of
+  tail elements, in the correct order, ignoring duplicate occurrences.
+  This costs same storage but greatly improves precision:
+  - when dequeing, I know what the new head is: the first element in tail!
+  - when the head event cannot fire and we fire non-head elements, I know
+    exactly which one the first dequeuable tail event is. Can stop after that!
+
+- Implemented empty-tail abstraction. This keeps ZERO info about the tail
+  of the queue, only the head. It worked, but poorly: needed to add a lot
+  of invariants to make it converge, and only reduces the number of reached
+  visible states slightly. For STUTTER it did not reduce the cutoff size at all.
+
+  I currently do not maintain it.
+
+- abstract execution: now respects receive and defer sets. That is,
+  not only head events can be dequeued, but also "later" events if the
+  head event is not dequeueable.
+
+  Instead of duplicating the code for stepping a PrtImplMachine, I iterate
+  through all events in the tail and set the environment up so that this
+  event and this event only is dequeued, by putting it at the head of the
+  otherwise empty queue. This tells me whether the event is dequeueable,
+  and it tells me what gets modified in the state machine other than the
+  queue, i.e. the "local" variables. I use these modifications and then
+  only adjust the queue, to simulate a proper global execution step.
+
+  I also rewrote the enqueue method for the case of abstract states: they
+  enqueue differently than concrete states!
+
+  Updates to local variables (everything but the queues) are unaffected.
+
+- added CheckFailure to all runs of StateMachine. When we encounter a
+  PrtAssumeFailureException, we ignore this execution.  For all other
+  failures, such as "failed to handle event", we stop and let the user fix
+  this first.
+
+  I came across this when I noticed that my machine produced invalid
+  intermediate states due to not handling certain events. Since I did not
+  catch "failed to handle event XYZ" exceptions, these intermediate states
+  were treated as valid and caused the algorithm to fail to terminate.
+
+  Now the algorithm will abort unless the system is "responsive", which I
+  understand to mean: for every state S and every event E, S must either
+  handle E or DEFER E.
+
+- made a specific example for stuttering. It turns out it doesn't actually
+  stutter, and it plateaus later than it "should", due to extra trackage.
+
+  I haven't really found an example that stutters ...
+
+- I also added a simple facility to introduce STATE and TRANSITION
+  INVARIANTS. The Stutter example, for instance, can be proved correct
+  using TAIL-LIST abstraction with one simple state invariant.
+
+  (Currently the invariant specification is not user friendly, but that can
+  easily be improved.)
+
+- pretty printing of states. This is now used only for debugging purposes
+  (not in comparisons or for storage), so there is no more need for a
+  compressed state printing function. But:
+
+  I also wrote a script for flattening (one-state-per-line), sorting, and
+  unique-checking a pretty-printed stream of states. This is great for
+  finding diffs in sets of states.
+
+- [technical] found out how to circumvent the recurring permission
+  problems: during git commit, during git push, even during building. We
+  suspected at some time that this is due to my mixed use of Cygwin and
+  Windows file access. So I used cygwin in read-only mode (for things like
+  grep and diff). That helped, but sometimes the problem still recurred.
+
+  I then noticed that starting the Developer Command Prompt for VS
+  as Administrator solved all problems. Not sure that this sledge-hammer
+  solution is really the way to go, but it works.

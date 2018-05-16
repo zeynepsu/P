@@ -528,19 +528,27 @@ namespace P.Runtime
 
         public List<PrtEventNode> Tail;
 
-        public static int k = 0;  // queue size bound (like maxBufferSize, but static). '0' means 'unbounded'
+        public static int k = 0;  // queue size bound. '0' is interpreted as 'unbounded'
 
         public PrtEventBuffer() { events = new List<PrtEventNode>(); }
 
-        public bool is_concrete() { return Tail == null; }
-        public bool is_abstract() { return ! is_concrete(); }
+        public bool is_well_def()
+        {
+            return
+                Tail == null                    // concrete queue
+                || (Empty() && Tail.Count == 0) //     empty abstract queue
+                || events.Count == 1;           // non-empty abstract queue
+        }
 
+        public bool is_concrete() { return Tail == null; }
+        public bool is_abstract() { return !is_concrete(); }
+                
         public bool      Empty() {                              return events.Count == 0; }
         public bool Tail_Empty() { Debug.Assert(is_abstract()); return  Tail .Count == 0; }
 
         public int Size() { return events.Count; }
 
-        public      PrtEventNode  head() { return ( Empty() ? null : events[0] ); }
+        public      PrtEventNode  head() { Debug.Assert(is_abstract()); return ( Empty() ? null : events[0] ); }
         public List<PrtEventNode> tail() { Debug.Assert(is_abstract()); return Tail; }
 
         public void make_head(PrtEventNode ev)
@@ -661,7 +669,20 @@ namespace P.Runtime
         public void EnqueueEvent(PrtValue e, PrtValue arg, string senderMachineName, string senderMachineStateName)
         {
             Debug.Assert(e is PrtEventValue, "Illegal enqueue of null event");
-            PrtEventValue ev = e as PrtEventValue;
+
+            var en = new PrtEventNode(e, arg, senderMachineName, senderMachineStateName);
+
+            if (is_abstract())    // the abstract version of EnqueueEvent does not honor the bounded semantics, instance counters, etc.
+            {
+                if (Empty())
+                    events.Add(en);
+                else
+                {
+                    if (!Tail.Contains(en))
+                        Tail.Add(en);
+                }
+                return;
+            }
 
             // k-bounded queue semantics
 
@@ -672,6 +693,7 @@ namespace P.Runtime
                 return;
             }
 
+            PrtEventValue ev = e as PrtEventValue;
             if (ev.evt.maxInstances != PrtEvent.DefaultMaxInstances) // instance counter is used
                 if (CalculateInstances(e) == ev.evt.maxInstances)
                 {
@@ -682,7 +704,7 @@ namespace P.Runtime
                     return;
                 }
 
-            events.Add(new PrtEventNode(e, arg, senderMachineName, senderMachineStateName));
+            events.Add(en);
         }
 
         public bool DequeueEvent(PrtImplMachine owner)

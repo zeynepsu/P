@@ -19,14 +19,9 @@ which is a bit ridiculous.
 Empty-Tail Abstraction: this is a bit more subtle than I thought.
 
 Suppose we indeed keep the queue tail completely empty. Then, after
-dequeing, to compute successor queue heads we must consider ALL
-SYNTACTICALLY POSSIBLE messages, not just those that have been sent in the
-past so far. The reason is that a new message, call it N, may show up in
-the tail of some queue later. Since the tail is not kept, the abstraction
-does not "see" this messages. Eventually, based on N, a new abstract state
-may emerge (when N propagates to the head of the queue in question).
-
-Alternative: suppose we keep and update a global set MSG of all messages
-ever sent, and make that part of the abstract state. Individual abstract
-message tails remain empty. Now, to dequeue, I believe it is sufficient to
-consider possible successor queue heads from that set.
+dequeing, to compute successor queue heads we must consider ALL messages
+that have been sent in the past. So we must keep and update a global set
+MSG of all messages ever sent, and make that part of the abstract
+state. Individual abstract message tails remain empty. Now, to dequeue, I
+believe it is sufficient to consider possible successor queue heads from
+that set.

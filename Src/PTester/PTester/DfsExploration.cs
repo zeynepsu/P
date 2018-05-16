@@ -81,14 +81,14 @@ namespace P.Tester
                     continue;
                 }
 
-                BacktrackingState next = Execute(bstate); // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
-                stack.Push(bstate);                       // after increasing currIndex/choiceIndex, push state back on. This is like modifying bstate "on the stack"
+                BacktrackingState next = Execute(bstate);    // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
+                stack.Push(bstate);                          // after increasing currIndex/choiceIndex, push state back on. This is like modifying bstate "on the stack"
 
-                if (!CheckFailure(next.State, next.depth))   // check for failure ...
+                if (!CheckFailure(next.State, next.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
                 {
                     // update visited state hashset
                     var hash = next.State.GetHashCode();
-                    if (!visited.Add(hash))                  // ... before adding new state, since failure may be due to failed assume, in which case we don't want to add
+                    if (!visited.Add(hash))
                         continue;
 
 #if __VISIBLE_ABSTRACTION__
@@ -117,7 +117,11 @@ namespace P.Tester
                     foreach (PrtImplMachine m in next.State.ImplMachines)
                     {
                         int m_size = m.eventQueue.Size();
-                        max_queue_size = (m_size > max_queue_size ? m_size : max_queue_size);
+                        if (m_size > max_queue_size)
+                        {
+                            max_queue_size = m_size;
+                            Console.WriteLine("New maximum queue size observed  = {0}", max_queue_size);
+                        }
                     }
 #endif
                 }
@@ -139,13 +143,10 @@ namespace P.Tester
                 visible_k.Write(vs.ToPrettyString());
                 visible_k.WriteLine("==================================================");
             }
+
             visible_k.Close();
 #endif
             
-#endif
-
-#if DEBUG
-            Console.WriteLine("Maximum queue size observed      = {0}", max_queue_size);
 #endif
         }
 
@@ -270,14 +271,14 @@ namespace P.Tester
                             if (new_cand(vs, vs_succ, currIndex, "head event " + m_succ_head_str))
                                 return false;
                             // choice 2: ev exists only once in the tail of the queue. It disappears from the tail now that we have moved one instance to the head
-                            { bool removed = m_succ.eventQueue.remove_from_tail(ev); Debug.Assert(removed); }
+                            bool removed = m_succ.eventQueue.remove_from_tail(ev); Debug.Assert(removed);
                             if (new_cand(vs, vs_succ, currIndex, "head event " + m_succ_head_str))
                                 return false;
                         }
                     }
                     else
                     {
-                        // if dequeing the head was not successful, try to dequeue tail events. After the first successful dequeue we can stop (goto stmt)
+                        // if dequeuing the head was not successful, try dequeuing tail events. After the first successful dequeue we can break out of this for loop
                         foreach (PrtEventNode ev in m.eventQueue.Tail)
                         {
                             vs_succ = (StateImpl)vs.Clone();
@@ -292,14 +293,13 @@ namespace P.Tester
                                 if (new_cand(vs, vs_succ, currIndex, "tail event " + ev.ToString()))
                                     return false;
                                 // choice 2: ev exists only once in the tail of the queue. It disappears from the tail after the dequeue
-                                { bool removed = m_succ.eventQueue.remove_from_tail(ev); Debug.Assert(removed); }
+                                bool removed = m_succ.eventQueue.remove_from_tail(ev); Debug.Assert(removed);
                                 if (new_cand(vs, vs_succ, currIndex, "tail event " + ev.ToString()))
                                     return false;
-                                goto Next_machine;
+                                break; // break out of foreach (PrtEventNode ev ...) and continue with next machine
                             }
                         }
                     }
-                Next_machine: ;
                 }
             }
             return true;
@@ -307,6 +307,8 @@ namespace P.Tester
 
         static bool new_cand(StateImpl vs, StateImpl vs_succ, int currIndex, string dequeued_event)
         {
+            Debug.Assert(vs_succ.is_well_defined_abstract());
+
             if (visible.Contains(vs_succ)
 #if __STATE_INVARIANTS__
                 || !vs_succ.state_invariant(currIndex)
