@@ -184,6 +184,8 @@ namespace P.Runtime
         }
 #endregion
 
+        public enum Queue_Type { None , List , Set };
+
         public void abstract_me()
         {
             foreach (var m in ImplMachines)
@@ -224,23 +226,9 @@ namespace P.Runtime
                 if (i == Client_q.Count - 1)
                     break;
                 string next = Client_q[i + 1].ev.ToString();
-                if (curr == "DONE" &&  next == "WAIT" ||
+                if (curr == "DONE" && next == "WAIT" ||
                     curr == "PING" && (next == "WAIT" || next == "DONE"))
                     return false;
-            }
-
-
-            if (Client_q.Count > 0)
-            {
-                string prev = Client_q[0].ev.ToString();
-                for (int i = 1; i < Client_q.Count; ++i)
-                {
-                    string curr = Client_q[i].ev.ToString();
-                    if (prev == "DONE" &&  curr == "WAIT" ||
-                        prev == "PING" && (curr == "WAIT" || curr == "DONE"))
-                        return false;
-                    prev = curr;
-                }
             }
 #endif
 

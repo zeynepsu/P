@@ -6,6 +6,6 @@ del *.4ml      2> nul
 del *.cs       2> nul
 del linker.pdb 2> nul
 
-del vis*             2> nul
-del vs.txt           2> nul
-del vs_succ_cand.txt 2> nul
+del vis*        2> nul
+del vs.txt      2> nul
+del vs_succ.txt 2> nul

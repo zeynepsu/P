@@ -524,41 +524,21 @@ namespace P.Runtime
 
     public class PrtEventBuffer
     {
-        public List<PrtEventNode> events;
+        public List<PrtEventNode>    events;     // queue as list. Used for concrete, and for queue list abstraction
+        public HashSet<PrtEventNode> events_set; // queue as set. Used for queue set abstraction
 
-        public bool is_concrete_q;
+        public static StateImpl.Queue_Type qt = StateImpl.Queue_Type.None;
 
         public static int k = 0;  // queue size bound. '0' is interpreted as 'unbounded'
 
-        public PrtEventBuffer() { events = new List<PrtEventNode>(); is_concrete_q = true; }
+        public PrtEventBuffer() { events = new List<PrtEventNode>(); }
 
-        public bool is_concrete() { return is_concrete_q; }
+        public bool is_concrete() { return events_set == null; }
         public bool is_abstract() { return !is_concrete(); }
                 
-        public bool      Empty() {                              return events.Count == 0; }
+        public bool Empty() { return ( is_concrete() ?  events.Count == 0 : events.Count == 0 && events_set.Count == 0 ); }
 
-        public int Size() { return events.Count; }
-
-        public PrtEventNode head() { return ( Empty() ? null : events[0] ); }
-
-        public void make_head(PrtEventNode ev)
-        {
-            Debug.Assert(is_abstract());
-            events.Clear();
-            events.Add(ev.Clone());
-        }
-
-        //// discard all tail elements
-        //public void abstract_empty_tail()
-        //{
-        //    abstract_tail_init();
-        //    if (Size() >= 2)
-        //    {
-        //        PrtEventNode head = (PrtEventNode)events[0].Clone();
-        //        events.Clear();
-        //        make_head(head);
-        //    }
-        //}
+        public int Size() { Debug.Assert(is_concrete()); return events.Count; } // this method makes no sense in the abstract
 
         // Place the tail elements in a list that keeps the ordering restricted to first-time occurrence but ignores multiplicity. This creates a very fine-grained abstraction.
         // For instance,
@@ -569,29 +549,55 @@ namespace P.Runtime
         public void abstract_me()
         {
             Debug.Assert(is_concrete());
+            Debug.Assert(qt != StateImpl.Queue_Type.None);
 
-            var temp_Cmp = new PrtEventNodeComparer();
-            var temp_prefix_set = new HashSet<PrtEventNode>(temp_Cmp);
+            events_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
 
-            int i = 0;
-            while (i < events.Count)
+            if (qt == StateImpl.Queue_Type.List)
             {
-                PrtEventNode ev = events[i];
-                // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                if (temp_prefix_set.Add(ev))
-                    ++i;
-                else
+                int i = 0;
+                while (i < events.Count)
                 {
-                    events.RemoveAt(i);
-                    // do not increment i here!
+                    PrtEventNode ev = events[i];
+                    // ev.arg = PrtValue.@null; // this line abstracts the payload away
+                    if (events_set.Add(ev)) // temporarily abuse events_set to track which queue elements are duplicates. Clear later
+                        ++i;
+                    else
+                    {
+                        events.RemoveAt(i);
+                        // do not increment i here!
 #if DEBUG
-                    // Console.WriteLine("PrtEventBuffer.abstract_tail: success: duplicate event {0} dropped from tail of queue", ev.ToString())
+                        // Console.WriteLine("PrtEventBuffer.abstract_tail: success: duplicate event {0} dropped from tail of queue", ev.ToString())
 #endif
+                    }
+                }
+
+                Debug.Assert(events.Count == events_set.Count); // events and temp_prefix_set must be permutations of each other at this point
+                events_set.Clear();
+            }
+            else // queue set abstraction
+            {
+                while (events.Count > 0)
+                {
+                    PrtEventNode ev = (PrtEventNode)events[0].Clone(); // needs cloning?
+                    // ev.arg = PrtValue.@null; // this line abstracts the payload away
+                    if (!events_set.Add(ev))
+                    {
+#if DEBUG
+                        // Console.WriteLine("PrtEventBuffer.abstract_tail_set: success: duplicate event {0} dropped from tail of queue", ev.ToString());
+#endif
+                    }
+                    events.RemoveAt(0);
                 }
             }
+        }
 
-            Debug.Assert(Size() == temp_prefix_set.Count); // events and temp_prefix_set must be permutations of each other at this point
-            is_concrete_q = false;
+        public void make_head(PrtEventNode ev)
+        {
+            Debug.Assert(is_abstract());
+            Debug.Assert(qt == StateImpl.Queue_Type.Set); // makes sense only for sets
+            Debug.Assert(events.Count == 0);
+            events.Add(ev.Clone());
         }
 
         public PrtEventBuffer Clone()
@@ -601,26 +607,47 @@ namespace P.Runtime
             foreach (PrtEventNode ev in events)
                 clonedVal.events.Add(ev.Clone());
 
-            clonedVal.is_concrete_q = is_concrete_q;
+            if (is_concrete())
+                return clonedVal;
+
+            clonedVal.events_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+            foreach (PrtEventNode ev in events_set)
+                clonedVal.events_set.Add(ev.Clone());
 
             return clonedVal;
         }
 
         public string ToPrettyString(string indent = "")
         {
-            return indent + "events" + ( is_abstract() ? " (abstr.):" : ":         ") + "  " + ( Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            string title = indent + "events";
+            if (is_concrete())
+                title += ":           " + ( Empty() ? "null" : events    .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            else if (qt == StateImpl.Queue_Type.List)
+            {
+                Debug.Assert(events_set.Count == 0);
+                title += " (list):    " + ( Empty() ? "null" : events    .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            }
+            else
+            {
+                Debug.Assert(events.Count == 0);
+                title += " (set):     " + ( Empty() ? "null" : events_set.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            }
+            return  title + "\n";
         }
 
         public override int GetHashCode()
         {
-            return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(), is_concrete_q.GetHashCode());
+            if (is_concrete() || qt == StateImpl.Queue_Type.List)
+                return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash());
+            else
+                return Hashing.Hash(events_set.Select(v => v.GetHashCode()).Hash());
         }
 
         public int CalculateInstances(PrtValue e)
         {
+            Debug.Assert(is_concrete());
             return events.Select(en => en.ev).Where(ev => ev == e).Count();
         }
-
 
         public void EnqueueEvent(PrtValue e, PrtValue arg, string senderMachineName, string senderMachineStateName)
         {
@@ -630,12 +657,17 @@ namespace P.Runtime
 
             if (is_abstract()) // the abstract version of EnqueueEvent does not honor the bounded semantics, instance counters, etc.
             {
-                if (!events.Contains(en))
-                    events.Add(en);
+                if (qt == StateImpl.Queue_Type.List)
+                {
+                    if (!events.Contains(en))
+                        events.Add(en); // add to end
+                }
+                else
+                    events_set.Add(en); // add anywhere
                 return;
             }
 
-            // k-bounded queue semantics
+            // concrete: k-bounded queue semantics
 
             if (k > 0 && Size() == k)
             {
