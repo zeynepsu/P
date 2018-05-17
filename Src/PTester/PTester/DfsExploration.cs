@@ -184,8 +184,7 @@ namespace P.Tester
             OS_Iterate(start);
         }
 
-        // Tail-list abstraction:
-        // Step II: compute visible successors, and return true ("converged") iff all of them are already contained in visible:
+        // compute visible successors, and return true ("converged") iff all of them are already contained in visible:
         static bool visible_converged()
         {
             foreach (StateImpl vs in visible)
@@ -206,8 +205,7 @@ namespace P.Tester
                     if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
                         continue;
 
-                    bool new_cand_from = ( PrtEventBuffer.qt == StateImpl.Queue_Type.List ? new_cand_from_list(vs, currIndex) : new_cand_from_set(vs, currIndex) );
-                    if (new_cand_from)
+                    if ( PrtEventBuffer.qt == StateImpl.Queue_Type.List ? new_cand_from_list(vs, currIndex) : new_cand_from_set(vs, currIndex) )
                         return false;
                 }
             }
