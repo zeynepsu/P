@@ -2,13 +2,6 @@
 DONE:
 ===========================================================================
 
-- improved tail abstraction: I now keep a list (instead of a set) of
-  tail elements, in the correct order, ignoring duplicate occurrences.
-  This costs same storage but greatly improves precision:
-  - when dequeing, I know what the new head is: the first element in tail!
-  - when the head event cannot fire and we fire non-head elements, I know
-    exactly which one the first dequeuable tail event is. Can stop after that!
-
 - Implemented empty-tail abstraction. This keeps ZERO info about the tail
   of the queue, only the head. It worked, but poorly: needed to add a lot
   of invariants to make it converge, and only reduces the number of reached
@@ -76,3 +69,44 @@ DONE:
   I then noticed that starting the Developer Command Prompt for VS
   as Administrator solved all problems. Not sure that this sledge-hammer
   solution is really the way to go, but it works.
+
+===========================================================================
+
+- implemented list abstraction: all queue elements are stored in list that
+  stores elements in their order of first occurrence. Future occurrences
+  are ignored. Compared to a set representation, this has the advantage
+  that I know exactly which one the first dequeuable tail event is. We can
+  stop searching for a dequeuable event.
+
+  In fact, I don't have to search for dequeuable events at all, rather just
+  let the run method take care of it. For this method, the list abstraction
+  is just like a regular queue, which happens to have no duplicates. The
+  first event it dequeues is the first event that would have been dequeued
+  in the concrete world.
+
+  This greatly simplifies implementation.
+
+  Downsides are that this higher precision must be maintained in the
+  abstract successor computation, and that there are now some abstract
+  successors that are inconsistent but abstractly reachable and need to be
+  removed via lemmas. Example: (PING,WAIT) in the Stutter example.
+
+My conclusions about what abstraction to use are as follows.
+
+- the empty-tail abstraction is too weak.
+
+- for the P language, keeping the head extra is not useful, since we anyway
+  dequeue the *first* event that we find to be dequeuable.
+
+  It is, however, possible to keep a prefix of fixed-length l of the queue
+  precisely in the abstraction, and truly abstract only the rest. Now, if
+  l=1, we happen to keep the head separate, but it might equally well be
+  the first two queue elements. There is nothing special about the head.
+
+- as for the options queue-set and queue-list, it seems difficult to tell
+  which one is better in general. Higher precision can make some decisions
+  easier, but may be harder to maintain, and may generate more false
+  positives that have to be ruled out by lemmas.
+
+In summary, it makes sense to offer both queue-list and queue-set
+abstractions, possibly with concrete-prefix length parameter l (default: 0).

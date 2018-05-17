@@ -548,8 +548,6 @@ namespace P.Runtime
             events.Add(ev.Clone());
         }
 
-        //        public bool remove_from_tail(PrtEventNode ev) { Debug.Assert(is_abstract()); return Tail.Remove(ev); }
-
         //// discard all tail elements
         //public void abstract_empty_tail()
         //{
@@ -585,31 +583,16 @@ namespace P.Runtime
                 else
                 {
                     events.RemoveAt(i);
+                    // do not increment i here!
 #if DEBUG
                     // Console.WriteLine("PrtEventBuffer.abstract_tail: success: duplicate event {0} dropped from tail of queue", ev.ToString())
 #endif
                 }
             }
+
+            Debug.Assert(Size() == temp_prefix_set.Count); // events and temp_prefix_set must be permutations of each other at this point
             is_concrete_q = false;
         }
-
-        //public bool tail_contains_event_name(string name)
-        //{
-        //    Debug.Assert(is_abstract());
-        //    foreach (PrtEventNode ev in Tail) // can ev be null?? then the below may crash
-        //        if (ev.ev.ToString() == name)
-        //            return true;
-        //    return false;
-        //}
-
-        //public bool tail_contains_event_name_other(string name)
-        //{
-        //    Debug.Assert(is_abstract());
-        //    foreach (PrtEventNode ev in Tail) // ditto
-        //        if (ev.ev.ToString() != name)
-        //            return true;
-        //    return false;
-        //}
 
         public PrtEventBuffer Clone()
         {
@@ -625,7 +608,7 @@ namespace P.Runtime
 
         public string ToPrettyString(string indent = "")
         {
-            return indent + "events" + ( is_abstract() ? " (abstract)" : "" ) + ":    " + ( Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            return indent + "events" + ( is_abstract() ? " (abstr.):" : ":         ") + "  " + ( Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
         }
 
         public override int GetHashCode()
@@ -645,7 +628,7 @@ namespace P.Runtime
 
             var en = new PrtEventNode(e, arg, senderMachineName, senderMachineStateName);
 
-            if (is_abstract())    // the abstract version of EnqueueEvent does not honor the bounded semantics, instance counters, etc.
+            if (is_abstract()) // the abstract version of EnqueueEvent does not honor the bounded semantics, instance counters, etc.
             {
                 if (!events.Contains(en))
                     events.Add(en);

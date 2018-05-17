@@ -1,4 +1,4 @@
-﻿// #define __STUTTER_EXAMPLE__
+﻿#define __STUTTER_EXAMPLE__
 // #define __GERMAN_EXAMPLE__
 
 using System;
@@ -207,17 +207,41 @@ namespace P.Runtime
 
         // Abstract states obtained by abstraction from a reachable concrete state satisfy all invariants by construction.
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
-        public bool state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has been run last (other machines have not changed, so their invariants need not be checked)
+        public bool state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
 #if __STUTTER_EXAMPLE__
+
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
+            List<PrtEventNode> Client_q = Client.eventQueue.events;
 
-            // DONE can occur only once in the queue. This can be violated in an abstractly built successor as follows:
-            // eventValue == DONE && tail.contains(DONE)
-            // which is hence an error
-            if (Client.get_eventValue().ToString() == "DONE" && Client.eventQueue.tail_contains_event_name("DONE"))
-                return false;
+            // events list must match regular expression WAIT?.DONE?.PING? . This is not the most precise, but it is easy to prove statically, and easy to check dynamically:
+            for (int i = 0; i < Client_q.Count; ++i)
+            {
+                string curr = Client_q[i].ev.ToString();
+                if (curr == "DONE" && Client.get_eventValue().ToString() == "DONE")
+                    return false;
+                if (i == Client_q.Count - 1)
+                    break;
+                string next = Client_q[i + 1].ev.ToString();
+                if (curr == "DONE" &&  next == "WAIT" ||
+                    curr == "PING" && (next == "WAIT" || next == "DONE"))
+                    return false;
+            }
+
+
+            if (Client_q.Count > 0)
+            {
+                string prev = Client_q[0].ev.ToString();
+                for (int i = 1; i < Client_q.Count; ++i)
+                {
+                    string curr = Client_q[i].ev.ToString();
+                    if (prev == "DONE" &&  curr == "WAIT" ||
+                        prev == "PING" && (curr == "WAIT" || curr == "DONE"))
+                        return false;
+                    prev = curr;
+                }
+            }
 #endif
 
 #if __GERMAN_EXAMPLE__
