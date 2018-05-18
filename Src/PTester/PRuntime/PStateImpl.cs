@@ -214,18 +214,17 @@ namespace P.Runtime
             List<PrtEventNode> Client_q = Client.eventQueue.events;
 
 #if __STUTTER_EXAMPLE__
-
-            // can't have just dequeued DONE and then there are still DONE's in the queue
+            // this one we need for both list and set abstraction: can't have just dequeued DONE and then there are still DONE's in the queue
             if (Client.get_eventValue().ToString() == "DONE" && Client_q.Find(ev => ev.ev.ToString() == "DONE").ev.ToString() == "DONE")
                 return false;
 
             if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
             {
-                // events list must match regular expression WAIT?.DONE?.PING? . This is not the most precise, but it is easy to prove statically, and easy to check dynamically:
                 for (int i = 0; i < Client_q.Count - 1; ++i)
                 {
-                    string curr = Client_q[i].ev.ToString();
+                    string curr = Client_q[  i  ].ev.ToString();
                     string next = Client_q[i + 1].ev.ToString();
+                    // PING cannot be followed by WAIT
                     if (curr == "PING" && next == "WAIT")
                         return false;
                 }

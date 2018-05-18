@@ -1,5 +1,6 @@
 ﻿#define __STATE_INVARIANTS__
 // #define __TRANS_INVARIANTS__
+//#define __FILE_DUMP__
 
 using System;
 using System.Collections.Generic;
@@ -21,22 +22,22 @@ namespace P.Tester
 
         public static bool UseStateHashing = true; // currently doesn't make sense without
 
-        public static HashSet<int> visited = new HashSet<int>();
-        public static HashSet<StateImpl> visible = new HashSet<StateImpl>(new StateImplComparer());
+        public static HashSet<int> concrete = new HashSet<int>();
+        public static HashSet<StateImpl> abstracT = new HashSet<StateImpl>(new StateImplComparer());
 
-        public static int size_Visited_previous = 0;
-        public static int size_Visible_previous = 0;
-        public static int size_Visible_previous_previous = 0;
+        public static int size_concrete_previous = 0;
+        public static int size_abstract_previous = 0;
+        public static int size_abstract_previous_previous = 0;
 
-        public static void Dfs(StateImpl start, bool visible_abstraction = false)
+        public static void Dfs(StateImpl start, bool queue_abstraction = false)
         {
             if (!UseStateHashing) throw new NotImplementedException();
 
             int k = PrtEventBuffer.k; // const ref would be better
             Console.WriteLine("Using queue bound of {0}", k);
 
-            visited.Clear();
-            visible.Clear();
+            concrete.Clear();
+            abstracT.Clear();
 
 #if DEBUG
             max_queue_size = 0;
@@ -44,21 +45,21 @@ namespace P.Tester
 
             var stack = new Stack<BacktrackingState>();
 
-            StreamWriter visited_k = new StreamWriter("visited-" + (k < 10 ? "0" : "") + k.ToString() + ".txt"); // for dumping visited states as strings into a file
+            StreamWriter concrete_k = new StreamWriter("concrete-" + (k < 10 ? "0" : "") + k.ToString() + ".txt"); // for dumping concrete states as strings into a file
 
             StateImpl start_k = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
 
             stack.Push(new BacktrackingState(start_k));
             int start_hash = start_k.GetHashCode();
-            visited.Add(start_hash);
+            concrete.Add(start_hash);
 
-            visited_k.Write(start_k.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
-            visited_k.WriteLine("==================================================");
+            concrete_k.Write(start_k.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
+            concrete_k.WriteLine("==================================================");
 
-            if (visible_abstraction)
+            if (queue_abstraction)
             {
                 StateImpl vstart_k = (StateImpl)start_k.Clone(); vstart_k.abstract_me();
-                visible.Add(vstart_k);
+                abstracT.Add(vstart_k);
             }
 
             // DFS begin
@@ -78,29 +79,33 @@ namespace P.Tester
 
                 if (!CheckFailure(next.State, next.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
                 {
-                    // update visited state hashset
+                    // update concrete state hashset
                     var hash = next.State.GetHashCode();
-                    if (!visited.Add(hash))
+                    if (!concrete.Add(hash))
                         continue;
 
-                    if (visible_abstraction)
+                    if (queue_abstraction)
                     {
-                        // update visible state set
-                        StateImpl next_vs = (StateImpl)next.State.Clone(); next_vs.abstract_me();
-                        visible.Add(next_vs);
+                        // update abstract state set
+                        StateImpl next_ab_s = (StateImpl)next.State.Clone(); next_ab_s.abstract_me();
+                        abstracT.Add(next_ab_s);
                     }
 
                     stack.Push(next);
 
-                    visited_k.Write(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
-                    visited_k.WriteLine("==================================================");
+#if __FILE_DUMP__
+                    concrete_k.Write(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
+                    concrete_k.WriteLine("==================================================");
+#endif
+
 #if DEBUG
                     // diagnostics
 
                     // Print number of states explored
-                    if (visited.Count % 100 == 0)
+                    if (concrete.Count % 1000 == 0)
                     {
-                        Console.WriteLine("-------------- Number of states visited so far = {0}", visited.Count);
+                        Console.WriteLine("-------------- Number of concrete states visited so far = {0}", concrete.Count);
+                        Console.WriteLine("-------------- Number of abstract states visited so far = {0}", abstracT.Count);
                     }
 
                     // update maximum encountered queue size
@@ -110,7 +115,7 @@ namespace P.Tester
                         if (m_size > max_queue_size)
                         {
                             max_queue_size = m_size;
-                            Console.WriteLine("New maximum queue size observed  = {0}", max_queue_size);
+                            Console.WriteLine("-------------- New maximum queue size observed  = {0}", max_queue_size);
                         }
                     }
 #endif
@@ -119,24 +124,25 @@ namespace P.Tester
 
             Console.WriteLine("");
 
-            Console.WriteLine("Number of global  states visited = {0}", visited.Count);
-            Console.WriteLine("Number of visible states visited = {0}", visible.Count);
+            Console.WriteLine("Number of concrete states visited = {0}", concrete.Count);
+            Console.WriteLine("Number of abstract states visited = {0}", abstracT.Count);
             Console.WriteLine();
 
-            visited_k.Close();
-
-            if (visible_abstraction)
+            concrete_k.Close();
+#if __FILE_DUMP__
+            if (queue_abstraction)
             {
-                // dump reached visible states into a file
-                StreamWriter visible_k = new StreamWriter("visible-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
-                foreach (StateImpl vs in visible)
+                // dump reached abstract states into a file
+                StreamWriter abstract_k = new StreamWriter("abstract-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
+                foreach (StateImpl ab_s in abstracT)
                 {
-                    visible_k.Write(vs.ToPrettyString());
-                    visible_k.WriteLine("==================================================");
+                    abstract_k.Write(ab_s.ToPrettyString());
+                    abstract_k.WriteLine("==================================================");
                 }
 
-                visible_k.Close();
+                abstract_k.Close();
             }
+#endif
         }
 
         public static void OS_Iterate(StateImpl start)
@@ -152,7 +158,7 @@ namespace P.Tester
 
             Dfs(start, true);
 
-            if (size_Visited_previous == visited.Count)
+            if (size_concrete_previous == concrete.Count)
             {
                 Console.WriteLine("Global state sequence converged!");
                 Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
@@ -164,35 +170,35 @@ namespace P.Tester
             }
 
             // when do we have to run the abstract convergence test?
-            if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
+            if (size_abstract_previous_previous < size_abstract_previous && size_abstract_previous == abstracT.Count)
             {
                 Console.WriteLine("New plateau detected.");
                 Console.Write("Running abstract state convergence test with tail-" + PrtEventBuffer.qt.ToString() + " abstraction ... ");
 
-                if (visible_converged())
+                if (abstract_converged())
                 {
                     Console.WriteLine("converged!");
                     Environment.Exit(0);
                 }
             }
 
-            size_Visible_previous_previous = size_Visible_previous;
-            size_Visible_previous = visible.Count;
-            size_Visited_previous = visited.Count;
+            size_abstract_previous_previous = size_abstract_previous;
+            size_abstract_previous = abstracT.Count;
+            size_concrete_previous = concrete.Count;
 
         Next_Round:
             ++PrtEventBuffer.k;
             OS_Iterate(start);
         }
 
-        // compute visible successors, and return true ("converged") iff all of them are already contained in visible:
-        static bool visible_converged()
+        // compute abstract successors, and return true ("converged") iff all of them are already contained in abstracT:
+        static bool abstract_converged()
         {
-            foreach (StateImpl vs in visible)
+            foreach (StateImpl ab_s in abstracT)
             {
-                for (int currIndex = 0; currIndex < vs.ImplMachines.Count; ++currIndex)
+                for (int currIndex = 0; currIndex < ab_s.ImplMachines.Count; ++currIndex)
                 {
-                    PrtImplMachine m = vs.ImplMachines[currIndex];
+                    PrtImplMachine m = ab_s.ImplMachines[currIndex];
 
                     // reject disabled machines
                     if (!(m.currentStatus == PrtMachineStatus.Enabled))
@@ -206,7 +212,7 @@ namespace P.Tester
                     if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
                         continue;
 
-                    if ( PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list ? new_cand_from_list(vs, currIndex) : new_cand_from_set(vs, currIndex) )
+                    if ( PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list ? new_cand_from_list(ab_s, currIndex) : new_cand_from_set(ab_s, currIndex) )
                         return false;
                 }
             }
@@ -216,16 +222,16 @@ namespace P.Tester
         // Try to dequeue an event and look for new abstract states
 
         // for queue-list abstraction:
-        static bool new_cand_from_list(StateImpl vs, int currIndex)
+        static bool new_cand_from_list(StateImpl ab_s, int currIndex)
         {
-            PrtImplMachine m = vs.ImplMachines[currIndex];
+            PrtImplMachine m = ab_s.ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
 
-            StateImpl vs_succ = (StateImpl)vs.Clone();
-            PrtImplMachine m_succ = vs_succ.ImplMachines[currIndex];
+            StateImpl ab_s_succ = (StateImpl)ab_s.Clone();
+            PrtImplMachine m_succ = ab_s_succ.ImplMachines[currIndex];
             List<PrtEventNode> m_succ_q = m_succ.eventQueue.events;
             m_succ.PrtRunStateMachine();
-            if (m_succ_q.Count < m_q.Count && !CheckFailure(vs_succ, 0)) // if dequeing was successful
+            if (m_succ_q.Count < m_q.Count && !CheckFailure(ab_s_succ, 0)) // if dequeing was successful
             {
                 Debug.Assert(m_q.Count == m_succ_q.Count + 1); // we have dequeued exactly one event
                 // Find the dequeued event, to correct the abstract queue
@@ -239,63 +245,63 @@ namespace P.Tester
                 PrtEventNode dequeued_ev = m_q[i];
                 Debug.Assert(!m_succ_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
                 // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
+                if (new_cand(ab_s, ab_s_succ, currIndex, dequeued_ev))
                     return true;
                 // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
                 for (int j = i; j < m_succ_q.Count; ++j)
                 {
                     // insert dequeue_ev at position j (push the rest to the right)
                     m_succ_q.Insert(j, dequeued_ev);
-                    if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
+                    if (new_cand(ab_s, ab_s_succ, currIndex, dequeued_ev))
                         return true;
                     m_succ_q.RemoveAt(j); // restore previous state
                 }
                 m_succ_q.Add(dequeued_ev); // finally, insert dequeue_ev at end
-                if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
+                if (new_cand(ab_s, ab_s_succ, currIndex, dequeued_ev))
                     return true;
             }
             return false;
         }
 
         // for queue-set abstraction:
-        static bool new_cand_from_set(StateImpl vs, int currIndex)
+        static bool new_cand_from_set(StateImpl ab_s, int currIndex)
         {
-            PrtImplMachine m = vs.ImplMachines[currIndex];
+            PrtImplMachine m = ab_s.ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
 
             foreach (PrtEventNode ev in m_q)
             {
-                StateImpl vs_succ = (StateImpl)vs.Clone();
-                PrtImplMachine m_succ = vs_succ.ImplMachines[currIndex];
+                StateImpl ab_s_succ = (StateImpl)ab_s.Clone();
+                PrtImplMachine m_succ = ab_s_succ.ImplMachines[currIndex];
                 PrtEventBuffer m_succ_buffer = m_succ.eventQueue;
                 List<PrtEventNode> m_succ_q = m_succ_buffer.events;
                 // prepare the buffer for running the machine: make head with no tail
                 m_succ_q.Clear();
                 m_succ_q.Add(ev.Clone());
                 m_succ.PrtRunStateMachine();
-                if (m_succ_buffer.Empty() && !CheckFailure(vs_succ, 0)) // if dequeing was successful
+                if (m_succ_buffer.Empty() && !CheckFailure(ab_s_succ, 0)) // if dequeing was successful
                 {
                     foreach (PrtEventNode ev2 in m_q) m_succ_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
                     // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
-                    if (new_cand(vs, vs_succ, currIndex, ev))
+                    if (new_cand(ab_s, ab_s_succ, currIndex, ev))
                         return true;
                     // choice 2: ev existed once in m_q, so after the dequeue it is gone
                     m_succ_q.Remove(ev);
-                    if (new_cand(vs, vs_succ, currIndex, ev))
+                    if (new_cand(ab_s, ab_s_succ, currIndex, ev))
                         return true;
                 }
             }
             return false;
         }
 
-        static bool new_cand(StateImpl vs, StateImpl vs_succ, int currIndex, PrtEventNode dequeue_ev)
+        static bool new_cand(StateImpl ab_s, StateImpl ab_s_succ, int currIndex, PrtEventNode dequeue_ev)
         {
-            if (visible.Contains(vs_succ)
+            if (abstracT.Contains(ab_s_succ)
 #if __STATE_INVARIANTS__
-                || !vs_succ.state_invariant(currIndex)
+                || !ab_s_succ.state_invariant(currIndex)
 #endif
 #if __TRANS_INVARIANTS__
-                || !vs_succ.trans_invariant(currIndex, vs)
+                || !ab_s_succ.trans_invariant(currIndex, ab_s)
 #endif
                 )
                 return false;
@@ -305,10 +311,10 @@ namespace P.Tester
             Console.WriteLine("did not converge.");
             Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue event {1}.", currIndex, dequeue_ev.ToString());
 
-            StreamWriter vs_SW = new StreamWriter("vs.txt"); vs_SW.WriteLine(vs.ToPrettyString()); vs_SW.Close();
-            StreamWriter vs_succ_SW = new StreamWriter("vs_succ.txt"); vs_succ_SW.WriteLine(vs_succ.ToPrettyString()); vs_succ_SW.Close();
+            StreamWriter ab_s_SW = new StreamWriter("ab_s.txt"); ab_s_SW.WriteLine(ab_s.ToPrettyString()); ab_s_SW.Close();
+            StreamWriter ab_s_succ_SW = new StreamWriter("ab_s_succ.txt"); ab_s_succ_SW.WriteLine(ab_s_succ.ToPrettyString()); ab_s_succ_SW.Close();
 
-            Console.WriteLine("Dumped abstract source state and successor candidate state into files. Their hashes are {0} and {1}.", vs.GetHashCode(), vs_succ.GetHashCode());
+            Console.WriteLine("Dumped abstract source state and successor candidate state into files. Their hashes are {0} and {1}.", ab_s.GetHashCode(), ab_s_succ.GetHashCode());
             Console.WriteLine();
 
             return true;

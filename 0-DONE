@@ -74,9 +74,9 @@ DONE:
 
 - implemented list abstraction: all queue elements are stored in list that
   stores elements in their order of first occurrence. Future occurrences
-  are ignored. Compared to a set representation, this has the advantage
-  that I know exactly which one the first dequeuable tail event is. We can
-  stop searching for a dequeuable event.
+  are dropped. Compared to a set representation, this has the advantage
+  that I know exactly what the first dequeuable event is. Once found, we
+  can stop searching for a dequeuable event.
 
   In fact, I don't have to search for dequeuable events at all, rather just
   let the run method take care of it. For this method, the list abstraction
@@ -89,24 +89,30 @@ DONE:
   Downsides are that this higher precision must be maintained in the
   abstract successor computation, and that there are now some abstract
   successors that are inconsistent but abstractly reachable and need to be
-  removed via lemmas. Example: (PING,WAIT) in the Stutter example.
+  removed via lemmas. Example: (PING,WAIT) in the Stutter protocol.
 
 My conclusions about what abstraction to use are as follows.
 
-- the empty-tail abstraction is too weak.
+- the empty-tail abstraction is too weak. I am not considering it.
 
-- for the P language, keeping the head extra is not useful, since we anyway
-  dequeue the *first* event that we find to be dequeuable.
+- I am using both queue-set and queue-list abstractions. It seems difficult
+  to tell which one is better in general. Higher precision can make some
+  decisions easier, but may be harder to maintain, and may generate more
+  false positives that have to be ruled out by lemmas.
+
+  For inststance, for the Stutter protocol I needed different sets of
+  lemmas to rule out the (few) inconsistent abstract successor states.
+
+- An orthogonal consideration is whether to store the whole queue in a
+  single data structure (list or set), or whether to keep the head
+  separately. It turns out that for the P language, this is not useful,
+  since we anyway dequeue the first event that we find to be dequeuable,
+  head or not.
 
   It is, however, possible to keep a prefix of fixed-length l of the queue
   precisely in the abstraction, and truly abstract only the rest. Now, if
   l=1, we happen to keep the head separate, but it might equally well be
   the first two queue elements. There is nothing special about the head.
-
-- as for the options queue-set and queue-list, it seems difficult to tell
-  which one is better in general. Higher precision can make some decisions
-  easier, but may be harder to maintain, and may generate more false
-  positives that have to be ruled out by lemmas.
 
 In summary, it makes sense to offer both queue-list and queue-set
 abstractions, possibly with concrete-prefix length parameter l (default: 0).
