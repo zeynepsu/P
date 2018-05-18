@@ -184,8 +184,6 @@ namespace P.Runtime
         }
 #endregion
 
-        public enum Queue_Type { None , List , Set };
-
         public void abstract_me()
         {
             foreach (var m in ImplMachines)
@@ -211,29 +209,36 @@ namespace P.Runtime
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
         public bool state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
-#if __STUTTER_EXAMPLE__
-
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
             List<PrtEventNode> Client_q = Client.eventQueue.events;
 
-            // events list must match regular expression WAIT?.DONE?.PING? . This is not the most precise, but it is easy to prove statically, and easy to check dynamically:
-            for (int i = 0; i < Client_q.Count; ++i)
+#if __STUTTER_EXAMPLE__
+
+            // can't have just dequeued DONE and then there are still DONE's in the queue
+            if (Client.get_eventValue().ToString() == "DONE" && Client_q.Find(ev => ev.ev.ToString() == "DONE").ev.ToString() == "DONE")
+                return false;
+
+            if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
             {
-                string curr = Client_q[i].ev.ToString();
-                if (curr == "DONE" && Client.get_eventValue().ToString() == "DONE")
-                    return false;
-                if (i == Client_q.Count - 1)
-                    break;
-                string next = Client_q[i + 1].ev.ToString();
-                if (curr == "DONE" && next == "WAIT" ||
-                    curr == "PING" && (next == "WAIT" || next == "DONE"))
+                // events list must match regular expression WAIT?.DONE?.PING? . This is not the most precise, but it is easy to prove statically, and easy to check dynamically:
+                for (int i = 0; i < Client_q.Count - 1; ++i)
+                {
+                    string curr = Client_q[i].ev.ToString();
+                    string next = Client_q[i + 1].ev.ToString();
+                    if (curr == "PING" && next == "WAIT")
+                        return false;
+                }
+            }
+            else
+            {
+                // can't have just dequeued PING and then there are still WAIT's in the queue
+                if (Client.get_eventValue().ToString() == "PING" && Client_q.Find(ev => ev.ev.ToString() == "WAIT").ev.ToString() == "WAIT")
                     return false;
             }
 #endif
 
 #if __GERMAN_EXAMPLE__
-            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
             if (Client.eventQueue.head().ev.ToString() == "ask_share" && Client.eventQueue.tail_contains_event_name("ask_share") ||
                 Client.eventQueue.head().ev.ToString() == "ask_excl"  && Client.eventQueue.tail_contains_event_name("ask_excl"))
                 return false;

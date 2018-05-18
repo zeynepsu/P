@@ -121,6 +121,7 @@ namespace P.Tester
 
             Console.WriteLine("Number of global  states visited = {0}", visited.Count);
             Console.WriteLine("Number of visible states visited = {0}", visible.Count);
+            Console.WriteLine();
 
             visited_k.Close();
 
@@ -140,7 +141,7 @@ namespace P.Tester
 
         public static void OS_Iterate(StateImpl start)
         {
-            if (PrtEventBuffer.k == 0) { Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)"); goto Repeat; }
+            if (PrtEventBuffer.k == 0) { Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)"); goto Next_Round; }
 
             Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", PrtEventBuffer.k);
             if (!String.IsNullOrEmpty(Console.ReadLine()))
@@ -166,7 +167,7 @@ namespace P.Tester
             if (size_Visible_previous_previous < size_Visible_previous && size_Visible_previous == visible.Count)
             {
                 Console.WriteLine("New plateau detected.");
-                Console.Write("Running abstract state convergence test with tail-list abstraction ... ");
+                Console.Write("Running abstract state convergence test with tail-" + PrtEventBuffer.qt.ToString() + " abstraction ... ");
 
                 if (visible_converged())
                 {
@@ -179,7 +180,7 @@ namespace P.Tester
             size_Visible_previous = visible.Count;
             size_Visited_previous = visited.Count;
 
-        Repeat:
+        Next_Round:
             ++PrtEventBuffer.k;
             OS_Iterate(start);
         }
@@ -205,7 +206,7 @@ namespace P.Tester
                     if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
                         continue;
 
-                    if ( PrtEventBuffer.qt == StateImpl.Queue_Type.List ? new_cand_from_list(vs, currIndex) : new_cand_from_set(vs, currIndex) )
+                    if ( PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list ? new_cand_from_list(vs, currIndex) : new_cand_from_set(vs, currIndex) )
                         return false;
                 }
             }
@@ -219,38 +220,38 @@ namespace P.Tester
         {
             PrtImplMachine m = vs.ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
+
             StateImpl vs_succ = (StateImpl)vs.Clone();
             PrtImplMachine m_succ = vs_succ.ImplMachines[currIndex];
             List<PrtEventNode> m_succ_q = m_succ.eventQueue.events;
             m_succ.PrtRunStateMachine();
             if (m_succ_q.Count < m_q.Count && !CheckFailure(vs_succ, 0)) // if dequeing was successful
             {
-                Debug.Assert(m_q.Count == m_succ_q.Count + 1); // we have dequeued exactly one event. Now we have to find it, to correct the abstract queue
+                Debug.Assert(m_q.Count == m_succ_q.Count + 1); // we have dequeued exactly one event
+                // Find the dequeued event, to correct the abstract queue
                 int i;
                 for (i = 0; i < m_q.Count; ++i)
                 {
-                    // if past m_succ_q      || ith event before and after dequeue differ, then i points to the dequeued event
-                    if (i == m_succ_q.Count || !m_q[i].Equals(m_succ_q[i]))
-                        break;
+                    if (i == m_succ_q.Count || !m_q[i].Equals(m_succ_q[i]))   // if we are past m_succ_q  OR  the ith event before and after dequeue differ, then
+                        break; // i points to the dequeued event
                 }
                 Debug.Assert(i < m_q.Count);
-                string eventStatus = (i == 0 ? "head " : "");
                 PrtEventNode dequeued_ev = m_q[i];
-                Debug.Assert(!m_succ_q.Contains(dequeued_ev)); // we just dequeued it!
-                // choice 1: dequeued_ev existed exactly once in m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                if (new_cand(vs, vs_succ, currIndex, eventStatus + "event " + dequeued_ev.ToString()))
+                Debug.Assert(!m_succ_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
+                // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
+                if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
                     return true;
-                // choice 2: dequeued_ev existed >= twice in m_q. Now we need to find the positions where to re-introduce in the abstract, and try them all non-deterministically
+                // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
                 for (int j = i; j < m_succ_q.Count; ++j)
                 {
-                    // insert dequeue_ev at position j
-                    m_succ_q.Insert(j, dequeued_ev); // restore previous state
-                    if (new_cand(vs, vs_succ, currIndex, eventStatus + "event " + dequeued_ev.ToString()))
+                    // insert dequeue_ev at position j (push the rest to the right)
+                    m_succ_q.Insert(j, dequeued_ev);
+                    if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
                         return true;
                     m_succ_q.RemoveAt(j); // restore previous state
                 }
-                m_succ_q.Add(dequeued_ev);
-                if (new_cand(vs, vs_succ, currIndex, eventStatus + "event " + dequeued_ev.ToString()))
+                m_succ_q.Add(dequeued_ev); // finally, insert dequeue_ev at end
+                if (new_cand(vs, vs_succ, currIndex, dequeued_ev))
                     return true;
             }
             return false;
@@ -259,29 +260,35 @@ namespace P.Tester
         // for queue-set abstraction:
         static bool new_cand_from_set(StateImpl vs, int currIndex)
         {
-            StateImpl vs_succ = (StateImpl)vs.Clone();
-            PrtImplMachine m_succ = vs_succ.ImplMachines[currIndex];
-            PrtEventBuffer m_succ_buffer = m_succ.eventQueue;
-            HashSet<PrtEventNode> m_succ_q = m_succ_buffer.events_set;
-            foreach (PrtEventNode ev in m_succ_q)
+            PrtImplMachine m = vs.ImplMachines[currIndex];
+            List<PrtEventNode> m_q = m.eventQueue.events;
+
+            foreach (PrtEventNode ev in m_q)
             {
-                m_succ_buffer.make_head(ev);
+                StateImpl vs_succ = (StateImpl)vs.Clone();
+                PrtImplMachine m_succ = vs_succ.ImplMachines[currIndex];
+                PrtEventBuffer m_succ_buffer = m_succ.eventQueue;
+                List<PrtEventNode> m_succ_q = m_succ_buffer.events;
+                // prepare the buffer for running the machine: make head with no tail
+                m_succ_q.Clear();
+                m_succ_q.Add(ev.Clone());
                 m_succ.PrtRunStateMachine();
-                if (m_succ_q.Count == 0 && !CheckFailure(vs_succ, 0)) // if dequeing was successful
+                if (m_succ_buffer.Empty() && !CheckFailure(vs_succ, 0)) // if dequeing was successful
                 {
-                    // choice 1: ev existed >= twice in m_q. No change in queue set abstraction
-                    if (new_cand(vs, vs_succ, currIndex, "event " + ev.ToString()))
+                    foreach (PrtEventNode ev2 in m_q) m_succ_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
+                    // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
+                    if (new_cand(vs, vs_succ, currIndex, ev))
                         return true;
                     // choice 2: ev existed once in m_q, so after the dequeue it is gone
                     m_succ_q.Remove(ev);
-                    if (new_cand(vs, vs_succ, currIndex, "event " + ev.ToString()))
+                    if (new_cand(vs, vs_succ, currIndex, ev))
                         return true;
                 }
             }
             return false;
         }
 
-        static bool new_cand(StateImpl vs, StateImpl vs_succ, int currIndex, string ev_str)
+        static bool new_cand(StateImpl vs, StateImpl vs_succ, int currIndex, PrtEventNode dequeue_ev)
         {
             if (visible.Contains(vs_succ)
 #if __STATE_INVARIANTS__
@@ -296,14 +303,13 @@ namespace P.Tester
             // candidate is new and satisfies the invariants
 
             Console.WriteLine("did not converge.");
-            Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue {1}.", currIndex, ev_str);
+            Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue event {1}.", currIndex, dequeue_ev.ToString());
 
             StreamWriter vs_SW = new StreamWriter("vs.txt"); vs_SW.WriteLine(vs.ToPrettyString()); vs_SW.Close();
             StreamWriter vs_succ_SW = new StreamWriter("vs_succ.txt"); vs_succ_SW.WriteLine(vs_succ.ToPrettyString()); vs_succ_SW.Close();
 
             Console.WriteLine("Dumped abstract source state and successor candidate state into files. Their hashes are {0} and {1}.", vs.GetHashCode(), vs_succ.GetHashCode());
-            Console.WriteLine("In source state, ImplMachine {0}: queue should be non-empty.", currIndex);
-            Console.WriteLine("In successor candidate state, ImplMachine {0}: if tail was empty, its queue should now be empty, otherwise non-empty; tail may or may not have changed.", currIndex);
+            Console.WriteLine();
 
             return true;
         }

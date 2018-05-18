@@ -318,14 +318,14 @@ namespace P.Tester
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
-                PrtEventBuffer.qt = StateImpl.Queue_Type.List;
+                PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue list abstraction
             }
             else if (options.OS_Set)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
-                PrtEventBuffer.qt = StateImpl.Queue_Type.Set;
+                PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue set abstraction
             }
             else

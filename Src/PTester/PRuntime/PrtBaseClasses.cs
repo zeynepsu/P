@@ -524,19 +524,20 @@ namespace P.Runtime
 
     public class PrtEventBuffer
     {
-        public List<PrtEventNode>    events;     // queue as list. Used for concrete, and for queue list abstraction
-        public HashSet<PrtEventNode> events_set; // queue as set. Used for queue set abstraction
+        public enum Queue_Type { none, list, set };
 
-        public static StateImpl.Queue_Type qt = StateImpl.Queue_Type.None;
-
+        public static Queue_Type qt = Queue_Type.none;
         public static int k = 0;  // queue size bound. '0' is interpreted as 'unbounded'
 
-        public PrtEventBuffer() { events = new List<PrtEventNode>(); }
+        public List<PrtEventNode> events; // used as (i) concrete queue, (ii) abstract queue, interpreted as repetition-free list, (iii) abstract queue, interpreted as set
+        public bool concrete;
 
-        public bool is_concrete() { return events_set == null; }
+        public PrtEventBuffer() { events = new List<PrtEventNode>(); concrete = true; }
+
+        public bool is_concrete() { return concrete; }
         public bool is_abstract() { return !is_concrete(); }
-                
-        public bool Empty() { return ( is_concrete() ?  events.Count == 0 : events.Count == 0 && events_set.Count == 0 ); }
+
+        public bool Empty() { return events.Count == 0; }
 
         public int Size() { Debug.Assert(is_concrete()); return events.Count; } // this method makes no sense in the abstract
 
@@ -549,55 +550,30 @@ namespace P.Runtime
         public void abstract_me()
         {
             Debug.Assert(is_concrete());
-            Debug.Assert(qt != StateImpl.Queue_Type.None);
+            Debug.Assert(qt != Queue_Type.none);
 
-            events_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+            var temp_Cmp = new PrtEventNodeComparer();
+            var temp_prefix_set = new HashSet<PrtEventNode>(temp_Cmp);
 
-            if (qt == StateImpl.Queue_Type.List)
+            // the abstraction function removes duplicate events, nothing more (no matter whether list or set abstraction is used)
+            int i = 0;
+            while (i < events.Count)
             {
-                int i = 0;
-                while (i < events.Count)
+                PrtEventNode ev = events[i];
+                // ev.arg = PrtValue.@null; // this line abstracts the payload away
+                if (temp_prefix_set.Add(ev))
+                    ++i;
+                else
                 {
-                    PrtEventNode ev = events[i];
-                    // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                    if (events_set.Add(ev)) // temporarily abuse events_set to track which queue elements are duplicates. Clear later
-                        ++i;
-                    else
-                    {
-                        events.RemoveAt(i);
-                        // do not increment i here!
+                    events.RemoveAt(i);
+                    // do not increment i here!
 #if DEBUG
-                        // Console.WriteLine("PrtEventBuffer.abstract_tail: success: duplicate event {0} dropped from tail of queue", ev.ToString())
+                    // Console.WriteLine("PrtEventBuffer.abstract_me: success: duplicate event {0} dropped from queue", ev.ToString())
 #endif
-                    }
-                }
-
-                Debug.Assert(events.Count == events_set.Count); // events and temp_prefix_set must be permutations of each other at this point
-                events_set.Clear();
-            }
-            else // queue set abstraction
-            {
-                while (events.Count > 0)
-                {
-                    PrtEventNode ev = (PrtEventNode)events[0].Clone(); // needs cloning?
-                    // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                    if (!events_set.Add(ev))
-                    {
-#if DEBUG
-                        // Console.WriteLine("PrtEventBuffer.abstract_tail_set: success: duplicate event {0} dropped from tail of queue", ev.ToString());
-#endif
-                    }
-                    events.RemoveAt(0);
                 }
             }
-        }
-
-        public void make_head(PrtEventNode ev)
-        {
-            Debug.Assert(is_abstract());
-            Debug.Assert(qt == StateImpl.Queue_Type.Set); // makes sense only for sets
-            Debug.Assert(events.Count == 0);
-            events.Add(ev.Clone());
+            Debug.Assert(events.Count == temp_prefix_set.Count); // events and temp_prefix_set must be permutations of each other at this point
+            concrete = false;
         }
 
         public PrtEventBuffer Clone()
@@ -607,12 +583,7 @@ namespace P.Runtime
             foreach (PrtEventNode ev in events)
                 clonedVal.events.Add(ev.Clone());
 
-            if (is_concrete())
-                return clonedVal;
-
-            clonedVal.events_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
-            foreach (PrtEventNode ev in events_set)
-                clonedVal.events_set.Add(ev.Clone());
+            clonedVal.concrete = concrete;
 
             return clonedVal;
         }
@@ -621,26 +592,15 @@ namespace P.Runtime
         {
             string title = indent + "events";
             if (is_concrete())
-                title += ":           " + ( Empty() ? "null" : events    .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
-            else if (qt == StateImpl.Queue_Type.List)
-            {
-                Debug.Assert(events_set.Count == 0);
-                title += " (list):    " + ( Empty() ? "null" : events    .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
-            }
+                title += ":           ";
             else
-            {
-                Debug.Assert(events.Count == 0);
-                title += " (set):     " + ( Empty() ? "null" : events_set.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
-            }
-            return  title + "\n";
+                title += ( qt == Queue_Type.list ? " (list):    " : " (set):     " );
+            return title + ( Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
         }
 
         public override int GetHashCode()
         {
-            if (is_concrete() || qt == StateImpl.Queue_Type.List)
-                return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash());
-            else
-                return Hashing.Hash(events_set.Select(v => v.GetHashCode()).Hash());
+            return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(), concrete.GetHashCode());
         }
 
         public int CalculateInstances(PrtValue e)
@@ -655,51 +615,46 @@ namespace P.Runtime
 
             var en = new PrtEventNode(e, arg, senderMachineName, senderMachineStateName);
 
-            if (is_abstract()) // the abstract version of EnqueueEvent does not honor the bounded semantics, instance counters, etc.
+            if (is_concrete()) // concrete: honor k-bounded queue semantics, instance counters, etc
             {
-                if (qt == StateImpl.Queue_Type.List)
+
+                if (k > 0 && Size() == k)
                 {
-                    if (!events.Contains(en))
-                        events.Add(en); // add to end
-                }
-                else
-                    events_set.Add(en); // add anywhere
-                return;
-            }
-
-            // concrete: k-bounded queue semantics
-
-            if (k > 0 && Size() == k)
-            {
-                // Console.WriteLine("PrtEventBuffer.EnqueueEvent: queue bound {0} reached in attempt to enqueue; rejecting send event", k);
-                throw new PrtAssumeFailureException();
-                return;
-            }
-
-            PrtEventValue ev = e as PrtEventValue;
-            if (ev.evt.maxInstances != PrtEvent.DefaultMaxInstances) // instance counter is used
-                if (CalculateInstances(e) == ev.evt.maxInstances)
-                {
-                    if (ev.evt.doAssume)
-                        throw new PrtAssumeFailureException();
-                    else
-                        throw new PrtMaxEventInstancesExceededException(String.Format(@"< Exception > Attempting to enqueue event {0} more than max instance of {1}\n", ev.evt.name, ev.evt.maxInstances));
+                    // Console.WriteLine("PrtEventBuffer.EnqueueEvent: queue bound {0} reached in attempt to enqueue; rejecting send event", k);
+                    throw new PrtAssumeFailureException();
                     return;
                 }
 
-            events.Add(en);
+                PrtEventValue ev = e as PrtEventValue;
+                if (ev.evt.maxInstances != PrtEvent.DefaultMaxInstances) // instance counter is used
+                    if (CalculateInstances(e) == ev.evt.maxInstances)
+                    {
+                        if (ev.evt.doAssume)
+                            throw new PrtAssumeFailureException();
+                        else
+                            throw new PrtMaxEventInstancesExceededException(String.Format(@"< Exception > Attempting to enqueue event {0} more than {1} many times\n", ev.evt.name, ev.evt.maxInstances));
+                        return;
+                    }
+            }
+            else
+            {
+                if (events.Contains(en)) // abstract queue drops duplicates
+                    return;
+            }
+
+            events.Add(en); // add to end
         }
 
         public bool DequeueEvent(PrtImplMachine owner)
         {
             HashSet<PrtValue> deferredSet = owner.CurrentDeferredSet;
-            HashSet<PrtValue>  receiveSet = owner.receiveSet;
+            HashSet<PrtValue> receiveSet = owner.receiveSet;
 
             int iter = 0;
             while (iter < events.Count)
-            { 
-                if (   (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev))  // we check deferredSet and receiveSet only against ev (event type), not arg
-                    || (receiveSet.Count >  0 &&   receiveSet.Contains(events[iter].ev)))
+            {
+                if ( (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev)) ||  // we check deferredSet and receiveSet only against ev (event type), not arg
+                     (receiveSet.Count >  0 &&   receiveSet.Contains(events[iter].ev)))
                 {
                     owner.currentTrigger = events[iter].ev;
                     owner.currentPayload = events[iter].arg;
@@ -708,9 +663,7 @@ namespace P.Runtime
                     return true;
                 }
                 else
-                {
                     iter++;
-                }
             }
 
             return false;
