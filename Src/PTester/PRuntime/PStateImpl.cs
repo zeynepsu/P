@@ -1,4 +1,9 @@
-﻿#define __STUTTER_EXAMPLE__
+﻿#define __STATE_INVARIANTS__
+//#define __TRANS_INVARIANTS__
+
+#define __FILE_DUMP__
+
+#define __STUTTER_EXAMPLE__
 // #define __GERMAN_EXAMPLE__
 
 using System;
@@ -6,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Diagnostics;
+using System.IO;
 
 namespace P.Runtime
 {
@@ -190,24 +196,160 @@ namespace P.Runtime
                 m.abstract_me();
         }
 
-        public bool is_abstract()
+        public void collect_abstract_successors(HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            foreach (var m in ImplMachines)
+            for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
             {
-                PrtEventBuffer q = m.eventQueue;
-                Debug.Assert(q.is_abstract(), "non-abstract queue in abstract state: " + q.ToPrettyString());
+                PrtImplMachine m = ImplMachines[currIndex];
+
+                // reject disabled machines
+                if (!(m.currentStatus == PrtMachineStatus.Enabled))
+                    continue;
+
+                // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
+                if (!(m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
+                      m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
+                    continue;
+
+                if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
+                    continue;
+
+                if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
+                    collect_abstract_successors_from_list(currIndex, abstract_succs, abstract_succs_SW);
+                else
+                    collect_abstract_successors_from_set (currIndex, abstract_succs, abstract_succs_SW);
             }
-            return true;
+        }
+
+        // for queue-list abstraction:
+        void collect_abstract_successors_from_list(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        {
+            PrtImplMachine m = ImplMachines[currIndex];
+            List<PrtEventNode> m_q = m.eventQueue.events;
+
+            StateImpl          succ     = (StateImpl)Clone();
+            PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
+            List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
+            succ_m.PrtRunStateMachine();
+            if (succ_m_q.Count < m_q.Count && !succ.CheckFailure(0)) // if dequeing was successful
+            {
+                Debug.Assert(m_q.Count == succ_m_q.Count + 1); // we have dequeued exactly one event
+                // Find the dequeued event, to correct the abstract queue
+                int i;
+                for (i = 0; i < m_q.Count; ++i)
+                {
+                    if (i == succ_m_q.Count || !m_q[i].Equals(succ_m_q[i]))   // if we are past succ_m_q  OR  the ith event before and after dequeue differ, then
+                        break; // i points to the dequeued event
+                }
+                Debug.Assert(i < m_q.Count);
+                PrtEventNode dequeued_ev = m_q[i];
+                Debug.Assert(!succ_m_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
+                // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
+                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
+                for (int j = i; j < succ_m_q.Count; ++j)
+                {
+                    // insert dequeue_ev at position j (push the rest to the right)
+                    succ_m_q.Insert(j, dequeued_ev);
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    succ_m_q.RemoveAt(j); // restore previous state
+                }
+                succ_m_q.Add(dequeued_ev); // finally, insert dequeue_ev at end
+                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+            }
+        }
+
+        // for queue-set abstraction:
+        void collect_abstract_successors_from_set(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        {
+            PrtImplMachine m = ImplMachines[currIndex];
+            List<PrtEventNode> m_q = m.eventQueue.events;
+
+            foreach (PrtEventNode ev in m_q)
+            {
+                StateImpl          succ     = (StateImpl)Clone();
+                PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
+                PrtEventBuffer     succ_m_b = succ_m.eventQueue;
+                List<PrtEventNode> succ_m_q = succ_m_b.events;
+                // prepare the buffer for running the machine: make head with no tail
+                succ_m_q.Clear();
+                succ_m_q.Add(ev.Clone());
+                succ_m.PrtRunStateMachine();
+                if (succ_m_b.Empty() && !succ.CheckFailure(0)) // if dequeing was successful
+                {
+                    foreach (PrtEventNode ev2 in m_q) succ_m_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
+                    // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    // choice 2: ev existed once in m_q, so after the dequeue it is gone
+                    succ_m_q.Remove(ev);
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                }
+            }
+        }
+
+        void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        {
+            if (true
+#if __STATE_INVARIANTS__
+                && Check_state_invariant(currIndex)
+#endif
+#if __TRANS_INVARIANTS__
+                && Check_trans_invariant(currIndex, pred)
+#endif
+                )
+            {
+                if (abstract_succs.Add(GetHashCode()))
+                {
+#if __FILE_DUMP__
+                    abstract_succs_SW.Write(ToPrettyString());
+                    abstract_succs_SW.WriteLine("==================================================");
+#endif
+                }
+            }
+        }
+
+        public bool CheckFailure(int depth)
+        {
+            //if (UseDepthBounding && depth > DepthBound)    // ignore this for now. These parameters are part of class DfsExploration, so can't use here
+            //{
+            //    return true;
+            //}
+
+            if (Exception == null)
+            {
+                return false;
+            }
+
+
+            if (Exception is PrtAssumeFailureException)
+            {
+                return true;
+            }
+            else if (Exception is PrtException)
+            {
+                Console.WriteLine(errorTrace.ToString());
+                Console.WriteLine("ERROR: {0}", Exception.Message);
+                Environment.Exit(-1);
+            }
+            else
+            {
+                Console.WriteLine(errorTrace.ToString());
+                Console.WriteLine("[Internal Exception]: Please report to the P Team");
+                Console.WriteLine(Exception.ToString());
+                Environment.Exit(-1);
+            }
+            return false;
         }
 
         // STATE AND TRANSITION INVARIANTS.
+
         // This is application dependent, so eventually this needs to be done differently.
 
         // 1. STATE INVARIANTS
 
         // Abstract states obtained by abstraction from a reachable concrete state satisfy all invariants by construction.
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
-        public bool state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
+        public bool Check_state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
@@ -215,7 +357,8 @@ namespace P.Runtime
 
 #if __STUTTER_EXAMPLE__
             // this one we need for both list and set abstraction: can't have just dequeued DONE and then there are still DONE's in the queue
-            if (Client.get_eventValue().ToString() == "DONE" && Client_q.Find(ev => ev.ev.ToString() == "DONE").ev.ToString() == "DONE")
+            PrtEventNode DONE = Client_q.Find(ev => ev.ev.ToString() == "DONE");
+            if (Client.get_eventValue().ToString() == "DONE" && DONE != null && DONE.ev.ToString() == "DONE")
                 return false;
 
             if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
@@ -232,7 +375,8 @@ namespace P.Runtime
             else
             {
                 // can't have just dequeued PING and then there are still WAIT's in the queue
-                if (Client.get_eventValue().ToString() == "PING" && Client_q.Find(ev => ev.ev.ToString() == "WAIT").ev.ToString() == "WAIT")
+                PrtEventNode WAIT = Client_q.Find(ev => ev.ev.ToString() == "WAIT");
+                if (Client.get_eventValue().ToString() == "PING" && WAIT != null && WAIT.ev.ToString() == "WAIT")
                     return false;
             }
 #endif
@@ -245,7 +389,7 @@ namespace P.Runtime
             return true;
         }
 
-        public bool trans_invariant(int currIndex, StateImpl pred)
+        public bool Check_trans_invariant(int currIndex, StateImpl pred)
         {
             return true;
         }
@@ -293,7 +437,7 @@ namespace P.Runtime
 
         public string ToPrettyString(string indent = "")
         {
-            string result = "";
+            string result = "Hash: " + GetHashCode().ToString() + "\n";
 
             if (implMachines.Count == 0)
                 result += indent + "ImplMachines: (none)\n";

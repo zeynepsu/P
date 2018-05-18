@@ -647,5 +647,10 @@ namespace P.Runtime
 
         // to abstract a machine means to abstract its queue
         public void abstract_me() { eventQueue.abstract_me(); }
+
+        public bool is_abstract()
+        {
+            return eventQueue.is_abstract();
+        }
     }
 }

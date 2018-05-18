@@ -1,6 +1,4 @@
-﻿#define __STATE_INVARIANTS__
-// #define __TRANS_INVARIANTS__
-//#define __FILE_DUMP__
+﻿#define __FILE_DUMP__
 
 using System;
 using System.Collections.Generic;
@@ -22,12 +20,13 @@ namespace P.Tester
 
         public static bool UseStateHashing = true; // currently doesn't make sense without
 
-        public static HashSet<int> concrete = new HashSet<int>();
-        public static HashSet<StateImpl> abstracT = new HashSet<StateImpl>(new StateImplComparer());
+        public static HashSet<int> concretes      = new HashSet<int>();
+        public static HashSet<int> abstracts      = new HashSet<int>();
+        public static HashSet<int> abstract_succs = new HashSet<int>();
 
-        public static int size_concrete_previous = 0;
-        public static int size_abstract_previous = 0;
-        public static int size_abstract_previous_previous = 0;
+        public static int size_concretes_previous = 0;
+        public static int size_abstracts_previous = 0;
+        public static int size_abstracts_previous_previous = 0;
 
         public static void Dfs(StateImpl start, bool queue_abstraction = false)
         {
@@ -36,8 +35,9 @@ namespace P.Tester
             int k = PrtEventBuffer.k; // const ref would be better
             Console.WriteLine("Using queue bound of {0}", k);
 
-            concrete.Clear();
-            abstracT.Clear();
+            concretes.Clear();
+            abstracts.Clear();
+            abstract_succs.Clear();
 
 #if DEBUG
             max_queue_size = 0;
@@ -45,21 +45,30 @@ namespace P.Tester
 
             var stack = new Stack<BacktrackingState>();
 
-            StreamWriter concrete_k = new StreamWriter("concrete-" + (k < 10 ? "0" : "") + k.ToString() + ".txt"); // for dumping concrete states as strings into a file
+#if __FILE_DUMP__
+            StreamWriter concretes_SW      = new StreamWriter("concretes-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
+            StreamWriter abstracts_SW      = new StreamWriter("abstracts-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
+            StreamWriter abstract_succs_SW = new StreamWriter("abstract_succs-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
+#endif
 
-            StateImpl start_k = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
+            StateImpl start_c = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
 
-            stack.Push(new BacktrackingState(start_k));
-            int start_hash = start_k.GetHashCode();
-            concrete.Add(start_hash);
-
-            concrete_k.Write(start_k.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
-            concrete_k.WriteLine("==================================================");
-
+            stack.Push(new BacktrackingState(start_c));
+            int start_hash = start_c.GetHashCode();
+            concretes.Add(start_hash);
+#if __FILE_DUMP__
+            concretes_SW.Write(start_c.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
+            concretes_SW.WriteLine("==================================================");
+#endif
             if (queue_abstraction)
             {
-                StateImpl vstart_k = (StateImpl)start_k.Clone(); vstart_k.abstract_me();
-                abstracT.Add(vstart_k);
+                StateImpl start_c_ab = (StateImpl)start.Clone(); start_c_ab.abstract_me();
+                abstracts.Add(start_c_ab.GetHashCode());
+                start_c_ab.collect_abstract_successors(abstract_succs, abstract_succs_SW);
+#if __FILE_DUMP__
+                abstracts_SW.Write(start_c_ab.ToPrettyString());
+                abstracts_SW.WriteLine("==================================================");
+#endif
             }
 
             // DFS begin
@@ -77,35 +86,41 @@ namespace P.Tester
                 BacktrackingState next = Execute(bstate);    // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
                 stack.Push(bstate);                          // after increasing currIndex/choiceIndex, push state back on. This is like modifying bstate "on the stack"
 
-                if (!CheckFailure(next.State, next.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
+                if (! next.State.CheckFailure(next.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
                 {
                     // update concrete state hashset
                     var hash = next.State.GetHashCode();
-                    if (!concrete.Add(hash))
+                    if (!concretes.Add(hash))
                         continue;
-
-                    if (queue_abstraction)
-                    {
-                        // update abstract state set
-                        StateImpl next_ab_s = (StateImpl)next.State.Clone(); next_ab_s.abstract_me();
-                        abstracT.Add(next_ab_s);
-                    }
 
                     stack.Push(next);
 
 #if __FILE_DUMP__
-                    concrete_k.Write(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
-                    concrete_k.WriteLine("==================================================");
+                    concretes_SW.Write(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
+                    concretes_SW.WriteLine("==================================================");
 #endif
+                    if (queue_abstraction)
+                    {
+                        StateImpl next_ab_s = (StateImpl)next.State.Clone(); next_ab_s.abstract_me();
+                        if (abstracts.Add(next_ab_s.GetHashCode()))
+                        {
+#if __FILE_DUMP__
+                            abstracts_SW.Write(next_ab_s.ToPrettyString());
+                            abstracts_SW.WriteLine("==================================================");
+#endif
+                        }
+                        next_ab_s.collect_abstract_successors(abstract_succs, abstract_succs_SW);
+                    }
 
 #if DEBUG
                     // diagnostics
 
                     // Print number of states explored
-                    if (concrete.Count % 1000 == 0)
+                    if (concretes.Count % 1000 == 0)
                     {
-                        Console.WriteLine("-------------- Number of concrete states visited so far = {0}", concrete.Count);
-                        Console.WriteLine("-------------- Number of abstract states visited so far = {0}", abstracT.Count);
+                        Console.WriteLine("-------------- Number of concrete states visited so far   = {0}", concretes.Count);
+                        Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstracts.Count);
+                        Console.WriteLine("-------------- Number of abstract successors found so far = {0} (only those satisfying all static invariants)", abstract_succs.Count);
                     }
 
                     // update maximum encountered queue size
@@ -124,25 +139,15 @@ namespace P.Tester
 
             Console.WriteLine("");
 
-            Console.WriteLine("Number of concrete states visited = {0}", concrete.Count);
-            Console.WriteLine("Number of abstract states visited = {0}", abstracT.Count);
+            Console.WriteLine("Number of concrete states visited   = {0}", concretes.Count);
+            Console.WriteLine("Number of abstract states found     = {0}", abstracts.Count);
+            Console.WriteLine("Number of abstract successors found = {0} (only those satisfying all static invariants)", abstract_succs.Count);
+
             Console.WriteLine();
 
-            concrete_k.Close();
-#if __FILE_DUMP__
-            if (queue_abstraction)
-            {
-                // dump reached abstract states into a file
-                StreamWriter abstract_k = new StreamWriter("abstract-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
-                foreach (StateImpl ab_s in abstracT)
-                {
-                    abstract_k.Write(ab_s.ToPrettyString());
-                    abstract_k.WriteLine("==================================================");
-                }
-
-                abstract_k.Close();
-            }
-#endif
+            concretes_SW.Close();
+            abstracts_SW.Close();
+            abstract_succs_SW.Close();
         }
 
         public static void OS_Iterate(StateImpl start)
@@ -158,7 +163,7 @@ namespace P.Tester
 
             Dfs(start, true);
 
-            if (size_concrete_previous == concrete.Count)
+            if (size_concretes_previous == concretes.Count)
             {
                 Console.WriteLine("Global state sequence converged!");
                 Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
@@ -170,7 +175,7 @@ namespace P.Tester
             }
 
             // when do we have to run the abstract convergence test?
-            if (size_abstract_previous_previous < size_abstract_previous && size_abstract_previous == abstracT.Count)
+            if (size_abstracts_previous_previous < size_abstracts_previous && size_abstracts_previous == abstracts.Count)
             {
                 Console.WriteLine("New plateau detected.");
                 Console.Write("Running abstract state convergence test with tail-" + PrtEventBuffer.qt.ToString() + " abstraction ... ");
@@ -182,141 +187,27 @@ namespace P.Tester
                 }
             }
 
-            size_abstract_previous_previous = size_abstract_previous;
-            size_abstract_previous = abstracT.Count;
-            size_concrete_previous = concrete.Count;
+            size_abstracts_previous_previous = size_abstracts_previous;
+            size_abstracts_previous = abstracts.Count;
+            size_concretes_previous = concretes.Count;
 
         Next_Round:
             ++PrtEventBuffer.k;
             OS_Iterate(start);
         }
 
-        // compute abstract successors, and return true ("converged") iff all of them are already contained in abstracT:
+        // compute abstract successors, and return true ("converged") iff all of them are already contained in abstracts:
         static bool abstract_converged()
         {
-            foreach (StateImpl ab_s in abstracT)
+            foreach (int hash in abstract_succs)
             {
-                for (int currIndex = 0; currIndex < ab_s.ImplMachines.Count; ++currIndex)
+                if (!abstracts.Contains(hash))
                 {
-                    PrtImplMachine m = ab_s.ImplMachines[currIndex];
-
-                    // reject disabled machines
-                    if (!(m.currentStatus == PrtMachineStatus.Enabled))
-                        continue;
-
-                    // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
-                    if (!(m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
-                          m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
-                        continue;
-
-                    if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
-                        continue;
-
-                    if ( PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list ? new_cand_from_list(ab_s, currIndex) : new_cand_from_set(ab_s, currIndex) )
-                        return false;
+                    Console.WriteLine("did not converge.");
+                    Console.WriteLine("Found a so-far unreached successor candidate. Its hash code is {0}.", hash);
+                    return false;
                 }
             }
-            return true;
-        }
-
-        // Try to dequeue an event and look for new abstract states
-
-        // for queue-list abstraction:
-        static bool new_cand_from_list(StateImpl ab_s, int currIndex)
-        {
-            PrtImplMachine m = ab_s.ImplMachines[currIndex];
-            List<PrtEventNode> m_q = m.eventQueue.events;
-
-            StateImpl ab_s_succ = (StateImpl)ab_s.Clone();
-            PrtImplMachine m_succ = ab_s_succ.ImplMachines[currIndex];
-            List<PrtEventNode> m_succ_q = m_succ.eventQueue.events;
-            m_succ.PrtRunStateMachine();
-            if (m_succ_q.Count < m_q.Count && !CheckFailure(ab_s_succ, 0)) // if dequeing was successful
-            {
-                Debug.Assert(m_q.Count == m_succ_q.Count + 1); // we have dequeued exactly one event
-                // Find the dequeued event, to correct the abstract queue
-                int i;
-                for (i = 0; i < m_q.Count; ++i)
-                {
-                    if (i == m_succ_q.Count || !m_q[i].Equals(m_succ_q[i]))   // if we are past m_succ_q  OR  the ith event before and after dequeue differ, then
-                        break; // i points to the dequeued event
-                }
-                Debug.Assert(i < m_q.Count);
-                PrtEventNode dequeued_ev = m_q[i];
-                Debug.Assert(!m_succ_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
-                // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                if (new_cand(ab_s, ab_s_succ, currIndex, dequeued_ev))
-                    return true;
-                // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
-                for (int j = i; j < m_succ_q.Count; ++j)
-                {
-                    // insert dequeue_ev at position j (push the rest to the right)
-                    m_succ_q.Insert(j, dequeued_ev);
-                    if (new_cand(ab_s, ab_s_succ, currIndex, dequeued_ev))
-                        return true;
-                    m_succ_q.RemoveAt(j); // restore previous state
-                }
-                m_succ_q.Add(dequeued_ev); // finally, insert dequeue_ev at end
-                if (new_cand(ab_s, ab_s_succ, currIndex, dequeued_ev))
-                    return true;
-            }
-            return false;
-        }
-
-        // for queue-set abstraction:
-        static bool new_cand_from_set(StateImpl ab_s, int currIndex)
-        {
-            PrtImplMachine m = ab_s.ImplMachines[currIndex];
-            List<PrtEventNode> m_q = m.eventQueue.events;
-
-            foreach (PrtEventNode ev in m_q)
-            {
-                StateImpl ab_s_succ = (StateImpl)ab_s.Clone();
-                PrtImplMachine m_succ = ab_s_succ.ImplMachines[currIndex];
-                PrtEventBuffer m_succ_buffer = m_succ.eventQueue;
-                List<PrtEventNode> m_succ_q = m_succ_buffer.events;
-                // prepare the buffer for running the machine: make head with no tail
-                m_succ_q.Clear();
-                m_succ_q.Add(ev.Clone());
-                m_succ.PrtRunStateMachine();
-                if (m_succ_buffer.Empty() && !CheckFailure(ab_s_succ, 0)) // if dequeing was successful
-                {
-                    foreach (PrtEventNode ev2 in m_q) m_succ_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
-                    // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
-                    if (new_cand(ab_s, ab_s_succ, currIndex, ev))
-                        return true;
-                    // choice 2: ev existed once in m_q, so after the dequeue it is gone
-                    m_succ_q.Remove(ev);
-                    if (new_cand(ab_s, ab_s_succ, currIndex, ev))
-                        return true;
-                }
-            }
-            return false;
-        }
-
-        static bool new_cand(StateImpl ab_s, StateImpl ab_s_succ, int currIndex, PrtEventNode dequeue_ev)
-        {
-            if (abstracT.Contains(ab_s_succ)
-#if __STATE_INVARIANTS__
-                || !ab_s_succ.state_invariant(currIndex)
-#endif
-#if __TRANS_INVARIANTS__
-                || !ab_s_succ.trans_invariant(currIndex, ab_s)
-#endif
-                )
-                return false;
-
-            // candidate is new and satisfies the invariants
-
-            Console.WriteLine("did not converge.");
-            Console.WriteLine("Found a so-far unreached successor candidate. It was generated by ImplMachine {0} while trying to dequeue event {1}.", currIndex, dequeue_ev.ToString());
-
-            StreamWriter ab_s_SW = new StreamWriter("ab_s.txt"); ab_s_SW.WriteLine(ab_s.ToPrettyString()); ab_s_SW.Close();
-            StreamWriter ab_s_succ_SW = new StreamWriter("ab_s_succ.txt"); ab_s_succ_SW.WriteLine(ab_s_succ.ToPrettyString()); ab_s_succ_SW.Close();
-
-            Console.WriteLine("Dumped abstract source state and successor candidate state into files. Their hashes are {0} and {1}.", ab_s.GetHashCode(), ab_s_succ.GetHashCode());
-            Console.WriteLine();
-
             return true;
         }
 
@@ -385,38 +276,6 @@ namespace P.Tester
             return ret;
         }
 
-        static bool CheckFailure(StateImpl s, int depth)
-        {
-            if (UseDepthBounding && depth > DepthBound)
-            {
-                return true;
-            }
-
-            if (s.Exception == null)
-            {
-                return false;
-            }
-
-
-            if (s.Exception is PrtAssumeFailureException)
-            {
-                return true;
-            }
-            else if (s.Exception is PrtException)
-            {
-                Console.WriteLine(s.errorTrace.ToString());
-                Console.WriteLine("ERROR: {0}", s.Exception.Message);
-                Environment.Exit(-1);
-            }
-            else
-            {
-                Console.WriteLine(s.errorTrace.ToString());
-                Console.WriteLine("[Internal Exception]: Please report to the P Team");
-                Console.WriteLine(s.Exception.ToString());
-                Environment.Exit(-1);
-            }
-            return false;
-        }
     }
 
     class BacktrackingState

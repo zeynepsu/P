@@ -72,11 +72,11 @@ DONE:
 
 ===========================================================================
 
-- implemented list abstraction: all queue elements are stored in list that
-  stores elements in their order of first occurrence. Future occurrences
-  are dropped. Compared to a set representation, this has the advantage
-  that I know exactly what the first dequeuable event is. Once found, we
-  can stop searching for a dequeuable event.
+- implemented list abstraction: all queue elements are stored in a list
+  that stores elements in their order of first occurrence. Future
+  occurrences are dropped. Compared to a set representation, this has the
+  advantage that I know exactly what the first dequeuable event is. Once
+  found, we can stop searching for a dequeuable event.
 
   In fact, I don't have to search for dequeuable events at all, rather just
   let the run method take care of it. For this method, the list abstraction
