@@ -87,8 +87,8 @@ namespace P.Runtime
         /// if none-zero, assumed to be the hash of an inconsistent abstract successor state to track down
         /// </summary>
         public static int debugSuccessorHash = 0; // we assume 0 is not a valid hash (:-(
-        public static string inputFileName = "<file>.dll";
-
+        public static string inputFileName;
+        
         public VisibleTrace currentVisibleTrace;
         public StringBuilder errorTrace;
         public static List<string> visibleEvents = new List<string>();
@@ -377,7 +377,7 @@ namespace P.Runtime
             PrtEventNode DONE = Client_q.Find(ev => ev.ev.ToString() == "DONE");
             if (Client.get_eventValue().ToString() == "DONE" && DONE != null && DONE.ev.ToString() == "DONE")
                 return false;
-            return true;
+            
             if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
             {
                 for (int i = 0; i < Client_q.Count - 1; ++i)

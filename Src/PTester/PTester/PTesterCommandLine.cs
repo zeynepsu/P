@@ -221,6 +221,7 @@ namespace P.Tester
                     }
 
                     options.inputFileName = arg;
+                    StateImpl.inputFileName = arg;
                 }
             }
 
@@ -328,7 +329,6 @@ namespace P.Tester
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
-                StateImpl.inputFileName = options.inputFileName;
                 if (options.debugAbstractSuccessor)
                     StateImpl.debugSuccessorHash = options.debugSuccessorHash;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue list abstraction
@@ -338,7 +338,6 @@ namespace P.Tester
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
-                StateImpl.inputFileName = options.inputFileName;
                 if (options.debugAbstractSuccessor)
                     StateImpl.debugSuccessorHash = options.debugSuccessorHash;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue set abstraction
