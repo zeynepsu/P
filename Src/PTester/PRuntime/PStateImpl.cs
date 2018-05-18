@@ -83,6 +83,12 @@ namespace P.Runtime
         /// </summary>
         private Exception exception;
 
+        /// <summary>
+        /// if none-zero, assumed to be the hash of an inconsistent abstract successor state to track down
+        /// </summary>
+        public static int debugSuccessorHash = 0; // we assume 0 is not a valid hash (:-(
+        public static string inputFileName = "<file>.dll";
+
         public VisibleTrace currentVisibleTrace;
         public StringBuilder errorTrace;
         public static List<string> visibleEvents = new List<string>();
@@ -289,6 +295,17 @@ namespace P.Runtime
 
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
+            int hash = GetHashCode();
+            if (hash == debugSuccessorHash && hash != 0)
+            {
+                Console.WriteLine("Found pair (s,succ) such that succ is the inconsistent abstract successor state of s identified in previous run.");
+                StreamWriter s_SW      = new StreamWriter("s.txt");    s_SW     .WriteLine(pred.ToPrettyString()); s_SW     .Close();
+                StreamWriter s_succ_SW = new StreamWriter("succ.txt"); s_succ_SW.WriteLine(     ToPrettyString()); s_succ_SW.Close();
+                Console.WriteLine("Pretty-printed s and succ into text files. FYI, their hashes are {0} and {1}.", pred.GetHashCode(), hash);
+                Console.WriteLine("Exiting.");
+                Environment.Exit(0);
+                }
+
             if (true
 #if __STATE_INVARIANTS__
                 && Check_state_invariant(currIndex)
@@ -298,7 +315,7 @@ namespace P.Runtime
 #endif
                 )
             {
-                if (abstract_succs.Add(GetHashCode()))
+                if (abstract_succs.Add(hash))
                 {
 #if __FILE_DUMP__
                     abstract_succs_SW.Write(ToPrettyString());
@@ -360,7 +377,7 @@ namespace P.Runtime
             PrtEventNode DONE = Client_q.Find(ev => ev.ev.ToString() == "DONE");
             if (Client.get_eventValue().ToString() == "DONE" && DONE != null && DONE.ev.ToString() == "DONE")
                 return false;
-
+            return true;
             if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
             {
                 for (int i = 0; i < Client_q.Count - 1; ++i)

@@ -204,7 +204,10 @@ namespace P.Tester
                 if (!abstracts.Contains(hash))
                 {
                     Console.WriteLine("did not converge.");
-                    Console.WriteLine("Found a so-far unreached successor candidate. Its hash code is {0}.", hash);
+                    Console.WriteLine("Found a so-far unreached abstract successor state. Its hash code is {0}.", hash);
+                    Console.WriteLine("You should continue by increasing the bound, OR investigate this suspicious state, by running the following analysis:");
+                    Console.WriteLine("pt /os-" + PrtEventBuffer.qt.ToString() + ":" + PrtEventBuffer.k.ToString() + " /debug-abstract:" + hash.ToString() + " " + StateImpl.inputFileName);
+
                     return false;
                 }
             }

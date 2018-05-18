@@ -76,6 +76,8 @@ namespace P.Tester
         public bool verbose;
         public int numberOfSchedules;
         public bool debugHashing;
+        public bool debugAbstractSuccessor;
+        public int debugSuccessorHash;
         public CommandLineOptions()
         {
             inputFileName = null;
@@ -87,6 +89,8 @@ namespace P.Tester
             verbose = false;
             numberOfSchedules = 1000;
             debugHashing = false;
+            debugAbstractSuccessor = false;
+            debugSuccessorHash = 0;
             DfsExploration = false;
             OS_List = false;
             OS_Set = false;
@@ -147,7 +151,7 @@ namespace P.Tester
                             break;
 
                         case "os-list":
-                            options.OS_List= true;
+                            options.OS_List = true;
                             options.UseStateHashing = true; // ditto
                             options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
                             break;
@@ -161,6 +165,11 @@ namespace P.Tester
                         case "hash": options.UseStateHashing = true; break;
 
                         case "debughash": options.debugHashing = true; break;
+
+                        case "debug-abstract":
+                            options.debugAbstractSuccessor = true;
+                            options.debugSuccessorHash = ( param.Length == 0 ? 0 : int.Parse(param) );
+                            break;
 
                         case "break": System.Diagnostics.Debugger.Launch(); break;
 
@@ -245,6 +254,7 @@ namespace P.Tester
             Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: unbounded)");
             Console.WriteLine("/os-list:k               Perform OS exploration (based on DFS) of the state space, with queue tail list abstraction, and starting with a queue bound of k (default: 1)");
             Console.WriteLine("/os-set:k                Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/debugAbstraction:hash   After unsuccessful verification run, supply hash to unreachable abstract successor to investigate");
             Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence /dfs and /os each imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os are specified: perform random testing");
@@ -256,8 +266,7 @@ namespace P.Tester
             if (args.Length > 0)
                 if (args[0] == "!")
                 {
-                    if (String.IsNullOrEmpty(Console.ReadLine())) Console.WriteLine("Nothing");
-                    if ("" == String.Empty) Console.WriteLine("same empty");
+                    // for quick testing
                     Environment.Exit(0);
                 }
 
@@ -319,6 +328,9 @@ namespace P.Tester
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
+                StateImpl.inputFileName = options.inputFileName;
+                if (options.debugAbstractSuccessor)
+                    StateImpl.debugSuccessorHash = options.debugSuccessorHash;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue list abstraction
             }
             else if (options.OS_Set)
@@ -326,6 +338,9 @@ namespace P.Tester
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
+                StateImpl.inputFileName = options.inputFileName;
+                if (options.debugAbstractSuccessor)
+                    StateImpl.debugSuccessorHash = options.debugSuccessorHash;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue set abstraction
             }
             else
