@@ -62,22 +62,29 @@ namespace P.Tester
     public class CommandLineOptions
     {
         public string inputFileName;
-        public bool printStats;
-        public int timeout;
-        public bool UsePSharp = false;
-        public bool DfsExploration;
-        public bool OS_List;
-        public bool OS_Set;
-        public int k;
-        public bool UseStateHashing;
-        public bool isRefinement;
+        public bool   printStats;
+        public int    timeout;
+        public bool   UsePSharp = false;
+
+        public bool   DfsExploration;
+        public bool   OSList;
+        public bool   OSSet;
+        public int    k;
+
+        public bool   QueuePrefix;
+        public int    prefix;
+
+        public bool   DebugSuccessor;
+        public int    successorHash;
+
+        public bool   UseStateHashing;
+        public bool   isRefinement;
         public string LHSModel;
         public string RHSModel;
-        public bool verbose;
-        public int numberOfSchedules;
-        public bool debugHashing;
-        public bool debugAbstractSuccessor;
-        public int debugSuccessorHash;
+        public bool   verbose;
+        public int    numberOfSchedules;
+        public bool   debugHashing;
+
         public CommandLineOptions()
         {
             inputFileName = null;
@@ -89,12 +96,12 @@ namespace P.Tester
             verbose = false;
             numberOfSchedules = 1000;
             debugHashing = false;
-            debugAbstractSuccessor = false;
-            debugSuccessorHash = 0;
             DfsExploration = false;
-            OS_List = false;
-            OS_Set = false;
-            k = 0;
+            OSList = false;
+            OSSet = false;
+            QueuePrefix = false;
+            prefix = 0;
+            DebugSuccessor = false;
             UseStateHashing = false;
         }
     }
@@ -126,84 +133,103 @@ namespace P.Tester
                         return null;
                     }
 
-                    // note: the case string must consist of SMALL letters! Otherwise it won't find it (:-(   Found out the hard way
-                    switch (option)
+                    try
                     {
-                        case "?":
-                        case "h":
-                        case "help": PrintHelp(null, null); Environment.Exit((int)TestResult.Success); break;
+                        // note: the case string must consist of ALL SMALL letters! Otherwise it won't find it (:-(   Found out the hard way
+                        switch (option)
+                        {
+                            case "?":
+                            case "h":
+                            case "help": PrintHelp(null, null); Environment.Exit((int)TestResult.Success); break;
 
-                        case "stats": options.printStats = true; break;
+                            case "stats": options.printStats = true; break;
 
-                        case "v":
-                        case "verbose": options.verbose = true; break;
+                            case "v":
+                            case "verbose": options.verbose = true; break;
 
-                        case "ns": if (param.Length != 0) { options.numberOfSchedules = int.Parse(param); } break;
+                            case "ns": if (param.Length != 0) { options.numberOfSchedules = int.Parse(param); } break;
 
-                        case "timeout": if (param.Length != 0) { options.timeout = int.Parse(param); } break;
+                            case "timeout": if (param.Length != 0) { options.timeout = int.Parse(param); } break;
 
-                        case "psharp": options.UsePSharp = true; break;
+                            case "psharp": options.UsePSharp = true; break;
 
-                        case "dfs":
-                            options.DfsExploration = true;
-                            options.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
-                            options.k = (param.Length != 0 ? int.Parse(param) : 0); // default = 0
-                            break;
+                            case "dfs":
+                                options.DfsExploration = true;
+                                options.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
+                                options.k = (param.Length != 0 ? int.Parse(param) : 0); // default = 0 (= no bound)
+                                break;
 
-                        case "os-list":
-                            options.OS_List = true;
-                            options.UseStateHashing = true; // ditto
-                            options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
-                            break;
+                            case "os-list":
+                                options.OSList = true;
+                                options.UseStateHashing = true; // ditto
+                                options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
+                                break;
 
-                        case "os-set":
-                            options.OS_Set = true;
-                            options.UseStateHashing = true; // ditto
-                            options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
-                            break;
+                            case "os-set":
+                                options.OSSet = true;
+                                options.UseStateHashing = true; // ditto
+                                options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
+                                break;
 
-                        case "hash": options.UseStateHashing = true; break;
+                            case "queue-prefix":
+                                options.QueuePrefix = true;
+                                if (param.Length == 0)
+                                    throw new ArgumentException("queue-prefix argument: must supply parameter");
+                                options.prefix = int.Parse(param);
+                                break;
 
-                        case "debughash": options.debugHashing = true; break;
+                            case "debug-abstract":
+                                options.DebugSuccessor = true;
+                                if (param.Length == 0)
+                                    throw new ArgumentException("debug-abstract argument: must supply non-zero parameter");
+                                options.successorHash = int.Parse(param);
+                                if (options.successorHash == 0)
+                                    throw new ArgumentException("debug-abstract argument: must supply NON-ZERO parameter");
+                                break;
 
-                        case "debug-abstract":
-                            options.debugAbstractSuccessor = true;
-                            options.debugSuccessorHash = ( param.Length == 0 ? 0 : int.Parse(param) );
-                            break;
+                            case "hash": options.UseStateHashing = true; break;
 
-                        case "break": System.Diagnostics.Debugger.Launch(); break;
+                            case "debughash": options.debugHashing = true; break;
 
-                        case "lhs":
-                            if (param.Length != 0)
-                            {
-                                options.LHSModel = param;
-                                options.RHSModel = null;
-                                options.isRefinement = true;
-                            }
-                            else
-                            {
-                                PrintHelp(arg, "missing file name");
+                            case "break": System.Diagnostics.Debugger.Launch(); break;
+
+                            case "lhs":
+                                if (param.Length != 0)
+                                {
+                                    options.LHSModel = param;
+                                    options.RHSModel = null;
+                                    options.isRefinement = true;
+                                }
+                                else
+                                {
+                                    PrintHelp(arg, "missing file name");
+                                    return null;
+                                }
+                                break;
+
+                            case "rhs":
+                                if (param.Length != 0)
+                                {
+                                    options.RHSModel = param;
+                                    options.LHSModel = null;
+                                    options.isRefinement = true;
+                                }
+                                else
+                                {
+                                    PrintHelp(arg, "missing file name");
+                                    return null;
+                                }
+                                break;
+
+                            default:
+                                PrintHelp(arg, "Invalid option");
                                 return null;
-                            }
-                            break;
-
-                        case "rhs":
-                            if (param.Length != 0)
-                            {
-                                options.RHSModel = param;
-                                options.LHSModel = null;
-                                options.isRefinement = true;
-                            }
-                            else
-                            {
-                                PrintHelp(arg, "missing file name");
-                                return null;
-                            }
-                            break;
-
-                        default:
-                            PrintHelp(arg, "Invalid option");
-                            return null;
+                        }
+                    }
+                    catch(ArgumentException e)
+                    {
+                        Console.WriteLine(e.Message);
+                        Environment.Exit(-1);
                     }
                 }
                 else
@@ -252,10 +278,11 @@ namespace P.Tester
             Console.WriteLine("/lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
             Console.WriteLine("/rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
             Console.WriteLine("/psharp                  Run the PSharp Tester");
-            Console.WriteLine("/dfs:k                   Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: unbounded)");
-            Console.WriteLine("/os-list:k               Perform OS exploration (based on DFS) of the state space, with queue tail list abstraction, and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/os-set:k                Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/debugAbstraction:hash   After unsuccessful verification run, supply hash to unreachable abstract successor to investigate");
+            Console.WriteLine("/dfs[:k]                 Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: 0=unbounded)");
+            Console.WriteLine("/os-list[:k]             Perform OS exploration (based on DFS) of the state space, with queue tail list abstraction, and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/os-set[:k]              Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies thereafter)");
+            Console.WriteLine("/debug-abstract:hash     After unsuccessful verification run, supply hash(!=0) to unreachable abstract successor to investigate");
             Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence /dfs and /os each imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os are specified: perform random testing");
@@ -324,22 +351,26 @@ namespace P.Tester
                 PrtEventBuffer.k = options.k;
                 DfsExploration.Dfs(s);                           // single exploration from s with queue bound k
             }
-            else if (options.OS_List)
+            else if (options.OSList)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
-                if (options.debugAbstractSuccessor)
-                    StateImpl.debugSuccessorHash = options.debugSuccessorHash;
+                if (options.QueuePrefix)
+                    StateImpl.q_prefix = options.prefix;
+                if (options.DebugSuccessor)
+                    StateImpl.successorHash = options.successorHash;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue list abstraction
             }
-            else if (options.OS_Set)
+            else if (options.OSSet)
             {
                 DfsExploration.UseStateHashing = options.UseStateHashing;
                 PrtEventBuffer.k = options.k;
                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
-                if (options.debugAbstractSuccessor)
-                    StateImpl.debugSuccessorHash = options.debugSuccessorHash;
+                if (options.QueuePrefix)
+                    StateImpl.q_prefix = options.prefix;
+                if (options.DebugSuccessor)
+                    StateImpl.successorHash = options.successorHash;
                 DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue set abstraction
             }
             else

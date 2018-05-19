@@ -83,10 +83,9 @@ namespace P.Runtime
         /// </summary>
         private Exception exception;
 
-        /// <summary>
-        /// if none-zero, assumed to be the hash of an inconsistent abstract successor state to track down
-        /// </summary>
-        public static int debugSuccessorHash = 0; // we assume 0 is not a valid hash (:-(
+        public static int q_prefix = 0;
+
+        public static int successorHash = 0; // we assume 0 is not a valid hash (:-(
         public static string inputFileName;
         
         public VisibleTrace currentVisibleTrace;
@@ -296,7 +295,7 @@ namespace P.Runtime
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
             int hash = GetHashCode();
-            if (hash == debugSuccessorHash && hash != 0)
+            if (successorHash != 0 && successorHash == hash)
             {
                 Console.WriteLine("Found pair (s,succ) such that succ is the inconsistent abstract successor state of s identified in previous run.");
                 StreamWriter s_SW      = new StreamWriter("s.txt");    s_SW     .WriteLine(pred.ToPrettyString()); s_SW     .Close();

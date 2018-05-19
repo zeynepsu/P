@@ -116,3 +116,10 @@ My conclusions about what abstraction to use are as follows.
 
 In summary, it makes sense to offer both queue-list and queue-set
 abstractions, possibly with concrete-prefix length parameter l (default: 0).
+
+===========================================================================
+
+Implemented a facility to investigate an unreachable abstract successor
+state, identified by its hash value. This facility re-runs the analysis and
+specifically looks out for when this successor is encountered. It then
+pretty-prints this state and its predecessor.
