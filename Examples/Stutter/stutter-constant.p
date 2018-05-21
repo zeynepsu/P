@@ -22,11 +22,13 @@ machine Main {
 
   state SendPrefix {
     entry {
-      if ($)
+      var i:int;
+      i = 0;
+      while (i < X) {               // the OS will start plateauing at k=X+1. In the P implementation it starts plateauing at k=X+2 and converge at k=X+3.
         send client, WAIT;
-      else {
-        send client, DONE;
-        goto Flood; }}}
+        i = i + 1; }
+      send client, DONE;
+      goto Flood; }}
 
   state Flood {
     entry {

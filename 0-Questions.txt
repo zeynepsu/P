@@ -1,0 +1,23 @@
+It seems the nondet Boolean user choices matter only for "Actions", not for
+deqeue or receive operations. I'd like to know whether the nondet choices
+have an impact on which machines are enabled.
+
+Currently the interaction of the three dimensions of nondeterministic
+choices is unclear; the implementation is too complicated.
+
+===========================================================================
+
+About P's facility to dequeue multiple events: this is not implementable
+with either the queue SET or LIST abstraction. The reason is that P may
+dequeue multiple copies of the same event, and we have no information in
+the abstraction how many such copies exist.
+
+If there is a bound on the number of dequeues /per event/, then it becomes
+implementable, but it will be inefficient: P will dequeue the multiple
+elements in the order they appear in the queue. We have to essentially
+enumerate these orders, since the final effect may depend on it. (The LIST
+order keeps the first-occurrence order intact, but after that it is again
+just a permutation.)
+
+For only 1 dequeue we just try all elements, so the cost is linear (just
+like P's dequeue itself).

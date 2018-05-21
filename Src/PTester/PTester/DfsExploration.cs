@@ -1,6 +1,4 @@
-﻿#define __FILE_DUMP__
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 //using System.Linq;
@@ -21,6 +19,8 @@ namespace P.Tester
 
         public static bool UseStateHashing = true; // currently doesn't make sense without
 
+        public static bool FileDump = false;
+
         public static HashSet<int> concretes      = new HashSet<int>();
         public static HashSet<int> abstracts      = new HashSet<int>();
         public static HashSet<int> abstract_succs = new HashSet<int>();
@@ -36,7 +36,7 @@ namespace P.Tester
             if (!UseStateHashing) throw new NotImplementedException();
 
             int k = PrtEventBuffer.k; // const ref would be better
-            Console.WriteLine("Using queue bound of {0}", k);
+            Console.WriteLine("Using " + ( k == 0 ? "unbounded queue" : "queue bound of " + k.ToString() ));
 
             concretes.Clear();
             abstracts.Clear();
@@ -48,30 +48,32 @@ namespace P.Tester
 
             var stack = new Stack<BacktrackingState>();
 
-#if __FILE_DUMP__
-            StreamWriter concretes_SW      = new StreamWriter("concretes-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
-            StreamWriter abstracts_SW      = new StreamWriter("abstracts-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
-            StreamWriter abstract_succs_SW = new StreamWriter("abstract_succs-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
-#endif
+            StreamWriter concretes_SW      = null; if (FileDump) concretes_SW      = new StreamWriter("concretes-"      + (k < 10 ? "0" : "") + k.ToString() + ".txt");
+            StreamWriter abstracts_SW      = null; if (FileDump) abstracts_SW      = new StreamWriter("abstracts-"      + (k < 10 ? "0" : "") + k.ToString() + ".txt");
+            StreamWriter abstract_succs_SW = null; if (FileDump) abstract_succs_SW = new StreamWriter("abstract_succs-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
 
             StateImpl start_c = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
 
             stack.Push(new BacktrackingState(start_c));
             int start_hash = start_c.GetHashCode();
             concretes.Add(start_hash);
-#if __FILE_DUMP__
-            concretes_SW.Write(start_c.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
-            concretes_SW.WriteLine("==================================================");
-#endif
+            if (FileDump)
+            {
+                concretes_SW.Write(start_c.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
+                concretes_SW.WriteLine("==================================================");
+            }
+
             if (queue_abstraction)
             {
                 StateImpl start_c_ab = (StateImpl)start.Clone(); start_c_ab.abstract_me();
                 abstracts.Add(start_c_ab.GetHashCode());
                 start_c_ab.collect_abstract_successors(abstract_succs, abstract_succs_SW);
-#if __FILE_DUMP__
-                abstracts_SW.Write(start_c_ab.ToPrettyString());
-                abstracts_SW.WriteLine("==================================================");
-#endif
+                if (FileDump)
+                {
+
+                    abstracts_SW.Write(start_c_ab.ToPrettyString());
+                    abstracts_SW.WriteLine("==================================================");
+                }
             }
 
             // DFS begin
@@ -89,6 +91,9 @@ namespace P.Tester
                 BacktrackingState next = Execute(bstate);    // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
                 stack.Push(bstate);                          // after increasing currIndex/choiceIndex, push state back on. This is like modifying bstate "on the stack"
 
+                if (StateImpl.predHash != 0) // if we are in predecessor finding mode
+                    check_pred_hash(bstate.State, next.State);
+
                 if (! next.State.CheckFailure(next.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
                 {
                     // update concrete state hashset
@@ -98,20 +103,22 @@ namespace P.Tester
 
                     stack.Push(next);
 
-#if __FILE_DUMP__
-                    concretes_SW.Write(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
-                    concretes_SW.WriteLine("==================================================");
-#endif
+                    if (FileDump)
+                    {
+                        concretes_SW.Write(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
+                        concretes_SW.WriteLine("==================================================");
+                    }
+
                     if (queue_abstraction)
                     {
                         StateImpl next_ab_s = (StateImpl)next.State.Clone(); next_ab_s.abstract_me();
                         if (abstracts.Add(next_ab_s.GetHashCode()))
-                        {
-#if __FILE_DUMP__
-                            abstracts_SW.Write(next_ab_s.ToPrettyString());
-                            abstracts_SW.WriteLine("==================================================");
-#endif
-                        }
+                            if (FileDump)
+                            {
+                                abstracts_SW.Write(next_ab_s.ToPrettyString());
+                                abstracts_SW.WriteLine("==================================================");
+                            }
+
                         next_ab_s.collect_abstract_successors(abstract_succs, abstract_succs_SW);
                     }
 
@@ -148,9 +155,12 @@ namespace P.Tester
 
             Console.WriteLine();
 
-            concretes_SW.Close();
-            abstracts_SW.Close();
-            abstract_succs_SW.Close();
+            if (FileDump)
+            {
+                concretes_SW.Close();
+                abstracts_SW.Close();
+                abstract_succs_SW.Close();
+            }
         }
 
         public static void OS_Iterate()
@@ -165,7 +175,14 @@ namespace P.Tester
                 Environment.Exit(0);
             }
 
-            Dfs(true);
+            try { Dfs(true); }
+            catch (StateImpl.SuccessorFound)
+            {
+                Console.WriteLine("Restarting Dfs ...");
+                Dfs();
+                Console.WriteLine("Exiting.");
+                Environment.Exit(0);
+            }
 
             if (size_concretes_previous == concretes.Count)
             {
@@ -201,6 +218,19 @@ namespace P.Tester
             OS_Iterate();
         }
 
+        static void check_pred_hash(StateImpl pred, StateImpl succ)
+        {
+            StateImpl pred_ab = (StateImpl)pred.Clone(); pred_ab.abstract_me();
+            if (pred_ab.GetHashCode() == StateImpl.predHash)
+            {
+                Console.WriteLine("Found concrete pair (s,t) such that alpha(s) = a.");
+                StateImpl succ_ab = (StateImpl)succ.Clone(); succ_ab.abstract_me();
+                string succ_ab_f = "bp.txt";
+                StreamWriter succ_ab_SW = new StreamWriter(succ_ab_f); succ_ab_SW.WriteLine(succ_ab.ToPrettyString()); succ_ab_SW.Close();
+                Console.WriteLine("Pretty-printed alpha(t) into file '{0}'. This abstract state is a \"competitor\" to candidate abstract successor a' .", succ_ab_f);
+            }
+        }
+
         // compute abstract successors, and return true ("converged") iff all of them are already contained in abstracts:
         static bool abstract_converged()
         {
@@ -212,7 +242,7 @@ namespace P.Tester
                     Console.WriteLine("Found a so-far unreached abstract successor state. Its hash code is {0}.", hash);
                     Console.WriteLine("Do you want to");
                     Console.WriteLine("(c)ontinue, by increasing the queue bound, ignoring the unreached successor, OR");
-                    Console.WriteLine("(i)nvestigate; we will then locate the state with that hash code");
+                    Console.WriteLine("(i)nvestigate; we will then locate the state with that hash code.");
                     string answer;
                     do
                     {
@@ -220,11 +250,13 @@ namespace P.Tester
                         answer = Console.ReadKey().Key.ToString().ToLower(); Console.WriteLine();
                     } while (answer != "c" && answer != "i");
 
-                    // for the re-run, queue abstraction type remains, k bound remains
                     if (answer == "c")
                         return false;
 
-                    StateImpl.successorHash = hash;
+                    // for the re-run, queue abstraction type remains, k bound remains; file dumping is turned off
+                    StateImpl.succHash = hash;
+                    StateImpl.FileDump = false;
+                    FileDump = false;
                     OS_Iterate();
                     Environment.Exit(0); // we did what we could
                 }
@@ -241,8 +273,9 @@ namespace P.Tester
             Console.WriteLine();
         }
 
+
         /// <summary>
-        /// - runs the state machine pointed to by CurrIndex, in place, and returns the successor wrapped into a bstate. Nothing gets cloned.
+        /// - runs the state machine pointed to by CurrIndex, in place, and returns the successor wrapped into a bstate
         /// - assigns to argument a clone (!) of the old bstate, and advances its choice vector and currIndex, as appropriate
         /// So bstate points to new memory after calling Execute. The returned successor is stored in old memory.
         /// </summary>
@@ -273,7 +306,9 @@ namespace P.Tester
 
             Debug.Assert(choiceIndex == bstate.ChoiceVector.Count);
 
-            // flip last choice          
+            // flip last choice
+
+            // remove all 1's from the right
             while (bstate.ChoiceVector.Count > 0 && bstate.ChoiceVector[bstate.ChoiceVector.Count - 1])
             {
                 bstate.ChoiceVector.RemoveAt(bstate.ChoiceVector.Count - 1);
@@ -287,7 +322,7 @@ namespace P.Tester
             var ret = new BacktrackingState(bstate.State);
             ret.depth = bstate.depth + 1;
 
-            bstate.State = origState;
+            bstate.State = origState; // a clone of bstate.State
 
             if (bstate.ChoiceVector.Count == 0)
             {
@@ -296,7 +331,6 @@ namespace P.Tester
 
             return ret;
         }
-
     }
 
     class BacktrackingState

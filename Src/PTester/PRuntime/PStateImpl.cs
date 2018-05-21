@@ -1,6 +1,4 @@
-﻿#define __FILE_DUMP__
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -77,12 +75,14 @@ namespace P.Runtime
         /// </summary>
         private Exception exception;
 
-        public static int q_prefix = 0;
         public static bool state_invariants = false;
         public static bool trans_invariants = false;
 
-        public static int successorHash = 0; // we assume 0 is not a valid hash (:-(
-        
+        public static int succHash = 0; // we assume 0 is not a valid state hash (:-(
+        public static int predHash = 0;
+
+        public static bool FileDump = false;
+
         public VisibleTrace currentVisibleTrace;
         public StringBuilder errorTrace;
         public static List<string> visibleEvents = new List<string>();
@@ -227,36 +227,42 @@ namespace P.Runtime
             PrtImplMachine m = ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
 
-            StateImpl          succ     = (StateImpl)Clone();
-            PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
-            List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
-            succ_m.PrtRunStateMachine();
-            if (succ_m_q.Count < m_q.Count && !succ.CheckFailure(0)) // if dequeing was successful
+            var ChoiceVector = new List<bool>();
+            int choiceIndex = 0;
+            bool more;
+            do
             {
-                Debug.Assert(m_q.Count == succ_m_q.Count + 1); // we have dequeued exactly one event
-                // Find the dequeued event, to correct the abstract queue
-                int i;
-                for (i = 0; i < m_q.Count; ++i)
+                StateImpl          succ     = (StateImpl)Clone();
+                PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
+                List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
+                more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector, choiceIndex);
+                if (succ_m_q.Count < m_q.Count && !succ.CheckFailure(0)) // if dequeing was successful
                 {
-                    if (i == succ_m_q.Count || !m_q[i].Equals(succ_m_q[i]))   // if we are past succ_m_q  OR  the ith event before and after dequeue differ, then
-                        break; // i points to the dequeued event
-                }
-                Debug.Assert(i < m_q.Count);
-                PrtEventNode dequeued_ev = m_q[i];
-                Debug.Assert(!succ_m_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
-                // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
-                for (int j = i; j < succ_m_q.Count; ++j)
-                {
-                    // insert dequeue_ev at position j (push the rest to the right)
-                    succ_m_q.Insert(j, dequeued_ev);
+                    Debug.Assert(m_q.Count == succ_m_q.Count + 1); // we have dequeued exactly one event
+                                                                   // Find the dequeued event, to correct the abstract queue
+                    int i;
+                    for (i = 0; i < m_q.Count; ++i)
+                    {
+                        if (i == succ_m_q.Count || !m_q[i].Equals(succ_m_q[i]))   // if we are past succ_m_q  OR  the ith event before and after dequeue differ, then
+                            break; // i points to the dequeued event
+                    }
+                    Debug.Assert(i < m_q.Count);
+                    PrtEventNode dequeued_ev = m_q[i];
+                    Debug.Assert(!succ_m_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
+                                                                   // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
                     succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                    succ_m_q.RemoveAt(j); // restore previous state
+                    // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
+                    for (int j = i; j < succ_m_q.Count; ++j)
+                    {
+                        // insert dequeue_ev at position j (push the rest to the right)
+                        succ_m_q.Insert(j, dequeued_ev);
+                        succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                        succ_m_q.RemoveAt(j); // restore previous state
+                    }
+                    succ_m_q.Add(dequeued_ev); // finally, insert dequeue_ev at end
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
                 }
-                succ_m_q.Add(dequeued_ev); // finally, insert dequeue_ev at end
-                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-            }
+            } while (more);
         }
 
         // for queue-set abstraction:
@@ -267,53 +273,64 @@ namespace P.Runtime
 
             foreach (PrtEventNode ev in m_q)
             {
-                StateImpl          succ     = (StateImpl)Clone();
-                PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
-                PrtEventBuffer     succ_m_b = succ_m.eventQueue;
-                List<PrtEventNode> succ_m_q = succ_m_b.events;
-                // prepare the buffer for running the machine: make head with no tail
-                succ_m_q.Clear();
-                succ_m_q.Add(ev.Clone());
-                succ_m.PrtRunStateMachine();
-                if (succ_m_b.Empty() && !succ.CheckFailure(0)) // if dequeing was successful
+                var ChoiceVector = new List<bool>();
+                int choiceIndex = 0;
+                bool more;
+                do
                 {
-                    foreach (PrtEventNode ev2 in m_q) succ_m_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
-                    // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                    // choice 2: ev existed once in m_q, so after the dequeue it is gone
-                    succ_m_q.Remove(ev);
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                }
+                    StateImpl          succ     = (StateImpl)Clone();
+                    PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
+                    PrtEventBuffer     succ_m_b = succ_m.eventQueue;
+                    List<PrtEventNode> succ_m_q = succ_m_b.events;
+                    // prepare the buffer for running the machine: make head with no tail
+                    succ_m_q.Clear();
+                    succ_m_q.Add(ev.Clone());
+                    more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector, choiceIndex); Debug.Assert(choiceIndex == 0); // need a loop here over nondet choices
+                    if (succ_m_b.Empty() && !succ.CheckFailure(0)) // if dequeing was successful
+                    {
+                        foreach (PrtEventNode ev2 in m_q) succ_m_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
+                                                                                     // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
+                        succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                        // choice 2: ev existed once in m_q, so after the dequeue it is gone
+                        succ_m_q.Remove(ev);
+                        succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    }
+                } while (more);
             }
         }
 
+        public class SuccessorFound : System.Exception {
+            public SuccessorFound() {}
+            public SuccessorFound(StateImpl a, StateImpl ap)
+            {
+                Console.WriteLine("Found abstract pair (a,a') such that a' is the inconsistent abstract successor state of a identified in previous run.");
+                string  a_f =  "a.txt";
+                string ap_f = "ap.txt";
+                StreamWriter  a_SW = new StreamWriter( a_f);  a_SW.WriteLine(a .ToPrettyString());  a_SW.Close();
+                StreamWriter ap_SW = new StreamWriter(ap_f); ap_SW.WriteLine(ap.ToPrettyString()); ap_SW.Close();
+                Console.WriteLine("Pretty-printed a and a' into files '{0}' and '{1}'.", a_f, ap_f);
+                throw new SuccessorFound();
+            }
+        };
+
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            int hash = GetHashCode();
-            if (successorHash != 0 && successorHash == hash)
-            {
-                string s    = "s.txt";
-                string succ = "succ.txt";
-                Console.WriteLine("Found pair (s,succ) such that succ is the inconsistent abstract successor state of s identified in previous run.");
-                StreamWriter s_SW    = new StreamWriter(s);    s_SW   .WriteLine(pred.ToPrettyString()); s_SW   .Close();
-                StreamWriter succ_SW = new StreamWriter(succ); succ_SW.WriteLine(     ToPrettyString()); succ_SW.Close();
-                Console.WriteLine("Pretty-printed s and succ into files '{0}' and '{1}'. (Their hashes are {2} and {3}.)", s, succ, pred.GetHashCode(), hash);
-                Console.WriteLine("To investigate, try something like:");
-                Console.WriteLine("xdiff {0} {1}", s, succ);
-                Console.WriteLine("Exiting.");
-                Environment.Exit(0);
-                }
+            int  hash =      GetHashCode(); if ( hash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
+            int phash = pred.GetHashCode(); if (phash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
+
+            if (succHash != 0) // if we are in successor finding mode
+                if (predHash == 0 && succHash == hash)
+                    throw new SuccessorFound(pred, this);
 
             if ( ( state_invariants ? Check_state_invariant(currIndex      ) : true ) &&
                  ( trans_invariants ? Check_trans_invariant(currIndex, pred) : true ) )
             {
                 if (abstract_succs.Add(hash))
-                {
-#if __FILE_DUMP__
-                    abstract_succs_SW.Write(ToPrettyString());
-                    abstract_succs_SW.WriteLine("==================================================");
-#endif
-                }
+                    if (FileDump)
+                    {
+                        abstract_succs_SW.Write(ToPrettyString());
+                        abstract_succs_SW.WriteLine("==================================================");
+                    }
             } 
         }
 

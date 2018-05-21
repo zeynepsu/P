@@ -147,30 +147,40 @@ namespace P.Tester
                             case "dfs":
                                 options.DfsExploration = true;
                                 DfsExploration.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
-                                PrtEventBuffer.k = (param.Length != 0 ? int.Parse(param) : 0); // default = 0 (= no bound)
+                                if (PrtEventBuffer.k == -1)
+                                    PrtEventBuffer.k = 0; // default
                                 break;
 
                             case "os-list":
                                 options.OSList = true;
                                 DfsExploration.UseStateHashing = true; // ditto
-                                PrtEventBuffer.k = ( param.Length != 0 ? int.Parse(param) : 1 ); // default = 1
                                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
+                                if (PrtEventBuffer.k == -1)
+                                    PrtEventBuffer.k = 1; // default
                                 break;
 
                             case "os-set":
                                 options.OSSet = true;
                                 DfsExploration.UseStateHashing = true; // ditto
-                                PrtEventBuffer.k = ( param.Length != 0 ? int.Parse(param) : 1 ); // default = 1
                                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
+                                if (PrtEventBuffer.k == -1)
+                                    PrtEventBuffer.k = 1; // default
+                                break;
+
+                            case "queue-bound":
+                                if (param.Length == 0)
+                                    throw new ArgumentException("queue-bound argument: must supply non-negative parameter");
+                                PrtEventBuffer.k = int.Parse(param);
+                                if (PrtEventBuffer.k < 0)
+                                    throw new ArgumentException("queue-bound argument: must supply NON-NEGATIVE parameter");
                                 break;
 
                             case "queue-prefix":
                                 if (param.Length == 0)
                                     throw new ArgumentException("queue-prefix argument: must supply non-negative parameter");
-                                int p = int.Parse(param);
-                                if (p < 0)
+                                PrtEventBuffer.p = int.Parse(param);
+                                if (PrtEventBuffer.p < 0)
                                     throw new ArgumentException("queue-prefix argument: must supply NON-NEGATIVE parameter");
-                                StateImpl.q_prefix = p;
                                 break;
 
                             case "state-inv":
@@ -179,6 +189,11 @@ namespace P.Tester
 
                             case "trans-inv":
                                 StateImpl.trans_invariants = true;
+                                break;
+
+                            case "file-dump":
+                                DfsExploration.FileDump = true;
+                                StateImpl.FileDump = true;
                                 break;
 
                             case "hash": options.UseStateHashing = true; break;
@@ -274,25 +289,31 @@ namespace P.Tester
             Console.WriteLine("/psharp                  Run the PSharp Tester");
             Console.WriteLine();
             Console.WriteLine("Flags related to exhaustive state space exploration:");
-            Console.WriteLine("/dfs[:k]                 Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: 0=unbounded)");
-            Console.WriteLine("/os-list[:k]             Perform OS exploration (based on DFS) of the state space, with queue tail list abstraction, and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/os-set[:k]              Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies thereafter)");
+            Console.WriteLine("/dfs                     Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: 0=unbounded)");
+            Console.WriteLine("/os-list                 Perform OS exploration (based on DFS) of the state space, with queue tail list abstraction, and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/os-set                  Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/queue-bound:k           Bound (initial) queue size to k and starting with a queue bound of k (default: 1)");
+            Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p)");
             Console.WriteLine("/state-inv               Use    state   invariants implemented for your scenario");
             Console.WriteLine("/trans-inv               Use transition invariants implemented for your scenario");
+            Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging; this may create LARGE files!");
             Console.WriteLine();
             // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os-... are specified: perform random testing");
         }
 
+//        delegate int F(int i);
+
         public static void Main(string[] args)
         {
 
             if (args.Length > 0)
-                if (args[0] == "!")
+                if (args[0] == "!")     // scratch space for quick testing
                 {
-                    // for quick testing
+                    //F f = (i => i + 1);
+                    //int j = f(10);
+                    //Console.WriteLine(j);
                     Environment.Exit(0);
                 }
 

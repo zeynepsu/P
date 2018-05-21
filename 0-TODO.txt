@@ -1,3 +1,2 @@
 - how does the program perform in non-debug mode?
-- what happens if we allow multiple dequeues in one step?
 - q_prefix feature

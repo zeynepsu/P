@@ -527,7 +527,8 @@ namespace P.Runtime
         public enum Queue_Type { none, list, set };
 
         public static Queue_Type qt = Queue_Type.none;
-        public static int k = 0;  // queue size bound. '0' is interpreted as 'unbounded'
+        public static int k = -1;  // queue size bound. '0' is interpreted as 'unbounded', '-1' == not yet set
+        public static int p =  0;  // prefix of queue that is always maintained concretely
 
         public List<PrtEventNode> events; // used as (i) concrete queue, (ii) abstract queue, interpreted as repetition-free list, (iii) abstract queue, interpreted as set
         public bool concrete;

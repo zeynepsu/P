@@ -321,6 +321,35 @@ namespace P.Runtime
         }
         #endregion
 
+        public bool PrtRunStateMachine_next_choice(List<bool> ChoiceVector, int choiceIndex)
+        {
+            stateImpl.UserBooleanChoice = delegate ()
+            {
+                if (choiceIndex < ChoiceVector.Count)
+                {
+                    return ChoiceVector[choiceIndex++];
+                }
+
+                choiceIndex++;
+                ChoiceVector.Add(false);
+                return false;
+            };
+
+            PrtRunStateMachine();
+
+            // flip last choice
+            while (ChoiceVector.Count > 0 && ChoiceVector[ChoiceVector.Count - 1])
+            {
+                ChoiceVector.RemoveAt(ChoiceVector.Count - 1);
+            }
+
+            if (ChoiceVector.Count > 0)
+            {
+                ChoiceVector[ChoiceVector.Count - 1] = true;
+            }
+
+            return ChoiceVector.Count != 0;
+        }
 
         public void PrtRunStateMachine()
         {
