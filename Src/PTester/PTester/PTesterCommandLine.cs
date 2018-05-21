@@ -71,12 +71,6 @@ namespace P.Tester
         public bool   OSSet;
         public int    k;
 
-        public bool   QueuePrefix;
-        public int    prefix;
-
-        public bool   DebugSuccessor;
-        public int    successorHash;
-
         public bool   UseStateHashing;
         public bool   isRefinement;
         public string LHSModel;
@@ -99,9 +93,6 @@ namespace P.Tester
             DfsExploration = false;
             OSList = false;
             OSSet = false;
-            QueuePrefix = false;
-            prefix = 0;
-            DebugSuccessor = false;
             UseStateHashing = false;
         }
     }
@@ -155,36 +146,39 @@ namespace P.Tester
 
                             case "dfs":
                                 options.DfsExploration = true;
-                                options.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
-                                options.k = (param.Length != 0 ? int.Parse(param) : 0); // default = 0 (= no bound)
+                                DfsExploration.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
+                                PrtEventBuffer.k = (param.Length != 0 ? int.Parse(param) : 0); // default = 0 (= no bound)
                                 break;
 
                             case "os-list":
                                 options.OSList = true;
-                                options.UseStateHashing = true; // ditto
-                                options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
+                                DfsExploration.UseStateHashing = true; // ditto
+                                PrtEventBuffer.k = ( param.Length != 0 ? int.Parse(param) : 1 ); // default = 1
+                                PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
                                 break;
 
                             case "os-set":
                                 options.OSSet = true;
-                                options.UseStateHashing = true; // ditto
-                                options.k = (param.Length != 0 ? int.Parse(param) : 1); // default = 1
+                                DfsExploration.UseStateHashing = true; // ditto
+                                PrtEventBuffer.k = ( param.Length != 0 ? int.Parse(param) : 1 ); // default = 1
+                                PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
                                 break;
 
                             case "queue-prefix":
-                                options.QueuePrefix = true;
                                 if (param.Length == 0)
-                                    throw new ArgumentException("queue-prefix argument: must supply parameter");
-                                options.prefix = int.Parse(param);
+                                    throw new ArgumentException("queue-prefix argument: must supply non-negative parameter");
+                                int p = int.Parse(param);
+                                if (p < 0)
+                                    throw new ArgumentException("queue-prefix argument: must supply NON-NEGATIVE parameter");
+                                StateImpl.q_prefix = p;
                                 break;
 
-                            case "debug-abstract":
-                                options.DebugSuccessor = true;
-                                if (param.Length == 0)
-                                    throw new ArgumentException("debug-abstract argument: must supply non-zero parameter");
-                                options.successorHash = int.Parse(param);
-                                if (options.successorHash == 0)
-                                    throw new ArgumentException("debug-abstract argument: must supply NON-ZERO parameter");
+                            case "state-inv":
+                                StateImpl.state_invariants = true;
+                                break;
+
+                            case "trans-inv":
+                                StateImpl.trans_invariants = true;
                                 break;
 
                             case "hash": options.UseStateHashing = true; break;
@@ -229,6 +223,7 @@ namespace P.Tester
                     catch(ArgumentException e)
                     {
                         Console.WriteLine(e.Message);
+                        Console.WriteLine("Exiting.");
                         Environment.Exit(-1);
                     }
                 }
@@ -247,7 +242,6 @@ namespace P.Tester
                     }
 
                     options.inputFileName = arg;
-                    StateImpl.inputFileName = arg;
                 }
             }
 
@@ -278,14 +272,18 @@ namespace P.Tester
             Console.WriteLine("/lhs:<LHS Model Dll>     Load the pre-computed traces of RHS Model and perform trace containment");
             Console.WriteLine("/rhs:<RHS Model Dll>     Compute all possible trace of the RHS Model using sampling and dump it in a file on disk");
             Console.WriteLine("/psharp                  Run the PSharp Tester");
+            Console.WriteLine();
+            Console.WriteLine("Flags related to exhaustive state space exploration:");
             Console.WriteLine("/dfs[:k]                 Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: 0=unbounded)");
             Console.WriteLine("/os-list[:k]             Perform OS exploration (based on DFS) of the state space, with queue tail list abstraction, and starting with a queue bound of k (default: 1)");
             Console.WriteLine("/os-set[:k]              Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
             Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies thereafter)");
-            Console.WriteLine("/debug-abstract:hash     After unsuccessful verification run, supply hash(!=0) to unreachable abstract successor to investigate");
-            Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented, hence /dfs and /os each imply /hash.)");
+            Console.WriteLine("/state-inv               Use    state   invariants implemented for your scenario");
+            Console.WriteLine("/trans-inv               Use transition invariants implemented for your scenario");
             Console.WriteLine();
-            Console.WriteLine("If none of /psharp, /dfs, /os are specified: perform random testing");
+            // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");
+            Console.WriteLine();
+            Console.WriteLine("If none of /psharp, /dfs, /os-... are specified: perform random testing");
         }
 
         public static void Main(string[] args)
@@ -338,6 +336,8 @@ namespace P.Tester
             if (s == null)
                 throw new ArgumentException("Invalid assembly");
 
+            DfsExploration.start = s;
+
             var sw = new System.Diagnostics.Stopwatch();
             sw.Start();
 
@@ -347,31 +347,15 @@ namespace P.Tester
             }
             else if (options.DfsExploration)
             {
-                DfsExploration.UseStateHashing = options.UseStateHashing;
-                PrtEventBuffer.k = options.k;
-                DfsExploration.Dfs(s);                           // single exploration from s with queue bound k
+                DfsExploration.Dfs();                           // single exploration from s with queue bound k
             }
             else if (options.OSList)
             {
-                DfsExploration.UseStateHashing = options.UseStateHashing;
-                PrtEventBuffer.k = options.k;
-                PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
-                if (options.QueuePrefix)
-                    StateImpl.q_prefix = options.prefix;
-                if (options.DebugSuccessor)
-                    StateImpl.successorHash = options.successorHash;
-                DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue list abstraction
+                DfsExploration.OS_Iterate();                    // OS exploration from s starting with queue bound k, using queue list abstraction
             }
             else if (options.OSSet)
             {
-                DfsExploration.UseStateHashing = options.UseStateHashing;
-                PrtEventBuffer.k = options.k;
-                PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
-                if (options.QueuePrefix)
-                    StateImpl.q_prefix = options.prefix;
-                if (options.DebugSuccessor)
-                    StateImpl.successorHash = options.successorHash;
-                DfsExploration.OS_Iterate(s);                    // OS exploration from s starting with queue bound k, using queue set abstraction
+                DfsExploration.OS_Iterate();                    // OS exploration from s starting with queue bound k, using queue set abstraction
             }
             else
             {

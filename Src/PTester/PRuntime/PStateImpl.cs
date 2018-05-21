@@ -1,10 +1,4 @@
-﻿#define __STATE_INVARIANTS__
-//#define __TRANS_INVARIANTS__
-
-#define __FILE_DUMP__
-
-#define __STUTTER_EXAMPLE__
-// #define __GERMAN_EXAMPLE__
+﻿#define __FILE_DUMP__
 
 using System;
 using System.Collections.Generic;
@@ -84,9 +78,10 @@ namespace P.Runtime
         private Exception exception;
 
         public static int q_prefix = 0;
+        public static bool state_invariants = false;
+        public static bool trans_invariants = false;
 
         public static int successorHash = 0; // we assume 0 is not a valid hash (:-(
-        public static string inputFileName;
         
         public VisibleTrace currentVisibleTrace;
         public StringBuilder errorTrace;
@@ -297,22 +292,20 @@ namespace P.Runtime
             int hash = GetHashCode();
             if (successorHash != 0 && successorHash == hash)
             {
+                string s    = "s.txt";
+                string succ = "succ.txt";
                 Console.WriteLine("Found pair (s,succ) such that succ is the inconsistent abstract successor state of s identified in previous run.");
-                StreamWriter s_SW      = new StreamWriter("s.txt");    s_SW     .WriteLine(pred.ToPrettyString()); s_SW     .Close();
-                StreamWriter s_succ_SW = new StreamWriter("succ.txt"); s_succ_SW.WriteLine(     ToPrettyString()); s_succ_SW.Close();
-                Console.WriteLine("Pretty-printed s and succ into text files. FYI, their hashes are {0} and {1}.", pred.GetHashCode(), hash);
+                StreamWriter s_SW    = new StreamWriter(s);    s_SW   .WriteLine(pred.ToPrettyString()); s_SW   .Close();
+                StreamWriter succ_SW = new StreamWriter(succ); succ_SW.WriteLine(     ToPrettyString()); succ_SW.Close();
+                Console.WriteLine("Pretty-printed s and succ into files '{0}' and '{1}'. (Their hashes are {2} and {3}.)", s, succ, pred.GetHashCode(), hash);
+                Console.WriteLine("To investigate, try something like:");
+                Console.WriteLine("xdiff {0} {1}", s, succ);
                 Console.WriteLine("Exiting.");
                 Environment.Exit(0);
                 }
 
-            if (true
-#if __STATE_INVARIANTS__
-                && Check_state_invariant(currIndex)
-#endif
-#if __TRANS_INVARIANTS__
-                && Check_trans_invariant(currIndex, pred)
-#endif
-                )
+            if ( ( state_invariants ? Check_state_invariant(currIndex      ) : true ) &&
+                 ( trans_invariants ? Check_trans_invariant(currIndex, pred) : true ) )
             {
                 if (abstract_succs.Add(hash))
                 {
@@ -321,7 +314,7 @@ namespace P.Runtime
                     abstract_succs_SW.WriteLine("==================================================");
 #endif
                 }
-            }
+            } 
         }
 
         public bool CheckFailure(int depth)
@@ -371,7 +364,7 @@ namespace P.Runtime
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
             List<PrtEventNode> Client_q = Client.eventQueue.events;
 
-#if __STUTTER_EXAMPLE__
+#if true
             // this one we need for both list and set abstraction: can't have just dequeued DONE and then there are still DONE's in the queue
             PrtEventNode DONE = Client_q.Find(ev => ev.ev.ToString() == "DONE");
             if (Client.get_eventValue().ToString() == "DONE" && DONE != null && DONE.ev.ToString() == "DONE")
@@ -397,7 +390,7 @@ namespace P.Runtime
             }
 #endif
 
-#if __GERMAN_EXAMPLE__
+#if false
             if (Client.eventQueue.head().ev.ToString() == "ask_share" && Client.eventQueue.tail_contains_event_name("ask_share") ||
                 Client.eventQueue.head().ev.ToString() == "ask_excl"  && Client.eventQueue.tail_contains_event_name("ask_excl"))
                 return false;

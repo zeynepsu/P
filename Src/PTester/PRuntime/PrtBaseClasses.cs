@@ -622,7 +622,6 @@ namespace P.Runtime
                 {
                     // Console.WriteLine("PrtEventBuffer.EnqueueEvent: queue bound {0} reached in attempt to enqueue; rejecting send event", k);
                     throw new PrtAssumeFailureException();
-                    return;
                 }
 
                 PrtEventValue ev = e as PrtEventValue;
@@ -633,7 +632,6 @@ namespace P.Runtime
                             throw new PrtAssumeFailureException();
                         else
                             throw new PrtMaxEventInstancesExceededException(String.Format(@"< Exception > Attempting to enqueue event {0} more than {1} many times\n", ev.evt.name, ev.evt.maxInstances));
-                        return;
                     }
             }
             else

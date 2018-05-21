@@ -13,8 +13,9 @@ namespace P.Tester
 {
     static class DfsExploration
     {
+#if DEBUG
         private static int max_queue_size;
-
+#endif
         public static bool UseDepthBounding = false;
         public static int DepthBound = 100;
 
@@ -28,7 +29,9 @@ namespace P.Tester
         public static int size_abstracts_previous = 0;
         public static int size_abstracts_previous_previous = 0;
 
-        public static void Dfs(StateImpl start, bool queue_abstraction = false)
+        public static StateImpl start = null;
+
+        public static void Dfs(bool queue_abstraction = false)
         {
             if (!UseStateHashing) throw new NotImplementedException();
 
@@ -150,24 +153,26 @@ namespace P.Tester
             abstract_succs_SW.Close();
         }
 
-        public static void OS_Iterate(StateImpl start)
+        public static void OS_Iterate()
         {
             if (PrtEventBuffer.k == 0) { Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)"); goto Next_Round; }
 
             Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", PrtEventBuffer.k);
-            if (!String.IsNullOrEmpty(Console.ReadLine()))
+            bool stop = ( Console.ReadKey().Key != ConsoleKey.Enter ); Console.WriteLine();
+            if (stop)
             {
                 Console.WriteLine("Exiting.");
                 Environment.Exit(0);
             }
 
-            Dfs(start, true);
+            Dfs(true);
 
             if (size_concretes_previous == concretes.Count)
             {
                 Console.WriteLine("Global state sequence converged!");
                 Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
-                if (!String.IsNullOrEmpty(Console.ReadLine()))
+                stop = ( Console.ReadKey().Key != ConsoleKey.Enter ); Console.WriteLine();
+                if (stop)
                 {
                     Console.WriteLine("Exiting.");
                     Environment.Exit(0);
@@ -193,7 +198,7 @@ namespace P.Tester
 
         Next_Round:
             ++PrtEventBuffer.k;
-            OS_Iterate(start);
+            OS_Iterate();
         }
 
         // compute abstract successors, and return true ("converged") iff all of them are already contained in abstracts:
@@ -205,10 +210,23 @@ namespace P.Tester
                 {
                     Console.WriteLine("did not converge.");
                     Console.WriteLine("Found a so-far unreached abstract successor state. Its hash code is {0}.", hash);
-                    Console.WriteLine("You should continue by increasing the bound, OR investigate this suspicious state, by running the following command:");
-                    Console.WriteLine("pt /os-" + PrtEventBuffer.qt.ToString() + ":" + PrtEventBuffer.k.ToString() + " /debug-abstract:" + hash.ToString() + " " + StateImpl.inputFileName);
+                    Console.WriteLine("Do you want to");
+                    Console.WriteLine("(c)ontinue, by increasing the queue bound, ignoring the unreached successor, OR");
+                    Console.WriteLine("(i)nvestigate; we will then locate the state with that hash code");
+                    string answer;
+                    do
+                    {
+                        Console.Write(" ? ");
+                        answer = Console.ReadKey().Key.ToString().ToLower(); Console.WriteLine();
+                    } while (answer != "c" && answer != "i");
 
-                    return false;
+                    // for the re-run, queue abstraction type remains, k bound remains
+                    if (answer == "c")
+                        return false;
+
+                    StateImpl.successorHash = hash;
+                    OS_Iterate();
+                    Environment.Exit(0); // we did what we could
                 }
             }
             return true;
