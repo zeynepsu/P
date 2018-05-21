@@ -315,12 +315,15 @@ namespace P.Runtime
 
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            int  hash =      GetHashCode(); if ( hash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
             int phash = pred.GetHashCode(); if (phash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
+            int hash  =      GetHashCode(); if ( hash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
 
             if (succHash != 0) // if we are in successor finding mode
-                if (predHash == 0 && succHash == hash)
+                if (succHash == hash)
+                {
+                    predHash = phash;
                     throw new SuccessorFound(pred, this);
+                }
 
             if ( ( state_invariants ? Check_state_invariant(currIndex      ) : true ) &&
                  ( trans_invariants ? Check_trans_invariant(currIndex, pred) : true ) )

@@ -296,7 +296,7 @@ namespace P.Tester
             Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p)");
             Console.WriteLine("/state-inv               Use    state   invariants implemented for your scenario");
             Console.WriteLine("/trans-inv               Use transition invariants implemented for your scenario");
-            Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging; this may create LARGE files!");
+            Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
             Console.WriteLine();
             // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");
             Console.WriteLine();

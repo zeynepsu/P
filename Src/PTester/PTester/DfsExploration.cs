@@ -12,22 +12,24 @@ namespace P.Tester
     static class DfsExploration
     {
 #if DEBUG
-        private static int max_queue_size;
+        static int max_queue_size;
 #endif
-        public static bool UseDepthBounding = false;
-        public static int DepthBound = 100;
+        static bool UseDepthBounding = false;
+        static int DepthBound = 100;
 
         public static bool UseStateHashing = true; // currently doesn't make sense without
 
         public static bool FileDump = false;
 
-        public static HashSet<int> concretes      = new HashSet<int>();
-        public static HashSet<int> abstracts      = new HashSet<int>();
-        public static HashSet<int> abstract_succs = new HashSet<int>();
+        static HashSet<int> concretes      = new HashSet<int>();
+        static HashSet<int> abstracts      = new HashSet<int>();
+        static HashSet<int> abstract_succs = new HashSet<int>();
 
-        public static int size_concretes_previous = 0;
-        public static int size_abstracts_previous = 0;
-        public static int size_abstracts_previous_previous = 0;
+        static int size_concretes_previous = 0;
+        static int size_abstracts_previous = 0;
+        static int size_abstracts_previous_previous = 0;
+
+        static HashSet<int> competitors;
 
         public static StateImpl start = null;
 
@@ -175,10 +177,11 @@ namespace P.Tester
                 Environment.Exit(0);
             }
 
-            try { Dfs(true); }
+            try { Dfs(true); Debug.Assert(StateImpl.succHash == 0, "Dfs should always find the successor state with the given hash code"); }
             catch (StateImpl.SuccessorFound)
             {
                 Console.WriteLine("Restarting Dfs ...");
+                competitors = new HashSet<int>();
                 Dfs();
                 Console.WriteLine("Exiting.");
                 Environment.Exit(0);
@@ -218,16 +221,22 @@ namespace P.Tester
             OS_Iterate();
         }
 
-        static void check_pred_hash(StateImpl pred, StateImpl succ)
+        static void check_pred_hash(StateImpl s, StateImpl sp)
         {
-            StateImpl pred_ab = (StateImpl)pred.Clone(); pred_ab.abstract_me();
-            if (pred_ab.GetHashCode() == StateImpl.predHash)
+            StateImpl a = (StateImpl)s.Clone(); a.abstract_me();
+            if (a.GetHashCode() == StateImpl.predHash)
             {
-                Console.WriteLine("Found concrete pair (s,t) such that alpha(s) = a.");
-                StateImpl succ_ab = (StateImpl)succ.Clone(); succ_ab.abstract_me();
-                string succ_ab_f = "bp.txt";
-                StreamWriter succ_ab_SW = new StreamWriter(succ_ab_f); succ_ab_SW.WriteLine(succ_ab.ToPrettyString()); succ_ab_SW.Close();
-                Console.WriteLine("Pretty-printed alpha(t) into file '{0}'. This abstract state is a \"competitor\" to candidate abstract successor a' .", succ_ab_f);
+                StateImpl bp = (StateImpl)sp.Clone(); bp.abstract_me();
+                int bp_hash = bp.GetHashCode();
+                if (competitors.Add(bp_hash))
+                {
+                    Console.WriteLine("Found new concrete pair (s,s') such that alpha(s) = a.");
+                    string bp_f = "bp" + (competitors.Count - 1).ToString() + ".txt";
+                    var bp_SW = new StreamWriter(bp_f);
+                    bp_SW.WriteLine(bp.ToPrettyString());
+                    bp_SW.Close();
+                    Console.WriteLine("Pretty-printed b' = alpha(s') into file '{0}'. This abstract state is a \"competitor\" to candidate abstract successor a' .", bp_f);
+                }
             }
         }
 
@@ -258,7 +267,7 @@ namespace P.Tester
                     StateImpl.FileDump = false;
                     FileDump = false;
                     OS_Iterate();
-                    Environment.Exit(0); // we did what we could
+                    Debug.Assert(false, "OS_Iterate should always find the successor state with the given hash code");
                 }
             }
             return true;
