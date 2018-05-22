@@ -321,8 +321,12 @@ namespace P.Runtime
         }
         #endregion
 
-        public bool PrtRunStateMachine_next_choice(List<bool> ChoiceVector, int choiceIndex)
+        public bool PrtRunStateMachine_next_choice(List<bool> ChoiceVector, StateImpl a)
         {
+            Console.WriteLine("    PrtRunStateMachine_next_choice: currently processing {0}", a.GetHashCode());
+
+            int choiceIndex = 0;
+
             stateImpl.UserBooleanChoice = delegate ()
             {
                 if (choiceIndex < ChoiceVector.Count)
@@ -335,7 +339,9 @@ namespace P.Runtime
                 return false;
             };
 
+            Console.WriteLine("    PrtRunStateMachine_next_choice: currently processing {0}", a.GetHashCode());
             PrtRunStateMachine();
+            Console.WriteLine("    PrtRunStateMachine_next_choice: currently processing {0}", a.GetHashCode());
 
             // flip last choice
             while (ChoiceVector.Count > 0 && ChoiceVector[ChoiceVector.Count - 1])
@@ -347,6 +353,8 @@ namespace P.Runtime
             {
                 ChoiceVector[ChoiceVector.Count - 1] = true;
             }
+
+            Console.WriteLine("    PrtRunStateMachine_next_choice: currently processing {0}", a.GetHashCode());
 
             return ChoiceVector.Count != 0;
         }

@@ -75,8 +75,7 @@ namespace P.Runtime
         /// </summary>
         private Exception exception;
 
-        public static bool state_invariants = false;
-        public static bool trans_invariants = false;
+        public static bool invariants = false;
 
         public static int succHash = 0; // we assume 0 is not a valid state hash (:-(
         public static int predHash = 0;
@@ -198,6 +197,7 @@ namespace P.Runtime
 
         public void collect_abstract_successors(HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
+            Console.WriteLine("  collect_abstract_successors: currently processing {0}", GetHashCode());
             for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
             {
                 PrtImplMachine m = ImplMachines[currIndex];
@@ -228,14 +228,14 @@ namespace P.Runtime
             List<PrtEventNode> m_q = m.eventQueue.events;
 
             var ChoiceVector = new List<bool>();
-            int choiceIndex = 0;
             bool more;
             do
             {
                 StateImpl          succ     = (StateImpl)Clone();
                 PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
+                more = false; // succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
+                Debug.Assert(false);
                 List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
-                more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector, choiceIndex);
                 if (succ_m_q.Count < m_q.Count && !succ.CheckFailure(0)) // if dequeing was successful
                 {
                     Debug.Assert(m_q.Count == succ_m_q.Count + 1); // we have dequeued exactly one event
@@ -268,13 +268,14 @@ namespace P.Runtime
         // for queue-set abstraction:
         void collect_abstract_successors_from_set(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
+            Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
             PrtImplMachine m = ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
 
             foreach (PrtEventNode ev in m_q)
             {
+                Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                 var ChoiceVector = new List<bool>();
-                int choiceIndex = 0;
                 bool more;
                 do
                 {
@@ -285,15 +286,20 @@ namespace P.Runtime
                     // prepare the buffer for running the machine: make head with no tail
                     succ_m_q.Clear();
                     succ_m_q.Add(ev.Clone());
-                    more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector, choiceIndex); Debug.Assert(choiceIndex == 0); // need a loop here over nondet choices
+                    Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
+                    more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector, this);
+                    Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                     if (succ_m_b.Empty() && !succ.CheckFailure(0)) // if dequeing was successful
                     {
                         foreach (PrtEventNode ev2 in m_q) succ_m_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
-                                                                                     // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
+                        // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
                         succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
                         // choice 2: ev existed once in m_q, so after the dequeue it is gone
+                        Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                         succ_m_q.Remove(ev);
+                        Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                         succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                        Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                     }
                 } while (more);
             }
@@ -303,18 +309,19 @@ namespace P.Runtime
             public SuccessorFound() {}
             public SuccessorFound(StateImpl a, StateImpl ap)
             {
-                Console.WriteLine("Found abstract pair (a,a') such that a' is the inconsistent abstract successor state of a identified in previous run.");
+                Console.WriteLine("Found abstract pair (a,a') such that a' is the abstract successor state of a identified in previous run.");
                 string  a_f =  "a.txt";
                 string ap_f = "ap.txt";
                 StreamWriter  a_SW = new StreamWriter( a_f);  a_SW.WriteLine(a .ToPrettyString());  a_SW.Close();
                 StreamWriter ap_SW = new StreamWriter(ap_f); ap_SW.WriteLine(ap.ToPrettyString()); ap_SW.Close();
-                Console.WriteLine("Pretty-printed a and a' into files '{0}' and '{1}'.", a_f, ap_f);
                 throw new SuccessorFound();
             }
         };
 
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
+            Console.WriteLine("      add_to_succs_if_inv: currently processing {0}, and predecessor {1}", GetHashCode(), pred.GetHashCode());
+
             int phash = pred.GetHashCode(); if (phash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
             int hash  =      GetHashCode(); if ( hash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
 
@@ -325,8 +332,8 @@ namespace P.Runtime
                     throw new SuccessorFound(pred, this);
                 }
 
-            if ( ( state_invariants ? Check_state_invariant(currIndex      ) : true ) &&
-                 ( trans_invariants ? Check_trans_invariant(currIndex, pred) : true ) )
+            if ( invariants ? Check_state_invariant(currIndex      ) &&
+                              Check_trans_invariant(currIndex, pred) : true )
             {
                 if (abstract_succs.Add(hash))
                     if (FileDump)
@@ -370,6 +377,8 @@ namespace P.Runtime
             return false;
         }
 
+        delegate bool Event_is_and_queue_contains(PrtImplMachine m, string s); // this is like a typedef and must, unfortunately, be sitting out here, not inside the function def.
+        
         // STATE AND TRANSITION INVARIANTS.
 
         // This is application dependent, so eventually this needs to be done differently.
@@ -380,16 +389,15 @@ namespace P.Runtime
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
         public bool Check_state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
+#if false
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
             List<PrtEventNode> Client_q = Client.eventQueue.events;
 
-#if true
             // this one we need for both list and set abstraction: can't have just dequeued DONE and then there are still DONE's in the queue
-            PrtEventNode DONE = Client_q.Find(ev => ev.ev.ToString() == "DONE");
-            if (Client.get_eventValue().ToString() == "DONE" && DONE != null && DONE.ev.ToString() == "DONE")
+            if (Client.get_eventValue().ToString() == "DONE" && Client_q.Find(ev => ev.ev.ToString() == "DONE") != null)
                 return false;
-            
+
             if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
             {
                 for (int i = 0; i < Client_q.Count - 1; ++i)
@@ -404,15 +412,32 @@ namespace P.Runtime
             else
             {
                 // can't have just dequeued PING and then there are still WAIT's in the queue
-                PrtEventNode WAIT = Client_q.Find(ev => ev.ev.ToString() == "WAIT");
-                if (Client.get_eventValue().ToString() == "PING" && WAIT != null && WAIT.ev.ToString() == "WAIT")
+                if (Client.get_eventValue().ToString() == "PING" && Client_q.Find(ev => ev.ev.ToString() == "WAIT") != null)
                     return false;
             }
 #endif
 
-#if false
-            if (Client.eventQueue.head().ev.ToString() == "ask_share" && Client.eventQueue.tail_contains_event_name("ask_share") ||
-                Client.eventQueue.head().ev.ToString() == "ask_excl"  && Client.eventQueue.tail_contains_event_name("ask_excl"))
+#if true
+            PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract()); List<PrtEventNode>  Main_q  =  Main .eventQueue.events;
+            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract()); List<PrtEventNode> Client_q = Client.eventQueue.events;
+
+            //delegate bool Check(PrtImplMachine m, List<PrtEventNode> q, string s);
+
+            Event_is_and_queue_contains event_is_and_queue_contains = delegate(PrtImplMachine m, string s)
+            {
+                List<PrtEventNode> q = m.eventQueue.events;
+                return m.get_eventValue().ToString() == s && q.Find(ev => ev.ev.ToString() == s) != null;
+            };
+
+            if (event_is_and_queue_contains(Main,   "req_share")      ||
+                event_is_and_queue_contains(Main,   "req_excl")       ||
+                event_is_and_queue_contains(Main,   "invalidate_ack") ||
+
+                event_is_and_queue_contains(Client, "grant_share")    ||
+                event_is_and_queue_contains(Client, "grant_excl")     ||
+                event_is_and_queue_contains(Client, "ask_share")      ||
+                event_is_and_queue_contains(Client, "ask_excl")       ||
+                event_is_and_queue_contains(Client, "invalidate"))
                 return false;
 #endif
             return true;

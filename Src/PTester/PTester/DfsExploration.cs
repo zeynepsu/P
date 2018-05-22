@@ -13,9 +13,11 @@ namespace P.Tester
     {
 #if DEBUG
         static int max_queue_size;
+        static int max_stack_size;
+        static int max_stack_depth;
 #endif
-        static bool UseDepthBounding = false;
-        static int DepthBound = 100;
+        // static bool UseDepthBounding = false;
+        // static int DepthBound = 100;
 
         public static bool UseStateHashing = true; // currently doesn't make sense without
 
@@ -45,7 +47,9 @@ namespace P.Tester
             abstract_succs.Clear();
 
 #if DEBUG
-            max_queue_size = 0;
+            max_queue_size  = 0;
+            max_stack_size  = 0;
+            max_stack_depth = 0;
 #endif
 
             var stack = new Stack<BacktrackingState>();
@@ -54,6 +58,7 @@ namespace P.Tester
             StreamWriter abstracts_SW      = null; if (FileDump) abstracts_SW      = new StreamWriter("abstracts-"      + (k < 10 ? "0" : "") + k.ToString() + ".txt");
             StreamWriter abstract_succs_SW = null; if (FileDump) abstract_succs_SW = new StreamWriter("abstract_succs-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
 
+            Debug.Assert(start != null);
             StateImpl start_c = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
 
             stack.Push(new BacktrackingState(start_c));
@@ -90,38 +95,40 @@ namespace P.Tester
                     continue;
                 }
 
-                BacktrackingState next = Execute(bstate);    // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
-                stack.Push(bstate);                          // after increasing currIndex/choiceIndex, push state back on. This is like modifying bstate "on the stack"
+                BacktrackingState succ = Execute(bstate);    // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
+                stack.Push(bstate);
 
                 if (StateImpl.predHash != 0) // if we are in predecessor finding mode
-                    check_pred_hash(bstate.State, next.State);
+                    check_pred_hash(bstate.State, succ.State);
 
-                if (! next.State.CheckFailure(next.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
+                if (!succ.State.CheckFailure(succ.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
                 {
                     // update concrete state hashset
-                    var hash = next.State.GetHashCode();
+                    var hash = succ.State.GetHashCode();
                     if (!concretes.Add(hash))
                         continue;
 
-                    stack.Push(next);
+                    stack.Push(succ); max_stack_size = Math.Max(max_stack_size, stack.Count);
 
                     if (FileDump)
                     {
-                        concretes_SW.Write(next.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
+                        concretes_SW.Write(succ.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
                         concretes_SW.WriteLine("==================================================");
                     }
 
                     if (queue_abstraction)
                     {
-                        StateImpl next_ab_s = (StateImpl)next.State.Clone(); next_ab_s.abstract_me();
-                        if (abstracts.Add(next_ab_s.GetHashCode()))
+                        StateImpl succ_ab_s = (StateImpl)succ.State.Clone(); succ_ab_s.abstract_me();
+                        if (abstracts.Add(succ_ab_s.GetHashCode()))
+                        {
+                            Console.WriteLine("Dfs(): Currently processing {0}", succ_ab_s.GetHashCode());
+                            succ_ab_s.collect_abstract_successors(abstract_succs, abstract_succs_SW);
                             if (FileDump)
                             {
-                                abstracts_SW.Write(next_ab_s.ToPrettyString());
+                                abstracts_SW.Write(succ_ab_s.ToPrettyString());
                                 abstracts_SW.WriteLine("==================================================");
                             }
-
-                        next_ab_s.collect_abstract_successors(abstract_succs, abstract_succs_SW);
+                        }
                     }
 
 #if DEBUG
@@ -136,24 +143,20 @@ namespace P.Tester
                     }
 
                     // update maximum encountered queue size
-                    foreach (PrtImplMachine m in next.State.ImplMachines)
-                    {
-                        int m_size = m.eventQueue.Size();
-                        if (m_size > max_queue_size)
-                        {
-                            max_queue_size = m_size;
-                            Console.WriteLine("-------------- New maximum queue size observed  = {0}", max_queue_size);
-                        }
-                    }
+                    foreach (PrtImplMachine m in succ.State.ImplMachines)
+                        max_queue_size = Math.Max(max_queue_size, m.eventQueue.Size());
 #endif
                 }
             }
 
             Console.WriteLine("");
 
-            Console.WriteLine("Number of concrete states visited   = {0}", concretes.Count);
-            Console.WriteLine("Number of abstract states found     = {0}", abstracts.Count);
-            Console.WriteLine("Number of abstract successors found = {0} (only those satisfying all static invariants)", abstract_succs.Count);
+            Console.WriteLine("Number of concrete states visited     = {0}", concretes.Count);
+            Console.WriteLine("Number of abstract states encountered = {0}", abstracts.Count);
+            Console.WriteLine("Number of abstract successors found   = {0} (only those satisfying all static invariants)", abstract_succs.Count);
+            Console.WriteLine("Maximum queue size  encountered       = {0}", max_queue_size);
+            Console.WriteLine("Maximum stack size  encountered       = {0}", max_stack_size);
+            Console.WriteLine("Maximum stack depth encountered       = {0}", max_stack_depth);
 
             Console.WriteLine();
 
@@ -183,6 +186,11 @@ namespace P.Tester
                 Console.WriteLine("Restarting Dfs ...");
                 competitors = new HashSet<int>();
                 Dfs();
+                Debug.Assert(competitors.Count > 0);
+                Console.WriteLine("Found {0} concrete pairs (s, s') such that alpha(s) = a.", competitors.Count);
+                Console.WriteLine("Pretty-printed a and a' into files a.txt and ap.txt, and the corresponding abstract successor states b' = alpha(s') into files bp0.txt..bp{0}.txt .", competitors.Count - 1);
+                Console.WriteLine("Abstract states b' are \"competitors\" to candidate abstract successor a' .");
+                Console.WriteLine("You should compare each b' to a'; the difference might reveal why b' is reachable while a' is not (IF the latter is the case).");
                 Console.WriteLine("Exiting.");
                 Environment.Exit(0);
             }
@@ -230,12 +238,9 @@ namespace P.Tester
                 int bp_hash = bp.GetHashCode();
                 if (competitors.Add(bp_hash))
                 {
-                    Console.WriteLine("Found new concrete pair (s,s') such that alpha(s) = a.");
-                    string bp_f = "bp" + (competitors.Count - 1).ToString() + ".txt";
-                    var bp_SW = new StreamWriter(bp_f);
+                    var bp_SW = new StreamWriter("bp" + (competitors.Count - 1).ToString() + ".txt");
                     bp_SW.WriteLine(bp.ToPrettyString());
                     bp_SW.Close();
-                    Console.WriteLine("Pretty-printed b' = alpha(s') into file '{0}'. This abstract state is a \"competitor\" to candidate abstract successor a' .", bp_f);
                 }
             }
         }

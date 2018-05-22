@@ -183,12 +183,8 @@ namespace P.Tester
                                     throw new ArgumentException("queue-prefix argument: must supply NON-NEGATIVE parameter");
                                 break;
 
-                            case "state-inv":
-                                StateImpl.state_invariants = true;
-                                break;
-
-                            case "trans-inv":
-                                StateImpl.trans_invariants = true;
+                            case "invar":
+                                StateImpl.invariants = true;
                                 break;
 
                             case "file-dump":
@@ -294,8 +290,7 @@ namespace P.Tester
             Console.WriteLine("/os-set                  Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
             Console.WriteLine("/queue-bound:k           Bound (initial) queue size to k and starting with a queue bound of k (default: 1)");
             Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p)");
-            Console.WriteLine("/state-inv               Use    state   invariants implemented for your scenario");
-            Console.WriteLine("/trans-inv               Use transition invariants implemented for your scenario");
+            Console.WriteLine("/invar                   Use state/transition invariants implemented for your scenario");
             Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
             Console.WriteLine();
             // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");

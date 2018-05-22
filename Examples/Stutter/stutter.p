@@ -22,23 +22,24 @@ machine Main {
 
   state SendPrefix {
     entry {
-      if ($)
+      var i:int;
+      i = 0;
+      while (i < X) {
         send client, WAIT;
-      else {
-        send client, DONE;
-        goto Flood; }}}
+        i = i + 1; }
+      send client, DONE;
+      goto Flood; }}
 
   state Flood {
     entry {
       send client, PING;
-      goto Flood; }}}
+      goto Flood; }}}               // without this goto, machine Flood terminates
 
 ///////////////////////////////////////////////////////////////////////////
 
 machine Client {
   start state Init {
-    defer WAIT, PING;                // PING will never arrive in state Init. But the verification algorithm does not know that,
-                                     // so for increased precision I explicitly specify it here
+    defer WAIT;
     on DONE goto Consume; }
 
-  state Consume { ignore WAIT, DONE, PING; }}
+  state Consume { ignore WAIT, PING; }}
