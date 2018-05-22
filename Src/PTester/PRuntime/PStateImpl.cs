@@ -279,7 +279,7 @@ namespace P.Runtime
                 bool more;
                 do
                 {
-                    StateImpl          succ     = (StateImpl)Clone();
+                    StateImpl          succ     = (StateImpl)Clone(); Debug.Assert(currIndex < succ.ImplMachines.Count);
                     PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
                     PrtEventBuffer     succ_m_b = succ_m.eventQueue;
                     List<PrtEventNode> succ_m_q = succ_m_b.events;
@@ -287,7 +287,8 @@ namespace P.Runtime
                     succ_m_q.Clear();
                     succ_m_q.Add(ev.Clone());
                     Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
-                    more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector, this);
+                    more = false; //  succ_m.PrtRunStateMachine_next_choice(ChoiceVector, this);
+                    succ_m.PrtRunStateMachine();
                     Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                     if (succ_m_b.Empty() && !succ.CheckFailure(0)) // if dequeing was successful
                     {
