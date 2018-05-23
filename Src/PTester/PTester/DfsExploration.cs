@@ -121,7 +121,6 @@ namespace P.Tester
                         StateImpl succ_ab_s = (StateImpl)succ.State.Clone(); succ_ab_s.abstract_me();
                         if (abstracts.Add(succ_ab_s.GetHashCode()))
                         {
-                            Console.WriteLine("Dfs(): Currently processing {0}", succ_ab_s.GetHashCode());
                             succ_ab_s.collect_abstract_successors(abstract_succs, abstract_succs_SW);
                             if (FileDump)
                             {

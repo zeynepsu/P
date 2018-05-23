@@ -494,6 +494,13 @@ namespace P.Runtime
             return new PrtEventNode(this.ev, this.arg, this.senderMachineName, this.senderMachineStateName);
         }
 
+        public PrtEventNode Clone_Resolve(StateImpl s)
+        {
+            PrtEventNode x = Clone();
+            x.Resolve(s);
+            return x;
+        }
+
         public override int GetHashCode()
         {
             return Hashing.Hash(ev.GetHashCode(), arg.GetHashCode());
@@ -589,6 +596,12 @@ namespace P.Runtime
             return clonedVal;
         }
 
+        public PrtEventBuffer Clone_Resolve(StateImpl s)
+        {
+            PrtEventBuffer x = Clone();
+            x.Resolve(s);
+            return x;
+        }
         public string ToPrettyString(string indent = "")
         {
             string title = indent + "events";

@@ -197,7 +197,6 @@ namespace P.Runtime
 
         public void collect_abstract_successors(HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            Console.WriteLine("  collect_abstract_successors: currently processing {0}", GetHashCode());
             for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
             {
                 PrtImplMachine m = ImplMachines[currIndex];
@@ -233,13 +232,12 @@ namespace P.Runtime
             {
                 StateImpl          succ     = (StateImpl)Clone();
                 PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
-                more = false; // succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
-                Debug.Assert(false);
                 List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
+                more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
                 if (succ_m_q.Count < m_q.Count && !succ.CheckFailure(0)) // if dequeing was successful
                 {
                     Debug.Assert(m_q.Count == succ_m_q.Count + 1); // we have dequeued exactly one event
-                                                                   // Find the dequeued event, to correct the abstract queue
+                    // Find the dequeued event, to correct the abstract queue
                     int i;
                     for (i = 0; i < m_q.Count; ++i)
                     {
@@ -249,8 +247,10 @@ namespace P.Runtime
                     Debug.Assert(i < m_q.Count);
                     PrtEventNode dequeued_ev = m_q[i];
                     Debug.Assert(!succ_m_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
-                                                                   // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
+
+                    // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
                     succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+
                     // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
                     for (int j = i; j < succ_m_q.Count; ++j)
                     {
@@ -268,39 +268,32 @@ namespace P.Runtime
         // for queue-set abstraction:
         void collect_abstract_successors_from_set(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
             PrtImplMachine m = ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
 
             foreach (PrtEventNode ev in m_q)
             {
-                Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                 var ChoiceVector = new List<bool>();
                 bool more;
                 do
                 {
-                    StateImpl          succ     = (StateImpl)Clone(); Debug.Assert(currIndex < succ.ImplMachines.Count);
+                    StateImpl          succ     = (StateImpl)Clone();
                     PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
                     PrtEventBuffer     succ_m_b = succ_m.eventQueue;
                     List<PrtEventNode> succ_m_q = succ_m_b.events;
+
                     // prepare the buffer for running the machine: make head with no tail
                     succ_m_q.Clear();
-                    succ_m_q.Add(ev.Clone());
-                    Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
-                    more = false; //  succ_m.PrtRunStateMachine_next_choice(ChoiceVector, this);
-                    succ_m.PrtRunStateMachine();
-                    Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
+                    succ_m_q.Add(ev.Clone_Resolve(succ));
+                    more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
                     if (succ_m_b.Empty() && !succ.CheckFailure(0)) // if dequeing was successful
                     {
-                        foreach (PrtEventNode ev2 in m_q) succ_m_q.Add(ev2.Clone()); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
+                        foreach (PrtEventNode ev2 in m_q) succ_m_q.Add(ev2.Clone_Resolve(succ)); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
                         // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
                         succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
                         // choice 2: ev existed once in m_q, so after the dequeue it is gone
-                        Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                         succ_m_q.Remove(ev);
-                        Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                         succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                        Console.WriteLine("    collect_abstract_successors_from_set: currently processing {0}", GetHashCode());
                     }
                 } while (more);
             }
@@ -321,8 +314,6 @@ namespace P.Runtime
 
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            Console.WriteLine("      add_to_succs_if_inv: currently processing {0}, and predecessor {1}", GetHashCode(), pred.GetHashCode());
-
             int phash = pred.GetHashCode(); if (phash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
             int hash  =      GetHashCode(); if ( hash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
 
