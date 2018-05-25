@@ -291,11 +291,12 @@ namespace P.Tester
             Console.WriteLine("/psharp                  Run the PSharp Tester");
             Console.WriteLine();
             Console.WriteLine("Flags related to exhaustive state space exploration:");
-            Console.WriteLine("/dfs                     Perform DFS exploration of the state space, with a queue bound of k (i.e. a machine's send disabled when its current buffer is size k) (default: 0=unbounded)");
-            Console.WriteLine("/os-list                 Perform OS exploration (based on DFS) of the state space, with queue tail list abstraction, and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/os-set                  Perform OS exploration (based on DFS) of the state space, with queue tail set  abstraction, and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/queue-bound:k           Bound (initial) queue size to k and starting with a queue bound of k (default: 1)");
-            Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p)");
+            Console.WriteLine("/dfs                     Perform DFS exploration of the state space");
+            Console.WriteLine("/os-list                 Perform OS exploration (based on DFS) of the state space, with queue list abstraction");
+            Console.WriteLine("/os-set                  Perform OS exploration (based on DFS) of the state space, with queue set  abstraction");
+            Console.WriteLine("/queue-bound:k           Bound queue size to k (i.e. a machine's send is disabled when its current buffer is size k) (default: 0=unbounded for DFS, 1 for OS).");
+            Console.WriteLine("                         In case of /os search, this bound applies to the first-round queue.");
+            Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p) (default: 0)");
             Console.WriteLine("/invar                   Use state/transition invariants implemented for your scenario");
             Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
             Console.WriteLine();

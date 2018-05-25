@@ -200,6 +200,7 @@ namespace P.Runtime
             for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
             {
                 PrtImplMachine m = ImplMachines[currIndex];
+                List<PrtEventNode> m_q = m.eventQueue.events;
 
                 // reject disabled machines
                 if (!(m.currentStatus == PrtMachineStatus.Enabled))
@@ -216,7 +217,7 @@ namespace P.Runtime
                 if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
                     collect_abstract_successors_from_list(currIndex, abstract_succs, abstract_succs_SW);
                 else
-                    collect_abstract_successors_from_set (currIndex, abstract_succs, abstract_succs_SW);
+                    collect_abstract_successors_from_set(currIndex, abstract_succs, abstract_succs_SW);
             }
         }
 
@@ -234,70 +235,78 @@ namespace P.Runtime
                 PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
                 List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
                 more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
-                if (succ_m_q.Count < m_q.Count && !succ.CheckFailure(0)) // if dequeing was successful
+                if (succ_m_q.Count == m_q.Count || succ.CheckFailure(0)) // if dequeing was unsuccessful, i.e. no event was dequeued at all
+                    return;                                              // then there is nothing left to do. No more nondet choices to try
+                Debug.Assert(succ_m_q.Count == m_q.Count - 1); // we have dequeued exactly one event
+                Debug.Assert(PrtEventBuffer.last_ev_dequeued <= succ_m_q.Count);
+                if (PrtEventBuffer.last_ev_dequeued < PrtEventBuffer.p) // if a prefix element was dequeued
                 {
-                    Debug.Assert(m_q.Count == succ_m_q.Count + 1); // we have dequeued exactly one event
-                    // Find the dequeued event, to correct the abstract queue
-                    int i;
-                    for (i = 0; i < m_q.Count; ++i)
+                    if (m_q.Count <= PrtEventBuffer.p) // if there was no suffix to begin with
                     {
-                        if (i == succ_m_q.Count || !m_q[i].Equals(succ_m_q[i]))   // if we are past succ_m_q  OR  the ith event before and after dequeue differ, then
-                            break; // i points to the dequeued event
-                    }
-                    Debug.Assert(i < m_q.Count);
-                    PrtEventNode dequeued_ev = m_q[i];
-                    Debug.Assert(!succ_m_q.Contains(dequeued_ev)); // we just dequeued it, and the queue contains no duplicates
-
-                    // choice 1: dequeued_ev existed exactly once in the concrete m_q. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-
-                    // choice 2: dequeued_ev existed >= twice in concrete m_q. Now we need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
-                    for (int j = i; j < succ_m_q.Count; ++j)
-                    {
-                        // insert dequeue_ev at position j (push the rest to the right)
-                        succ_m_q.Insert(j, dequeued_ev);
                         succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                        succ_m_q.RemoveAt(j); // restore previous state
+                        continue;
                     }
-                    succ_m_q.Add(dequeued_ev); // finally, insert dequeue_ev at end
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    // the new prefix is already correct: the first suffix element transited to the end of the prefix. But we don't know the multiplicity of it in the suffix
+                    PrtEventBuffer.last_ev_dequeued = PrtEventBuffer.p; // we abuse the PrtEventBuffer.last_ev_dequeued variable to point to the index of the element we may need to re-insert in the suffix
                 }
+                // (else) if a suffix element was deqeued, then PrtEventBuffer.last_ev_dequeued already points to the right index, namely that one
+                PrtEventNode moved_from_suff = m_q[PrtEventBuffer.last_ev_dequeued];
+                Debug.Assert(succ_m_q.FindLastIndex(ev => ev.Equals(moved_from_suff)) < PrtEventBuffer.p); // we just removed it from the suffix, and the suffix contains no duplicates
+
+                // choice 1: moved_from_suff existed exactly once in the concrete suffix. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
+                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+
+                // choice 2: removed_from_suff existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
+                for (int j = PrtEventBuffer.last_ev_dequeued; j < succ_m_q.Count; ++j)
+                {
+                    // insert removed_from_suff at position j (push the rest to the right)
+                    succ_m_q.Insert(j, moved_from_suff);
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    succ_m_q.RemoveAt(j); // restore previous state
+                }
+                succ_m_q.Add(moved_from_suff); // finally, insert removed_from_suff at end
+                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
             } while (more);
         }
 
         // for queue-set abstraction:
         void collect_abstract_successors_from_set(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
+            if (PrtEventBuffer.p > 0)
+                throw new NotImplementedException("StateImpl.collect_abstract_successors_from_set: the method is implemented only for queue-prefix == 0 at the moment");
+
             PrtImplMachine m = ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
 
+            StateImpl empty = (StateImpl)Clone();
+            empty.ImplMachines[currIndex].eventQueue.events.Clear();
+
             foreach (PrtEventNode ev in m_q)
             {
+                StateImpl single = (StateImpl)empty.Clone();
+                single.ImplMachines[currIndex].eventQueue.events.Add(ev.Clone_Resolve(single));
                 var ChoiceVector = new List<bool>();
                 bool more;
                 do
                 {
-                    StateImpl          succ     = (StateImpl)Clone();
+                    StateImpl          succ     = (StateImpl)single.Clone();
                     PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
-                    PrtEventBuffer     succ_m_b = succ_m.eventQueue;
-                    List<PrtEventNode> succ_m_q = succ_m_b.events;
-
-                    // prepare the buffer for running the machine: make head with no tail
-                    succ_m_q.Clear();
-                    succ_m_q.Add(ev.Clone_Resolve(succ));
+                    List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
                     more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
-                    if (succ_m_b.Empty() && !succ.CheckFailure(0)) // if dequeing was successful
-                    {
-                        foreach (PrtEventNode ev2 in m_q) succ_m_q.Add(ev2.Clone_Resolve(succ)); // restore whole queue set (we had cleared it for controlled running of the state machine on ev only)
-                        // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
-                        succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                        // choice 2: ev existed once in m_q, so after the dequeue it is gone
-                        succ_m_q.Remove(ev);
-                        succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                    }
+                    if (!succ_m.eventQueue.Empty() || succ.CheckFailure(0)) // if dequeing was unsuccessful
+                        goto Next_Event;
+                    succ_m.eventQueue = m.eventQueue.Clone_Resolve(succ); // restore whole event queue (as a set)
+                    // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    // choice 2: ev existed once in m_q, so after the dequeue it is gone
+                    succ_m_q.Remove(ev);
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
                 } while (more);
+            Next_Event:
+                ;
             }
         }
+       
 
         public class SuccessorFound : System.Exception {
             public SuccessorFound() {}
@@ -324,8 +333,7 @@ namespace P.Runtime
                     throw new SuccessorFound(pred, this);
                 }
 
-            if ( invariants ? Check_state_invariant(currIndex      ) &&
-                              Check_trans_invariant(currIndex, pred) : true )
+            if ( invariants ? Check_state_invariant(currIndex) && Check_trans_invariant(currIndex, pred) : true )
             {
                 if (abstract_succs.Add(hash))
                     if (FileDump)
@@ -382,7 +390,7 @@ namespace P.Runtime
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
         public bool Check_state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
-#if false
+#if false//true
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
             List<PrtEventNode> Client_q = Client.eventQueue.events;

@@ -11,16 +11,11 @@ namespace P.Tester
 {
     static class DfsExploration
     {
-#if DEBUG
-        static int max_queue_size;
-        static int max_stack_size;
-#endif
         // static bool UseDepthBounding = false;
         // static int DepthBound = 100;
 
         public static bool UseStateHashing = true; // currently doesn't make sense without
-
-        public static bool FileDump = false;
+        public static bool FileDump        = false;
 
         static HashSet<int> concretes      = new HashSet<int>();
         static HashSet<int> abstracts      = new HashSet<int>();
@@ -38,23 +33,21 @@ namespace P.Tester
         {
             if (!UseStateHashing) throw new NotImplementedException();
 
-            int k = PrtEventBuffer.k; // const ref would be better
-            Console.WriteLine("Using " + ( k == 0 ? "unbounded queue" : "queue bound of " + k.ToString() ));
+            Console.WriteLine("Using " + ( PrtEventBuffer.k  == 0 ? "unbounded queue" : "queue bound of " + PrtEventBuffer.k.ToString() ));
 
             concretes.Clear();
             abstracts.Clear();
             abstract_succs.Clear();
 
 #if DEBUG
-            max_queue_size = 0;
-            max_stack_size = 0;
+            int max_queue_size = 0;
+            int max_stack_size = 0;
 #endif
-
             var stack = new Stack<BacktrackingState>();
 
-            StreamWriter concretes_SW      = null; if (FileDump) concretes_SW      = new StreamWriter("concretes-"      + (k < 10 ? "0" : "") + k.ToString() + ".txt");
-            StreamWriter abstracts_SW      = null; if (FileDump) abstracts_SW      = new StreamWriter("abstracts-"      + (k < 10 ? "0" : "") + k.ToString() + ".txt");
-            StreamWriter abstract_succs_SW = null; if (FileDump) abstract_succs_SW = new StreamWriter("abstract_succs-" + (k < 10 ? "0" : "") + k.ToString() + ".txt");
+            StreamWriter concretes_SW      = null; if (FileDump) concretes_SW      = new StreamWriter("concretes-"      + (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString() + ".txt");
+            StreamWriter abstracts_SW      = null; if (FileDump) abstracts_SW      = new StreamWriter("abstracts-"      + (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString() + ".txt");
+            StreamWriter abstract_succs_SW = null; if (FileDump) abstract_succs_SW = new StreamWriter("abstract_succs-" + (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString() + ".txt");
 
             Debug.Assert(start != null);
             StateImpl start_c = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs
@@ -104,7 +97,10 @@ namespace P.Tester
                     if (!concretes.Add(hash))
                         continue;
 
-                    stack.Push(succ); max_stack_size = Math.Max(max_stack_size, stack.Count);
+                    stack.Push(succ);
+#if DEBUG
+                    max_stack_size = Math.Max(max_stack_size, stack.Count);
+#endif
 
                     if (FileDump)
                     {
@@ -126,10 +122,7 @@ namespace P.Tester
                         }
                     }
 
-#if DEBUG
-                    // diagnostics
-
-                    // Print number of states explored
+                    // status and diagnostics
                     if (concretes.Count % 1000 == 0)
                     {
                         Console.WriteLine("-------------- Number of concrete states visited so far   = {0}", concretes.Count);
@@ -138,17 +131,19 @@ namespace P.Tester
                             Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstracts.Count);
                             Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstract_succs.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
                         }
-                        // Console.WriteLine("-------------- Maximum queue size  encountered so far     = {0}", max_queue_size);
+#if DEBUG
                         Console.WriteLine("-------------- Maximum stack size encountered so far      = {0}", max_stack_size);
+#endif
                         Console.WriteLine();
                     }
 
+#if DEBUG
                     // update maximum encountered queue size
                     foreach (PrtImplMachine m in succ.State.ImplMachines)
                         max_queue_size = Math.Max(max_queue_size, m.eventQueue.Size());
 #endif
+                    }
                 }
-            }
 
             Console.WriteLine("");
 
@@ -158,9 +153,11 @@ namespace P.Tester
                 Console.WriteLine("Number of abstract states encountered = {0}", abstracts.Count);
                 Console.WriteLine("Number of abstract successors found   = {0}{1}", abstract_succs.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
             }
+
+#if DEBUG
             Console.WriteLine("Maximum queue size  encountered       = {0}", max_queue_size);
             Console.WriteLine("Maximum stack size  encountered       = {0}", max_stack_size);
-
+#endif
             Console.WriteLine();
 
             if (FileDump)

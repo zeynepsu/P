@@ -540,31 +540,39 @@ namespace P.Runtime
         public List<PrtEventNode> events; // used as (i) concrete queue, (ii) abstract queue, interpreted as repetition-free list, (iii) abstract queue, interpreted as set
         public bool concrete;
 
+        public static int last_ev_dequeued; // index last dequeued
+
         public PrtEventBuffer() { events = new List<PrtEventNode>(); concrete = true; }
 
         public bool is_concrete() { return concrete; }
         public bool is_abstract() { return !is_concrete(); }
 
-        public bool Empty() { return events.Count == 0; }
+        public bool Empty() { return events.Count == 0; } // this is applicable in the concrete and the abstract
 
-        public int Size() { Debug.Assert(is_concrete()); return events.Count; } // this method makes no sense in the abstract
+        public int Size() { Debug.Assert(is_concrete()); return events.Count; } // this method only makes sense in the concrete
 
-        // Place the tail elements in a list that keeps the ordering restricted to first-time occurrence but ignores multiplicity. This creates a very fine-grained abstraction.
-        // For instance,
+        // Convert the queue into a list that, for the suffix starting at p, keeps the ordering restricted to first-time occurrence but ignores multiplicity. This creates a very fine-grained abstraction.
+        // For instance, for p=0,
         // [X,X,Y] -> [X,Y]            but also
         // [X,Y,X] -> [X,Y]
-        // A more precise abstraction keeps the tail in a map<PrtEventNode,bool> , which stores the tail elements
+        // A more precise abstraction keeps the queue in a map<PrtEventNode,bool> , which stores the elements
         // and whether they occur once or more than once (0,1,infinity abstraction). (This would still not distinguish the above two examples.)
         public void abstract_me()
         {
             Debug.Assert(is_concrete());
             Debug.Assert(qt != Queue_Type.none);
+            concrete = false;
+            remove_dups_from_p();
+        }
 
+        // remove duplicate events in the suffix starting at position p (no matter whether list or set abstraction is used)
+        public void remove_dups_from_p()
+        {
+            Debug.Assert(is_abstract());
             var temp_Cmp = new PrtEventNodeComparer();
             var temp_prefix_set = new HashSet<PrtEventNode>(temp_Cmp);
 
-            // the abstraction function removes duplicate events, nothing more (no matter whether list or set abstraction is used)
-            int i = 0;
+            int i = p;
             while (i < events.Count)
             {
                 PrtEventNode ev = events[i];
@@ -580,8 +588,7 @@ namespace P.Runtime
 #endif
                 }
             }
-            Debug.Assert(events.Count == temp_prefix_set.Count); // events and temp_prefix_set must be permutations of each other at this point
-            concrete = false;
+            Debug.Assert(events.Count < p || events.Count == p + temp_prefix_set.Count);
         }
 
         public PrtEventBuffer Clone()
@@ -648,21 +655,20 @@ namespace P.Runtime
                             throw new PrtMaxEventInstancesExceededException(String.Format(@"< Exception > Attempting to enqueue event {0} more than {1} many times\n", ev.evt.name, ev.evt.maxInstances));
                     }
             }
-            else
-            {
-                if (events.Contains(en)) // abstract queue drops duplicates
-                    return;
-            }
 
             events.Add(en); // add to end
+
+            if (is_abstract())
+                remove_dups_from_p();
         }
 
         public bool DequeueEvent(PrtImplMachine owner)
         {
             HashSet<PrtValue> deferredSet = owner.CurrentDeferredSet;
-            HashSet<PrtValue> receiveSet = owner.receiveSet;
+            HashSet<PrtValue> receiveSet  = owner.receiveSet;
 
             int iter = 0;
+            last_ev_dequeued = events.Count + 1; // if, after DequeueEvent, last_... = Count + 1, nothing was dequeued. Otherwise last_... will be <= Count and points to the OLD index dequeued
             while (iter < events.Count)
             {
                 if ( (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev)) ||  // we check deferredSet and receiveSet only against ev (event type), not arg
@@ -672,6 +678,7 @@ namespace P.Runtime
                     owner.currentPayload = events[iter].arg;
                     owner.currentTriggerSenderInfo = Tuple.Create(events[iter].senderMachineName, events[iter].senderMachineStateName);
                     events.Remove(events[iter]);
+                    last_ev_dequeued = iter;
                     return true;
                 }
                 else

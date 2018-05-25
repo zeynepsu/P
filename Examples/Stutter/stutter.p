@@ -39,7 +39,7 @@ machine Main {
 
 machine Client {
   start state Init {
-    defer WAIT;
+    defer WAIT, PING;
     on DONE goto Consume; }
 
   state Consume { ignore WAIT, PING; }}
