@@ -369,8 +369,9 @@ namespace P.Runtime
             return false;
         }
 
-        delegate bool Event_is_and_queue_contains(PrtImplMachine m, string s); // this is like a typedef and must, unfortunately, be sitting out here, not inside the function def.
-        
+        // this is like a typedef and must, unfortunately, pollute the global scope. Should be inside below function def.
+        delegate bool Event_is_and_queue_contains(PrtImplMachine m, string s);
+
         // STATE AND TRANSITION INVARIANTS.
 
         // This is application dependent, so eventually this needs to be done differently.
@@ -413,14 +414,13 @@ namespace P.Runtime
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract()); List<PrtEventNode>  Main_q  =  Main .eventQueue.events;
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract()); List<PrtEventNode> Client_q = Client.eventQueue.events;
 
-            //delegate bool Check(PrtImplMachine m, List<PrtEventNode> q, string s);
-
             Event_is_and_queue_contains event_is_and_queue_contains = delegate(PrtImplMachine m, string s)
             {
                 List<PrtEventNode> q = m.eventQueue.events;
                 return m.get_eventValue().ToString() == s && q.Find(ev => ev.ev.ToString() == s) != null;
             };
 
+            // these lemmas state that none of the events in question occur more than once in the queue
             if (event_is_and_queue_contains(Main,   "req_share")      ||
                 event_is_and_queue_contains(Main,   "req_excl")       ||
                 event_is_and_queue_contains(Main,   "invalidate_ack") ||

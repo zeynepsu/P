@@ -14,7 +14,6 @@ namespace P.Tester
 #if DEBUG
         static int max_queue_size;
         static int max_stack_size;
-        static int max_stack_depth;
 #endif
         // static bool UseDepthBounding = false;
         // static int DepthBound = 100;
@@ -47,9 +46,8 @@ namespace P.Tester
             abstract_succs.Clear();
 
 #if DEBUG
-            max_queue_size  = 0;
-            max_stack_size  = 0;
-            max_stack_depth = 0;
+            max_queue_size = 0;
+            max_stack_size = 0;
 #endif
 
             var stack = new Stack<BacktrackingState>();
@@ -87,8 +85,6 @@ namespace P.Tester
             while (stack.Count != 0)
             {
                 var bstate = stack.Pop();
-
-                // PrintStackDepth(stack.Count);
 
                 if (bstate.CurrIndex >= bstate.State.EnabledMachines.Count) // if "done" with bstate
                 {
@@ -137,8 +133,14 @@ namespace P.Tester
                     if (concretes.Count % 1000 == 0)
                     {
                         Console.WriteLine("-------------- Number of concrete states visited so far   = {0}", concretes.Count);
-                        Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstracts.Count);
-                        Console.WriteLine("-------------- Number of abstract successors found so far = {0} (only those satisfying all static invariants)", abstract_succs.Count);
+                        if (queue_abstraction)
+                        {
+                            Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstracts.Count);
+                            Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstract_succs.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
+                        }
+                        // Console.WriteLine("-------------- Maximum queue size  encountered so far     = {0}", max_queue_size);
+                        Console.WriteLine("-------------- Maximum stack size encountered so far      = {0}", max_stack_size);
+                        Console.WriteLine();
                     }
 
                     // update maximum encountered queue size
@@ -151,11 +153,13 @@ namespace P.Tester
             Console.WriteLine("");
 
             Console.WriteLine("Number of concrete states visited     = {0}", concretes.Count);
-            Console.WriteLine("Number of abstract states encountered = {0}", abstracts.Count);
-            Console.WriteLine("Number of abstract successors found   = {0} (only those satisfying all static invariants)", abstract_succs.Count);
+            if (queue_abstraction)
+            {
+                Console.WriteLine("Number of abstract states encountered = {0}", abstracts.Count);
+                Console.WriteLine("Number of abstract successors found   = {0}{1}", abstract_succs.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
+            }
             Console.WriteLine("Maximum queue size  encountered       = {0}", max_queue_size);
             Console.WriteLine("Maximum stack size  encountered       = {0}", max_stack_size);
-            Console.WriteLine("Maximum stack depth encountered       = {0}", max_stack_depth);
 
             Console.WriteLine();
 
@@ -351,7 +355,7 @@ namespace P.Tester
         public StateImpl State;
         public int CurrIndex;            // index of the next machine to execute
         public List<bool> ChoiceVector;  // length = number of choices to be made; contents of list = current choice as bitvector
-        public int depth;                // used only with depth bounding
+        public int depth;                // only used with depth bounding
 
         public BacktrackingState(StateImpl state)
         {

@@ -145,6 +145,8 @@ namespace P.Tester
                             case "psharp": options.UsePSharp = true; break;
 
                             case "dfs":
+                                if (param.Length > 0)
+                                    throw new ArgumentException("/" + option + ": no argument expected (did you mean to supply a queue-bound? use /queue-bound:" + int.Parse(param).ToString() + ")");
                                 options.DfsExploration = true;
                                 DfsExploration.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
                                 if (PrtEventBuffer.k == -1)
@@ -152,6 +154,8 @@ namespace P.Tester
                                 break;
 
                             case "os-list":
+                                if (param.Length > 0)
+                                    throw new ArgumentException("/" + option + ": no argument expected (did you mean to supply a queue-bound? use /queue-bound:" + int.Parse(param).ToString() + ")");
                                 options.OSList = true;
                                 DfsExploration.UseStateHashing = true; // ditto
                                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
@@ -160,6 +164,8 @@ namespace P.Tester
                                 break;
 
                             case "os-set":
+                                if (param.Length > 0)
+                                    throw new ArgumentException("/" + option + ": no argument expected (did you mean to supply a queue-bound? use /queue-bound:" + int.Parse(param).ToString() + ")");
                                 options.OSSet = true;
                                 DfsExploration.UseStateHashing = true; // ditto
                                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;

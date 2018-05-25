@@ -1,6 +1,7 @@
 @echo off
 
-if %1.==. goto no-file
+if %1. == .   goto no-file
+if %1. == /h. goto no-file
 
 set src=%1
 
@@ -21,6 +22,6 @@ echo now consider running something like "pt /dfs %src%.dll"
 goto eof
 
 :no-file
-  echo must provide .P file argument, *without* suffix .P, e.g. "build german"
+  echo Usage: "build <myfile>" , where "<myfile>" is the .p file argument but *without* suffix .p, e.g. "build german"
 
 :eof
