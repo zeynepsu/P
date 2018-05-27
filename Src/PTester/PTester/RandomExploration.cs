@@ -47,14 +47,9 @@ namespace P.Tester
                     currImpl.EnabledMachines[choosenext].PrtRunStateMachine();
 
 #if DEBUG
-                    // some diagnostics
-
                     // update maximum encountered queue size
                     foreach (PrtImplMachine m in currImpl.ImplMachines)
-                    {
-                        int m_size = m.eventQueue.Size();
-                        max_queue_size = (m_size > max_queue_size ? m_size : max_queue_size);
-                    }
+                        max_queue_size = Math.Max(max_queue_size, m.eventQueue.Size());
 #endif
 
                     if (currImpl.Exception != null)

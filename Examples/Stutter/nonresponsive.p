@@ -1,5 +1,3 @@
-enum Global { ZERO=0, X=3 } // for some reason, at least one enum element must be numbered 0
-
 event WAIT;
 event DONE;
 event PING;
@@ -14,13 +12,11 @@ machine Main {
 
   state SendPrefix {
     entry {
-      var i:int;
-      i = 0;
-      while (i < X) {
+      if ($)
         send client, WAIT;
-        i = i + 1; }
-      send client, DONE;
-      goto Flood; }}
+      else {
+        send client, DONE;
+        goto Flood; }}}
 
   state Flood {
     entry {
@@ -31,7 +27,7 @@ machine Main {
 
 machine Client {
   start state Init {
-    defer WAIT, PING;
+    defer PING;  // removed: WAIT
     on DONE goto Consume; }
 
   state Consume { ignore WAIT, PING; }}

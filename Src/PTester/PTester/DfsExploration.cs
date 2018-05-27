@@ -123,7 +123,7 @@ namespace P.Tester
                     }
 
                     // status and diagnostics
-                    if (concretes.Count % 1000 == 0)
+                    if (concretes.Count % 100 == 0)
                     {
                         Console.WriteLine("-------------- Number of concrete states visited so far   = {0}", concretes.Count);
                         if (queue_abstraction)
@@ -132,6 +132,7 @@ namespace P.Tester
                             Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstract_succs.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
                         }
 #if DEBUG
+                        Console.WriteLine("-------------- Maximum queue size encountered so far      = {0}", max_queue_size);
                         Console.WriteLine("-------------- Maximum stack size encountered so far      = {0}", max_stack_size);
 #endif
                         Console.WriteLine();

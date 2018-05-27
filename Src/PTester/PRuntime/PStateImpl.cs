@@ -390,7 +390,7 @@ namespace P.Runtime
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
         public bool Check_state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
-#if false//true
+#if true
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
             List<PrtEventNode> Client_q = Client.eventQueue.events;
@@ -418,7 +418,7 @@ namespace P.Runtime
             }
 #endif
 
-#if true
+#if false
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract()); List<PrtEventNode>  Main_q  =  Main .eventQueue.events;
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract()); List<PrtEventNode> Client_q = Client.eventQueue.events;
 
