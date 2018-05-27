@@ -12,18 +12,18 @@ machine Main {
 
   state SendPrefix {
     entry {
+      send client, WAIT;
       if ($)
-        send client, WAIT;
-      else {
-        send client, DONE;
-        goto Flood; }}}
+        goto SendPrefix;
+      else
+        goto Flood; }}
 
   state Flood {
     entry {
       send client, PING;
       goto Flood; }}}
 
-///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////
 
 machine Client {
   start state Init {
