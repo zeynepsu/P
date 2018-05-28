@@ -167,7 +167,7 @@ namespace P.Runtime
                 clonedState.currentVisibleTrace.Trace.Add(item);
             }
 
-            clonedState.errorTrace = new StringBuilder(errorTrace.ToString());
+            clonedState.errorTrace = new StringBuilder(errorTrace.ToString()); // comment out this entire line to skip the error trace string
 
             clonedState.Resolve();
 

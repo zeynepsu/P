@@ -149,8 +149,6 @@ namespace P.Tester
                                     throw new ArgumentException("/" + option + ": no argument expected (did you mean to supply a queue-bound? use /queue-bound:" + int.Parse(param).ToString() + ")");
                                 options.DfsExploration = true;
                                 DfsExploration.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
-                                if (PrtEventBuffer.k == -1)
-                                    PrtEventBuffer.k = 0; // default
                                 break;
 
                             case "os-list":
@@ -159,8 +157,6 @@ namespace P.Tester
                                 options.OSList = true;
                                 DfsExploration.UseStateHashing = true; // ditto
                                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.list;
-                                if (PrtEventBuffer.k == -1)
-                                    PrtEventBuffer.k = 1; // default
                                 break;
 
                             case "os-set":
@@ -169,8 +165,6 @@ namespace P.Tester
                                 options.OSSet = true;
                                 DfsExploration.UseStateHashing = true; // ditto
                                 PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
-                                if (PrtEventBuffer.k == -1)
-                                    PrtEventBuffer.k = 1; // default
                                 break;
 
                             case "queue-bound":
@@ -295,7 +289,7 @@ namespace P.Tester
             Console.WriteLine("/os-list                 Perform OS exploration (based on DFS) of the state space, with queue list abstraction");
             Console.WriteLine("/os-set                  Perform OS exploration (based on DFS) of the state space, with queue set  abstraction");
             Console.WriteLine("/queue-bound:k           Bound queue size to k (i.e. a machine's send is disabled when its current buffer is size k) (default: 0=unbounded for DFS, 1 for OS).");
-            Console.WriteLine("                         In case of /os search, this bound applies to the first-round queue.");
+            Console.WriteLine("                         In case of /os search, this bound applies to the first-round queue and is incremented subsequently.");
             Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p) (default: 0)");
             Console.WriteLine("/invar                   Use state/transition invariants implemented for your scenario");
             Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
@@ -305,17 +299,12 @@ namespace P.Tester
             Console.WriteLine("If none of /psharp, /dfs, /os-... are specified: perform random testing");
         }
 
-//        delegate int F(int i);
-
         public static void Main(string[] args)
         {
 
             if (args.Length > 0)
                 if (args[0] == "!")     // scratch space for quick testing
                 {
-                    //F f = (i => i + 1);
-                    //int j = f(10);
-                    //Console.WriteLine(j);
                     Environment.Exit(0);
                 }
 
@@ -370,15 +359,15 @@ namespace P.Tester
             }
             else if (options.DfsExploration)
             {
-                DfsExploration.Dfs();                           // single exploration from s with queue bound k
+                DfsExploration.Dfs();                           // single exploration from s
             }
             else if (options.OSList)
             {
-                DfsExploration.OS_Iterate();                    // OS exploration from s starting with queue bound k, using queue list abstraction
+                DfsExploration.OS_Iterate();                    // OS exploration from s, using queue list abstraction
             }
             else if (options.OSSet)
             {
-                DfsExploration.OS_Iterate();                    // OS exploration from s starting with queue bound k, using queue set abstraction
+                DfsExploration.OS_Iterate();                    // OS exploration from s, using queue set abstraction
             }
             else
             {

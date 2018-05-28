@@ -77,6 +77,34 @@ namespace P.Tester
             // DFS begin
             while (stack.Count != 0)
             {
+
+#if false // code for investigating memory usage
+                if(stack.Count == 5000)
+                {
+                    Console.WriteLine("Stack depth of 5000 reached");
+                    
+                    GC.Collect();
+                    var mem1 = GC.GetTotalMemory(true) / (1024.0 * 1024.0);
+                    Console.WriteLine("Current memory usage = {0} MB", mem1.ToString("F2"));
+
+                    // lets clone
+                    var stackarr = stack.ToArray();
+                    var newStack = new List<StateImpl>();
+                    for(int i = 0; i < stackarr.Length; i++)
+                    {
+                        newStack.Add((StateImpl)stackarr[i].State.Clone());
+                    }
+
+                    GC.Collect();
+                    var mem2 = GC.GetTotalMemory(true) / (1024.0 * 1024.0);
+
+                    Console.WriteLine("Memory usage after cloning the stack = {0} MB", mem2.ToString("F2"));
+                    Console.WriteLine("Average usage per state = {0} MB", (mem2 - mem1) / 5000.0);
+
+                    Environment.Exit(0);
+                }
+#endif
+
                 var bstate = stack.Pop();
 
                 if (bstate.CurrIndex >= bstate.State.EnabledMachines.Count) // if "done" with bstate
@@ -171,7 +199,8 @@ namespace P.Tester
 
         public static void OS_Iterate()
         {
-            if (PrtEventBuffer.k == 0) { Console.WriteLine("OS Exploration: skipping k=0 (makes no sense)"); goto Next_Round; }
+            if (PrtEventBuffer.k == 0)
+                goto Next_Round; // skip 0: makes no sense
 
             Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", PrtEventBuffer.k);
             bool stop = ( Console.ReadKey().Key != ConsoleKey.Enter ); Console.WriteLine();

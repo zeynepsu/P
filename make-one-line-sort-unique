@@ -10,10 +10,25 @@
 # Usage example: cat pretty-printed-states.txt | make-one-line-sort-unique > sorted-compact-states.txt
 
 SEP="@"
-TMP=$(mktemp)
+INP=$(mktemp)
 
-sed -e "s/^=\+$/$SEP/g" | tr "\n" " " | tr -s " " | tr "$SEP" "\n" | sed -e "s/^[[:space:]]\+//g" | sed -e "s/[[:space:]]\+$//g" | sort > $TMP
+cat /dev/stdin > $INP
 
-{ sort -cu $TMP || echo "$0: warning: given stream of states contains duplicates"; } > /dev/stderr
+cat $INP | dos2unix.exe | diff -q - $INP > /dev/null || {
+    {
+	echo "$0: warning: given input stream uses DOS line breaks."
+	echo "Please convert to UNIX format first (e.g. dos2unix)."
+	echo "Exiting."
+    } > /dev/stderr
+    exit -1; }
 
-cat $TMP
+cat $INP | \
+  egrep -v "^Hash:" | \
+  sed -e "s/^=\+$/$SEP/g" | \
+  tr "\n" " " | \
+  tr -s " " | \
+  tr "$SEP" "\n" | \
+  sed -e "s/^[[:space:]]\+//g" | \
+  sed -e "s/[[:space:]]\+$//g" | \
+  sort | \
+  tee >(sort -cu 2> /dev/null || { echo; echo "$0: warning: given stream of states contains duplicates"; } > /dev/stderr)
