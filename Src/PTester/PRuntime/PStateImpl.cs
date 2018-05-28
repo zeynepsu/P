@@ -217,7 +217,7 @@ namespace P.Runtime
                 if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
                     collect_abstract_successors_from_list(currIndex, abstract_succs, abstract_succs_SW);
                 else
-                    collect_abstract_successors_from_set(currIndex, abstract_succs, abstract_succs_SW);
+                    collect_abstract_successors_from_set (currIndex, abstract_succs, abstract_succs_SW);
             }
         }
 
@@ -272,6 +272,9 @@ namespace P.Runtime
         // for queue-set abstraction:
         void collect_abstract_successors_from_set(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
+            // the collection function is too complicated for the set abstraction with the current data structures.
+            // For set abstraction, we need to split the queue into a list for the unabstracted prefix, and a proper (Hash)set for the suffix.
+            // The current implementation works only for p=0 (all of the queue is abstracted into a set)
             if (PrtEventBuffer.p > 0)
                 throw new NotImplementedException("StateImpl.collect_abstract_successors_from_set: the method is implemented only for queue-prefix == 0 at the moment");
 
@@ -306,7 +309,6 @@ namespace P.Runtime
                 ;
             }
         }
-       
 
         public class SuccessorFound : System.Exception {
             public SuccessorFound() {}

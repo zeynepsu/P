@@ -123,7 +123,7 @@ namespace P.Tester
                     }
 
                     // status and diagnostics
-                    if (concretes.Count % 100 == 0)
+                    if (concretes.Count % 1000 == 0)
                     {
                         Console.WriteLine("-------------- Number of concrete states visited so far   = {0}", concretes.Count);
                         if (queue_abstraction)
