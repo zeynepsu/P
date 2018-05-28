@@ -1,4 +1,6 @@
-﻿using System;
+﻿// #define __ERROR_TRACE__
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -166,9 +168,9 @@ namespace P.Runtime
             {
                 clonedState.currentVisibleTrace.Trace.Add(item);
             }
-
-            clonedState.errorTrace = new StringBuilder(errorTrace.ToString()); // comment out this entire line to skip the error trace string
-
+#if __ERROR_TRACE__
+            clonedState.errorTrace = new StringBuilder(errorTrace.ToString());
+#endif
             clonedState.Resolve();
 
             return clonedState;
