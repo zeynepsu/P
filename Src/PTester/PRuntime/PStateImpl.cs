@@ -79,8 +79,11 @@ namespace P.Runtime
 
         public static bool invariants = false;
 
-        public static int succHash = 0; // we assume 0 is not a valid state hash (:-(
-        public static int predHash = 0;
+        public enum Explore_Mode { normal , find_a_ap , find_comp };
+
+        public static Explore_Mode mode = Explore_Mode.normal;
+        public static int succHash;
+        public static int predHash;
 
         public static bool FileDump = false;
 
@@ -213,7 +216,12 @@ namespace P.Runtime
                       m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
                     continue;
 
-                if (m.eventQueue.Empty()) // apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
+                // reject machines with empty queues. Apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
+                if (m.eventQueue.Empty())
+                    continue;
+
+                // reject "non-abstract" queues: those whose unabstracted prefix covers the whole queue (no suffix). Here the abstraction is precise, and the successor function cannot generate anything that is not already in "abstracts"
+                if (m_q.Count <= PrtEventBuffer.p)
                     continue;
 
                 if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
@@ -229,6 +237,8 @@ namespace P.Runtime
             PrtImplMachine m = ImplMachines[currIndex];
             List<PrtEventNode> m_q = m.eventQueue.events;
 
+            Debug.Assert(m_q.Count > PrtEventBuffer.p); // there must be a suffix at this point: the queue must be truly abstract
+
             var ChoiceVector = new List<bool>();
             bool more;
             do
@@ -241,16 +251,8 @@ namespace P.Runtime
                     return;                                              // then there is nothing left to do. No more nondet choices to try
                 Debug.Assert(succ_m_q.Count == m_q.Count - 1); // we have dequeued exactly one event
                 Debug.Assert(PrtEventBuffer.last_ev_dequeued <= succ_m_q.Count);
-                if (PrtEventBuffer.last_ev_dequeued < PrtEventBuffer.p) // if a prefix element was dequeued
-                {
-                    if (m_q.Count <= PrtEventBuffer.p) // if there was no suffix to begin with
-                    {
-                        succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                        continue;
-                    }
-                    // the new prefix is already correct: the first suffix element transited to the end of the prefix. But we don't know the multiplicity of it in the suffix
+                if (PrtEventBuffer.last_ev_dequeued < PrtEventBuffer.p) // if a prefix element was dequeued, then the new prefix is already correct: the first suffix element transited to the end of the prefix. But we don't know the multiplicity of it in the suffix
                     PrtEventBuffer.last_ev_dequeued = PrtEventBuffer.p; // we abuse the PrtEventBuffer.last_ev_dequeued variable to point to the index of the element we may need to re-insert in the suffix
-                }
                 // (else) if a suffix element was deqeued, then PrtEventBuffer.last_ev_dequeued already points to the right index, namely that one
                 PrtEventNode moved_from_suff = m_q[PrtEventBuffer.last_ev_dequeued];
                 Debug.Assert(succ_m_q.FindLastIndex(ev => ev.Equals(moved_from_suff)) < PrtEventBuffer.p); // we just removed it from the suffix, and the suffix contains no duplicates
@@ -317,7 +319,7 @@ namespace P.Runtime
             public SuccessorFound(StateImpl a, StateImpl ap)
             {
                 Console.WriteLine("Found abstract pair (a,a') such that a' is the abstract successor state of a identified in previous run.");
-                string  a_f =  "a.txt";
+                string a_f  = "a.txt";
                 string ap_f = "ap.txt";
                 StreamWriter  a_SW = new StreamWriter( a_f);  a_SW.WriteLine(a .ToPrettyString());  a_SW.Close();
                 StreamWriter ap_SW = new StreamWriter(ap_f); ap_SW.WriteLine(ap.ToPrettyString()); ap_SW.Close();
@@ -327,13 +329,13 @@ namespace P.Runtime
 
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            int phash = pred.GetHashCode(); if (phash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
-            int hash  =      GetHashCode(); if ( hash == 0) throw new NotImplementedException("Need to redesign this if state hashes can be 0");
+            int p_hash = pred.GetHashCode();
+            int   hash=      GetHashCode();
 
-            if (succHash != 0) // if we are in successor finding mode
+            if (mode == Explore_Mode.find_a_ap) // if we are locating a and ap
                 if (succHash == hash)
                 {
-                    predHash = phash;
+                    predHash = p_hash;
                     throw new SuccessorFound(pred, this);
                 }
 
@@ -407,7 +409,7 @@ namespace P.Runtime
             {
                 for (int i = 0; i < Client_q.Count - 1; ++i)
                 {
-                    string curr = Client_q[  i  ].ev.ToString();
+                    string curr = Client_q[i    ].ev.ToString();
                     string next = Client_q[i + 1].ev.ToString();
                     // PING cannot be followed by WAIT
                     if (curr == "PING" && next == "WAIT")

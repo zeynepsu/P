@@ -115,7 +115,7 @@ namespace P.Tester
                 BacktrackingState succ = Execute(bstate);    // execute the enabled machine pointed to by currIndex. Also, advance currIndex and/or choiceIndex
                 stack.Push(bstate);
 
-                if (StateImpl.predHash != 0) // if we are in predecessor finding mode
+                if (StateImpl.mode == StateImpl.Explore_Mode.find_comp) // if we are in competitor finding mode
                     check_pred_hash(bstate.State, succ.State);
 
                 if (!succ.State.CheckFailure(succ.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
@@ -210,17 +210,29 @@ namespace P.Tester
                 Environment.Exit(0);
             }
 
-            try { Dfs(true); Debug.Assert(StateImpl.succHash == 0, "Dfs should always find the successor state with the given hash code"); }
+            try { Dfs(true); Debug.Assert(StateImpl.mode == StateImpl.Explore_Mode.normal, "Dfs should always find the successor state with the given hash code"); }
             catch (StateImpl.SuccessorFound)
             {
-                Console.WriteLine("Restarting Dfs ...");
+                StateImpl.mode = StateImpl.Explore_Mode.find_comp;
                 competitors = new HashSet<int>();
+                Console.WriteLine("Restarting Dfs ...");
                 Dfs();
                 Debug.Assert(competitors.Count > 0);
-                Console.WriteLine("Found {0} concrete pairs (s, s') such that alpha(s) = a.", competitors.Count);
-                Console.WriteLine("Pretty-printed a and a' into files a.txt and ap.txt, and the corresponding abstract successor states b' = alpha(s') into files bp0.txt..bp{0}.txt .", competitors.Count - 1);
+                Console.WriteLine("Found {0} concrete-state pairs (c,c') such that alpha(c) = a.", competitors.Count);
+                Console.WriteLine("Pretty-printed a and a' into files a.txt and ap.txt, and the corresponding abstract successor states b' = alpha(c') into files bp0.txt..bp{0}.txt .", competitors.Count - 1);
                 Console.WriteLine("Abstract states b' are \"competitors\" to candidate abstract successor a' .");
                 Console.WriteLine("You should compare each b' to a'; the difference might reveal why b' is reachable while a' is not (IF the latter is the case).");
+                // The following is experimental
+                string cmd = "c:\\Program Files\\Meld\\Meld.exe"; // your favorite diff command here. It must accept two filename arguments
+                string arg = "bp0.txt ap.txt";
+                Console.Write("Press <ENTER> to run \"{0} {1}\", anything else to 'Exit(0)': ", cmd, arg);
+                bool run = (Console.ReadKey().Key == ConsoleKey.Enter); Console.WriteLine();
+                if (run)
+                {
+                    Console.WriteLine("Running external command.");
+                    try { Process.Start(cmd, arg); }
+                    catch (System.Exception e) { Console.WriteLine("External command: something went wrong: {0}", e.Message); Environment.Exit(-1); }
+                }
                 Console.WriteLine("Exiting.");
                 Environment.Exit(0);
             }
@@ -259,12 +271,12 @@ namespace P.Tester
             OS_Iterate();
         }
 
-        static void check_pred_hash(StateImpl s, StateImpl sp)
+        static void check_pred_hash(StateImpl c, StateImpl cp)
         {
-            StateImpl a = (StateImpl)s.Clone(); a.abstract_me();
+            StateImpl a = (StateImpl)c.Clone(); a.abstract_me();
             if (a.GetHashCode() == StateImpl.predHash)
             {
-                StateImpl bp = (StateImpl)sp.Clone(); bp.abstract_me();
+                StateImpl bp = (StateImpl)cp.Clone(); bp.abstract_me();
                 int bp_hash = bp.GetHashCode();
                 if (competitors.Add(bp_hash))
                 {
@@ -298,11 +310,12 @@ namespace P.Tester
                         return false;
 
                     // for the re-run, queue abstraction type remains, k bound remains; file dumping is turned off
+                    StateImpl.mode = StateImpl.Explore_Mode.find_a_ap;
                     StateImpl.succHash = hash;
                     StateImpl.FileDump = false;
                     FileDump = false;
                     OS_Iterate();
-                    Debug.Assert(false, "OS_Iterate should always find the successor state with the given hash code");
+                    Debug.Assert(false, "DfsExploration.abstract_converged: internal error: can't get here");
                 }
             }
             return true;

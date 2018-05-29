@@ -658,6 +658,7 @@ namespace P.Runtime
 
             events.Add(en); // add to end
 
+            // surprisingly, the below is the only thing we have to do on an abstract queue in addition to the concrete stuff, and this is true for both set and list abstractions
             if (is_abstract())
                 remove_dups_from_p();
         }
@@ -668,7 +669,7 @@ namespace P.Runtime
             HashSet<PrtValue> receiveSet  = owner.receiveSet;
 
             int iter = 0;
-            last_ev_dequeued = events.Count + 1; // if, after DequeueEvent, last_... = Count + 1, nothing was dequeued. Otherwise last_... will be <= Count and points to the OLD index dequeued
+            last_ev_dequeued = events.Count + 1; // if, AFTER DequeueEvent, last_... = Count + 1, nothing was dequeued. Otherwise last_... will be <= Count and points to the OLD index dequeued
             while (iter < events.Count)
             {
                 if ( (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev)) ||  // we check deferredSet and receiveSet only against ev (event type), not arg
