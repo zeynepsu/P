@@ -531,25 +531,36 @@ namespace P.Runtime
 
     public class PrtEventBuffer
     {
-        public enum Queue_Type { none, list, set };
+        public enum Queue_Type { list, set }; // the /abstract/ queue type
 
-        public static Queue_Type qt = Queue_Type.none;
+        public static Queue_Type qt;
+
         public static int k = 0;  // queue size bound. For DFS, '0' is interpreted as 'unbounded'
-        public static int p = 0;  // prefix of queue that is always maintained concretely
+        public static int p = 0;  // prefix of queue that is maintained concretely (not abstracted)
 
-        public List<PrtEventNode> events; // used as (i) concrete queue, (ii) abstract queue, interpreted as repetition-free list, (iii) abstract queue, interpreted as set
-        public bool concrete;
+        public List<PrtEventNode>    events;      // used as (i) concrete queue, (ii) unabstracted prefix of an abstract queue
+        public List<PrtEventNode>    suffix_list; // for list abstraction, the (abstracted) suffix of the queue as a list
+        public HashSet<PrtEventNode> suffix_set;  // for set  abstraction, the (abstracted) suffix of the queue as a set
 
         public static int last_ev_dequeued; // index last dequeued
 
-        public PrtEventBuffer() { events = new List<PrtEventNode>(); concrete = true; }
+        public PrtEventBuffer() { events = new List<PrtEventNode>(); suffix_list = null; suffix_set = null; }
 
-        public bool is_concrete() { return concrete; }
+        public bool is_concrete() { return suffix_list == null && suffix_set == null; }
         public bool is_abstract() { return !is_concrete(); }
+        public bool is_list    () { return is_abstract() && qt == Queue_Type.list; }
+        public bool is_set     () { return is_abstract() && qt == Queue_Type.set; }
 
-        public bool Empty() { return events.Count == 0; } // this is applicable in the concrete and the abstract
+        public int Size() // concrete or abstract size
+        {
+            if (is_concrete())
+                return events.Count;
+            return events.Count + ( is_list() ? suffix_list.Count : suffix_set.Count );
+        }
 
-        public int Size() { Debug.Assert(is_concrete()); return events.Count; } // this method only makes sense in the concrete
+        bool abstract_queue_inv() { Debug.Assert(is_abstract()); return events.Count == p || ( is_list() ? suffix_list.Count : suffix_set.Count ) == 0; }
+
+        public bool Empty() { return Size() == 0; }
 
         // Convert the queue into a list that, for the suffix starting at p, keeps the ordering restricted to first-time occurrence but ignores multiplicity. This creates a very fine-grained abstraction.
         // For instance, for p=0,
@@ -560,35 +571,41 @@ namespace P.Runtime
         public void abstract_me()
         {
             Debug.Assert(is_concrete());
-            Debug.Assert(qt != Queue_Type.none);
-            concrete = false;
-            remove_dups_from_p();
+            if (qt == Queue_Type.list)
+            {
+                suffix_list = new List<PrtEventNode>();
+                split_off_suffix_list();
+            }
+            else
+            {
+                suffix_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+                split_off_suffix_set();
+            }
+            Debug.Assert(abstract_queue_inv());
         }
 
-        // remove duplicate events in the suffix starting at position p (no matter whether list or set abstraction is used)
-        public void remove_dups_from_p()
+        public void split_off_suffix_list()
         {
-            Debug.Assert(is_abstract());
-            var temp_Cmp = new PrtEventNodeComparer();
-            var temp_prefix_set = new HashSet<PrtEventNode>(temp_Cmp);
-
-            int i = p;
-            while (i < events.Count)
+            suffix_list.Clear();
+            HashSet<PrtEventNode> tmp_suffix_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+            while (events.Count > p)
             {
-                PrtEventNode ev = events[i];
-                // ev.arg = PrtValue.@null; // this line abstracts the payload away
-                if (temp_prefix_set.Add(ev))
-                    ++i;
-                else
-                {
-                    events.RemoveAt(i);
-                    // do not increment i here!
-#if DEBUG
-                    // Console.WriteLine("PrtEventBuffer.abstract_me: success: duplicate event {0} dropped from queue", ev.ToString())
-#endif
-                }
+                PrtEventNode ev = events[p];
+                if (tmp_suffix_set.Add(ev))
+                    suffix_list.Add(ev);
+                events.RemoveAt(p);
             }
-            Debug.Assert(events.Count < p || events.Count == p + temp_prefix_set.Count);
+            Debug.Assert(suffix_list.Count == tmp_suffix_set.Count);
+        }
+
+        public void split_off_suffix_set()
+        {
+            suffix_set.Clear();
+            while (events.Count > p)
+            {
+                suffix_set.Add(events[p]);
+                events.RemoveAt(p);
+            }
         }
 
         public PrtEventBuffer Clone()
@@ -598,7 +615,18 @@ namespace P.Runtime
             foreach (PrtEventNode ev in events)
                 clonedVal.events.Add(ev.Clone());
 
-            clonedVal.concrete = concrete;
+            if (is_list())
+            {
+                clonedVal.suffix_list = new List<PrtEventNode>();
+                foreach (PrtEventNode ev in suffix_list)
+                    clonedVal.suffix_list.Add(ev.Clone());
+            }
+            else if (is_set())
+            {
+                clonedVal.suffix_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
+                foreach (PrtEventNode ev in suffix_set)
+                    clonedVal.suffix_set.Add(ev.Clone());
+            }
 
             return clonedVal;
         }
@@ -609,19 +637,31 @@ namespace P.Runtime
             x.Resolve(s);
             return x;
         }
+
         public string ToPrettyString(string indent = "")
         {
-            string title = indent + "events";
-            if (is_concrete())
-                title += ":           ";
-            else
-                title += ( qt == Queue_Type.list ? " (list):    " : " (set):     " );
-            return title + ( Empty() ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) ) + "\n";
+            string title = "";
+            title += indent + "events";
+            title += ( is_concrete() ? ":       " : ( is_list() ? " (list):" : " (set): " ) ) + "    ";
+            title += ( events.Count == 0 ? "null" : events.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            if (is_abstract())
+            {
+                title += "|"; // separate prefix from suffix (even if prefix is empty, which can be because the queue is empty, or because p=0)
+                if (is_list())
+                    title += ( suffix_list.Count == 0 ? "null" : suffix_list.Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+                else
+                    title += ( suffix_set .Count == 0 ? "null" : suffix_set .Select(ev => ev.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            }
+            return title + "\n";
         }
 
         public override int GetHashCode()
         {
-            return Hashing.Hash(events.Select(v => v.GetHashCode()).Hash(), concrete.GetHashCode());
+            int events_hash = Hashing.Hash(events.Select(v => v.GetHashCode()));
+            if (is_concrete())
+                return events_hash;
+            return (is_list() ? Hashing.Hash(events_hash, Hashing.Hash(suffix_list.Select(v => v.GetHashCode())))
+                              : Hashing.Hash(events_hash, Hashing.Hash(suffix_set .Select(v => v.GetHashCode()))));
         }
 
         public int CalculateInstances(PrtValue e)
@@ -654,13 +694,21 @@ namespace P.Runtime
                         else
                             throw new PrtMaxEventInstancesExceededException(String.Format(@"< Exception > Attempting to enqueue event {0} more than {1} many times\n", ev.evt.name, ev.evt.maxInstances));
                     }
+                events.Add(en);
             }
-
-            events.Add(en); // add to end
-
-            // surprisingly, the below is the only thing we have to do on an abstract queue in addition to the concrete stuff, and this is true for both set and list abstractions
-            if (is_abstract())
-                remove_dups_from_p();
+            else
+            {
+                if (events.Count < p)              // if there is still room in the prefix
+                    events.Add(en);                //   append to prefix
+                else if (is_list())
+                {
+                    if (!suffix_list.Contains(en)) //   if not already in suffix list
+                        suffix_list.Add(en);       //     add to the end
+                }
+                else
+                    suffix_set.Add(en);            //   merge into suffix set
+                Debug.Assert(abstract_queue_inv());
+            }
         }
 
         public bool DequeueEvent(PrtImplMachine owner)

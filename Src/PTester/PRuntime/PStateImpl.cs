@@ -205,7 +205,7 @@ namespace P.Runtime
             for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
             {
                 PrtImplMachine m = ImplMachines[currIndex];
-                List<PrtEventNode> m_q = m.eventQueue.events;
+                PrtEventBuffer m_q = m.eventQueue;
 
                 // reject disabled machines
                 if (!(m.currentStatus == PrtMachineStatus.Enabled))
@@ -220,8 +220,9 @@ namespace P.Runtime
                 if (m.eventQueue.Empty())
                     continue;
 
-                // reject "non-abstract" queues: those whose unabstracted prefix covers the whole queue (no suffix). Here the abstraction is precise, and the successor function cannot generate anything that is not already in "abstracts"
-                if (m_q.Count <= PrtEventBuffer.p)
+                // reject "non-abstract" queues: those with empty suffix. In this case the abstraction is precise,
+                // so the successor function cannot generate anything new
+                if (m_q.Size() <= PrtEventBuffer.p)
                     continue;
 
                 if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
@@ -234,10 +235,12 @@ namespace P.Runtime
         // for queue-list abstraction:
         void collect_abstract_successors_from_list(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            PrtImplMachine m = ImplMachines[currIndex];
-            List<PrtEventNode> m_q = m.eventQueue.events;
+            //PrtImplMachine m = ImplMachines[currIndex];
+            //PrtEventBuffer m_q = m.eventQueue;
+            //List<PrtEventNode> m_p = m_q.events;
+            //List<PrtEventNode> m_s = m_q.suffix_list;
 
-            Debug.Assert(m_q.Count > PrtEventBuffer.p); // there must be a suffix at this point: the queue must be truly abstract
+            Debug.Assert(ImplMachines[currIndex].eventQueue.suffix_list.Count > 0); // there must be a suffix at this point: the queue must be truly abstract
 
             var ChoiceVector = new List<bool>();
             bool more;
@@ -245,25 +248,65 @@ namespace P.Runtime
             {
                 StateImpl          succ     = (StateImpl)Clone();
                 PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
-                List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
+                PrtEventBuffer     succ_m_q = succ_m.eventQueue;
+                List<PrtEventNode> succ_m_p = succ_m_q.events;      // queue prefix
+                List<PrtEventNode> succ_m_s = succ_m_q.suffix_list; // queue suffix (list)
+
+                // save a copy of the event queue, so we don't have to uncecessarily re-clone the whole state
+                var succ_m_q_cp = succ_m_q.Clone();
+
+                if (PrtEventBuffer.p == 0)
+                    goto Dequeue_From_Suffix;
+                // try dequeuing a prefix event
+                succ_m_s.Clear(); // so we know for sure whether a prefix event was dequeued
                 more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
-                if (succ_m_q.Count == m_q.Count || succ.CheckFailure(0)) // if dequeing was unsuccessful, i.e. no event was dequeued at all
-                    return;                                              // then there is nothing left to do. No more nondet choices to try
-                Debug.Assert(succ_m_q.Count == m_q.Count - 1); // we have dequeued exactly one event
-                Debug.Assert(PrtEventBuffer.last_ev_dequeued <= succ_m_q.Count);
-                if (PrtEventBuffer.last_ev_dequeued < PrtEventBuffer.p) // if a prefix element was dequeued, then the new prefix is already correct: the first suffix element transited to the end of the prefix. But we don't know the multiplicity of it in the suffix
-                    PrtEventBuffer.last_ev_dequeued = PrtEventBuffer.p; // we abuse the PrtEventBuffer.last_ev_dequeued variable to point to the index of the element we may need to re-insert in the suffix
-                // (else) if a suffix element was deqeued, then PrtEventBuffer.last_ev_dequeued already points to the right index, namely that one
-                PrtEventNode moved_from_suff = m_q[PrtEventBuffer.last_ev_dequeued];
-                Debug.Assert(succ_m_q.FindLastIndex(ev => ev.Equals(moved_from_suff)) < PrtEventBuffer.p); // we just removed it from the suffix, and the suffix contains no duplicates
+                if (PrtEventBuffer.last_ev_dequeued == succ_m_p.Count + 1 || succ.CheckFailure(0)) // if dequeing was unsuccessful
+                    goto Dequeue_From_Suffix;
+                Debug.Assert(succ_m_p.Count == succ_m_q_cp.events.Count - 1); // we have dequeued exactly one event
+                PrtEventNode moved_from_suff = succ_m_q_cp.suffix_list[0]; // the first suffix element moves to the end of the prefix
+                succ_m_p.Add(moved_from_suff);
+                Debug.Assert(succ_m_p.Count == PrtEventBuffer.p); // prefix is "full" again
+                for (int i = 1; i < succ_m_q_cp.suffix_list.Count; ++i) // move remaining suffix elements back into the (currently empty) suffix
+                    succ_m_s.Add(succ_m_q_cp.suffix_list[i]);
+                Debug.Assert(succ_m_s.Count == succ_m_q_cp.suffix_list.Count - 1);
 
                 // choice 1: moved_from_suff existed exactly once in the concrete suffix. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
                 succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
 
-                // choice 2: removed_from_suff existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
+                // choice 2: moved_from_suff existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
+                for (int j = 0; j < succ_m_s.Count; ++j)
+                {
+                    // insert moved_from_suff at position j (push the rest to the right)
+                    succ_m_s.Insert(j, moved_from_suff);
+                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    succ_m_s.RemoveAt(j); // restore previous state
+                }
+                succ_m_s.Add(moved_from_suff); // finally, insert removed_from_suff at end
+                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                continue; // since dequeing from prefix was successful, no need to dequeue from the suffix
+
+                // try dequeuing a suffix event
+            Dequeue_From_Suffix:
+                int x = 0;
+
+
+
+
+                
+                if (PrtEventBuffer.last_ev_dequeued < PrtEventBuffer.p) // if a prefix element was dequeued, then the new prefix is already correct: the first suffix element transited to the last prefix position. But we don't know the multiplicity of it in the suffix
+                {
+                    moved_from_suff = succ_m_p[PrtEventBuffer.p - 1]; // the element now at the end of the prefix was moved away from the suffix
+                    PrtEventBuffer.last_ev_dequeued = PrtEventBuffer.p; // we abuse the PrtEventBuffer.last_ev_dequeued variable to point to the index of the element we may need to re-insert in the suffix
+                }
+                else // if a suffix element was deqeued, then PrtEventBuffer.last_ev_dequeued already points to the right index, namely that one
+                    moved_from_suff = m_s[PrtEventBuffer.last_ev_dequeued - PrtEventBuffer.p]; // we need to recover that element from m
+                Debug.Assert(succ_m_p.FindLastIndex(ev => ev.Equals(moved_from_suff)) < PrtEventBuffer.p); // we just removed it from the suffix, and the suffix contains no duplicates (returns -1 if not found!)
+
+
+                // choice 2: moved_from_suff existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
                 for (int j = PrtEventBuffer.last_ev_dequeued; j < succ_m_q.Count; ++j)
                 {
-                    // insert removed_from_suff at position j (push the rest to the right)
+                    // insert moved_from_suff at position j (push the rest to the right)
                     succ_m_q.Insert(j, moved_from_suff);
                     succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
                     succ_m_q.RemoveAt(j); // restore previous state
