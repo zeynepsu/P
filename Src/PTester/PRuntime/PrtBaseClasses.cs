@@ -551,11 +551,11 @@ namespace P.Runtime
         public bool is_list    () { return is_abstract() && qt == Queue_Type.list; }
         public bool is_set     () { return is_abstract() && qt == Queue_Type.set; }
 
+        public int suffix_Size() { Debug.Assert(is_abstract()); return (is_list() ? suffix_list.Count : suffix_set.Count); }
+
         public int Size() // concrete or abstract size
         {
-            if (is_concrete())
-                return events.Count;
-            return events.Count + ( is_list() ? suffix_list.Count : suffix_set.Count );
+            return ( is_concrete() ? events.Count : events.Count + suffix_Size() );
         }
 
         bool abstract_queue_inv() { Debug.Assert(is_abstract()); return events.Count == p || ( is_list() ? suffix_list.Count : suffix_set.Count ) == 0; }
