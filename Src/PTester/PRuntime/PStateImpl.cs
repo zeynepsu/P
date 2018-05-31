@@ -222,19 +222,18 @@ namespace P.Runtime
 
                 // reject "non-abstract" queues: those with empty suffix. In this case the abstraction is precise,
                 // so the successor function cannot generate anything new
-                if (m_q.suffix_Size() == 0)
+                if (m_q.Size() <= PrtEventBuffer.p)
                     continue;
 
-                if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
-                    collect_abstract_successors_from_list(currIndex, abstract_succs, abstract_succs_SW);
-                else
-                    collect_abstract_successors_from_set (currIndex, abstract_succs, abstract_succs_SW);
+                collect_abstract_successors_from_list(currIndex, abstract_succs, abstract_succs_SW);
             }
         }
 
         // for queue-list abstraction:
         void collect_abstract_successors_from_list(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
+            List<PrtEventNode> m_l = ImplMachines[currIndex].eventQueue.events; // pre-dequeue events list
+
             var ChoiceVector = new List<bool>();
             bool more;
             do
@@ -242,136 +241,42 @@ namespace P.Runtime
                 StateImpl          succ     = (StateImpl)Clone();
                 PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
                 PrtEventBuffer     succ_m_q = succ_m.eventQueue;
-                List<PrtEventNode> succ_m_p = succ_m_q.events;      // queue prefix
-                List<PrtEventNode> succ_m_s = succ_m_q.suffix_list; // queue suffix (list)
+                List<PrtEventNode> succ_m_l = succ_m_q.events; // events list
 
-                // save a copy of the event queue, so we don't have to unnecessarily re-clone the whole state
-                PrtEventBuffer     q_cp = succ_m_q.Clone();
-                List<PrtEventNode> p_cp = q_cp.events;
-                List<PrtEventNode> s_cp = q_cp.suffix_list;
-
-                if (PrtEventBuffer.p == 0)
-                    goto Dequeue_From_Suffix;
-
-                // try dequeuing a prefix event
                 more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
-                if (PrtEventBuffer.last_ev_dequeued == succ_m_p.Count + 1 || succ.CheckFailure(0)) // if dequeing was unsuccessful
-                    goto Dequeue_From_Suffix;
-                Debug.Assert(succ_m_p.Count == p_cp.Count - 1); // we have dequeued exactly one event
-                PrtEventNode moved_from_suff = s_cp[0]; // the first suffix element moves to the end of the prefix
-                succ_m_p.Add(moved_from_suff);
-                Debug.Assert(succ_m_p.Count == PrtEventBuffer.p); // prefix is "full" again
-                for (int i = 1; i < s_cp.Count; ++i) // move remaining suffix elements back into the (currently empty) suffix
-                    succ_m_s.Add(s_cp[i]);
-                Debug.Assert(succ_m_s.Count == s_cp.Count - 1);
+                Debug.Assert(m_l.Count - succ_m_q.Size() <= 1); // we have dequeued at most one event
+                if (m_l.Count == succ_m_q.Size() || succ.CheckFailure(0)) // if dequeing was unsuccessful
+                    return;                                                // then there is nothing left to do. No more nondet choices to try
 
-                // choice 1: moved_from_suff existed exactly once in the concrete suffix. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
+                int          moved_from_suffix_idx = Math.Max(PrtEventBuffer.last_ev_dequeued_idx, PrtEventBuffer.p);
+                PrtEventNode moved_from_suffix     = m_l[moved_from_suffix_idx];
+
+                // choice 1: last_ev_dequeued moved_from_suff existed exactly once in the concrete suffix. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
                 succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
 
-                // choice 2: moved_from_suff existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
-                for (int j = 0; j < succ_m_s.Count; ++j)
+                // choice 2: moved_from_suffix existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
+                for (int j = moved_from_suffix_idx; j < succ_m_q.Size(); ++j)
                 {
-                    // insert moved_from_suff at position j (push the rest to the right)
-                    succ_m_s.Insert(j, moved_from_suff);
+                    // insert moved_from_suffix at position j (push the rest to the right)
+                    succ_m_l.Insert(j, moved_from_suffix);
                     succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                    succ_m_s.RemoveAt(j); // restore previous state
+                    succ_m_l.RemoveAt(j); // restore previous state
                 }
-                succ_m_s.Add(moved_from_suff); // finally, insert removed_from_suff at end
-                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                continue; // since dequeing from prefix was successful, no need to dequeue from the suffix
-
-            // try dequeuing a suffix event. First delete the prefix elements, and move the suffix elements to the prefix
-            Dequeue_From_Suffix:
-
-                succ_m_p.Clear(); foreach (PrtEventNode ev in s_cp) succ_m_p.Add(ev); // copy suffix into prefix, for dequeing
-                more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
-                if (PrtEventBuffer.last_ev_dequeued == succ_m_p.Count + 1 || succ.CheckFailure(0))
-                    return; // no dequeing from prefix or suffix, so we are done here. No more nondet choices to be checked
-                Debug.Assert(succ_m_p.Count == s_cp.Count - 1);
-                moved_from_suff = s_cp[PrtEventBuffer.last_ev_dequeued];
-                // move dequeued suffix into suffix position
-                succ_m_s.Clear();
-                foreach (PrtEventNode ev in succ_m_p)
-                    succ_m_s.Add(ev);
-                // restore prefix
-                succ_m_p.Clear();
-                foreach (PrtEventNode ev in p_cp)
-                    succ_m_p.Add(ev);
-
-                // choice 1: moved_from_suff existed exactly once in the concrete suffix. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-
-                // choice 2: moved_from_suff existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
-                for (int j = PrtEventBuffer.last_ev_dequeued; j < succ_m_s.Count; ++j)
-                {
-                    // insert moved_from_suff at position j (push the rest to the right)
-                    succ_m_s.Insert(j, moved_from_suff);
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                    succ_m_s.RemoveAt(j); // restore previous state
-                }
-                succ_m_s.Add(moved_from_suff); // finally, insert removed_from_suff at end
+                succ_m_l.Add(moved_from_suffix); // finally, insert moved_from_suffix at end
                 succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
             } while (more);
         }
 
-        // for queue-set abstraction:
-        void collect_abstract_successors_from_set(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        public class SuccessorFound : System.Exception
         {
-            // the collection function is too complicated for the set abstraction with the current data structures.
-            // For set abstraction, we need to split the queue into a list for the unabstracted prefix, and a proper (Hash)set for the suffix.
-            // The current implementation works only for p=0 (all of the queue is abstracted into a set)
-            if (PrtEventBuffer.p > 0)
-                throw new NotImplementedException("StateImpl.collect_abstract_successors_from_set: the method is implemented only for queue-prefix == 0 at the moment");
-
-            PrtImplMachine m = ImplMachines[currIndex];
-            List<PrtEventNode> m_q = m.eventQueue.events;
-
-            StateImpl empty = (StateImpl)Clone();
-            empty.ImplMachines[currIndex].eventQueue.events.Clear();
-
-            foreach (PrtEventNode ev in m_q)
-            {
-                StateImpl single = (StateImpl)empty.Clone();
-                single.ImplMachines[currIndex].eventQueue.events.Add(ev.Clone_Resolve(single));
-                var ChoiceVector = new List<bool>();
-                bool more;
-                do
-                {
-                    StateImpl          succ     = (StateImpl)single.Clone();
-                    PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
-                    List<PrtEventNode> succ_m_q = succ_m.eventQueue.events;
-                    more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
-                    if (!succ_m.eventQueue.Empty() || succ.CheckFailure(0)) // if dequeing was unsuccessful
-                        goto Next_Event;
-                    succ_m.eventQueue = m.eventQueue.Clone_Resolve(succ); // restore whole event queue (as a set)
-                    // choice 1: ev existed >= twice in concrete m_q. No change in queue set abstraction
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                    // choice 2: ev existed once in m_q, so after the dequeue it is gone
-                    succ_m_q.Remove(ev);
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
-                } while (more);
-            Next_Event:
-                ;
-            }
+            public StateImpl a, ap;
+            public SuccessorFound(StateImpl a, StateImpl ap) { this.a = a; this.ap = ap; }
         }
-
-        public class SuccessorFound : System.Exception {
-            public SuccessorFound() {}
-            public SuccessorFound(StateImpl a, StateImpl ap)
-            {
-                Console.WriteLine("Found abstract pair (a,a') such that a' is the abstract successor state of a identified in previous run.");
-                string a_f  = "a.txt";
-                string ap_f = "ap.txt";
-                StreamWriter  a_SW = new StreamWriter( a_f);  a_SW.WriteLine(a .ToPrettyString());  a_SW.Close();
-                StreamWriter ap_SW = new StreamWriter(ap_f); ap_SW.WriteLine(ap.ToPrettyString()); ap_SW.Close();
-                throw new SuccessorFound();
-            }
-        };
 
         void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
             int p_hash = pred.GetHashCode();
-            int   hash=      GetHashCode();
+            int   hash =      GetHashCode();
 
             if (mode == Explore_Mode.find_a_ap) // if we are locating a and ap
                 if (succHash == hash)
@@ -442,25 +347,16 @@ namespace P.Runtime
             PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
             List<PrtEventNode> Client_q = Client.eventQueue.events;
 
-            // this one we need for both list and set abstraction: can't have just dequeued DONE and then there are still DONE's in the queue
+            // can't have just dequeued DONE and then there are still DONE's in the queue
             if (Client.get_eventValue().ToString() == "DONE" && Client_q.Find(ev => ev.ev.ToString() == "DONE") != null)
                 return false;
 
-            if (PrtEventBuffer.qt == PrtEventBuffer.Queue_Type.list)
+            for (int i = 0; i < Client_q.Count - 1; ++i)
             {
-                for (int i = 0; i < Client_q.Count - 1; ++i)
-                {
-                    string curr = Client_q[i    ].ev.ToString();
-                    string next = Client_q[i + 1].ev.ToString();
-                    // PING cannot be followed by WAIT
-                    if (curr == "PING" && next == "WAIT")
-                        return false;
-                }
-            }
-            else
-            {
-                // can't have just dequeued PING and then there are still WAIT's in the queue
-                if (Client.get_eventValue().ToString() == "PING" && Client_q.Find(ev => ev.ev.ToString() == "WAIT") != null)
+                string curr = Client_q[i    ].ev.ToString();
+                string next = Client_q[i + 1].ev.ToString();
+                // PING cannot be followed by WAIT
+                if (curr == "PING" && next == "WAIT")
                     return false;
             }
 #endif

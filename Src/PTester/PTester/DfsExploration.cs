@@ -211,20 +211,24 @@ namespace P.Tester
             }
 
             try { Dfs(true); Debug.Assert(StateImpl.mode == StateImpl.Explore_Mode.normal, "Dfs should always find the successor state with the given hash code"); }
-            catch (StateImpl.SuccessorFound)
+            catch (StateImpl.SuccessorFound sfe)
             {
+                string ap_str = "unreached";
+                string bp_str = "reached";
+                StreamWriter  a_SW = new StreamWriter(        "a.txt");  a_SW.WriteLine(sfe. a.ToPrettyString());  a_SW.Close();
+                StreamWriter ap_SW = new StreamWriter(ap_str + ".txt"); ap_SW.WriteLine(sfe.ap.ToPrettyString()); ap_SW.Close();
+                Console.WriteLine("Located the so-far unreached abstract state and pretty-printed it into file {0}.txt .", ap_str);
                 StateImpl.mode = StateImpl.Explore_Mode.find_comp;
                 competitors = new HashSet<int>();
-                Console.WriteLine("Restarting Dfs ...");
+                Console.WriteLine("Restarting Dfs to find reachable abstract states 'parallel' to this so-far unreached state ...");
                 Dfs();
                 Debug.Assert(competitors.Count > 0);
-                Console.WriteLine("Found {0} concrete-state pairs (c,c') such that alpha(c) = a.", competitors.Count);
-                Console.WriteLine("Pretty-printed a and a' into files a.txt and ap.txt, and the corresponding abstract successor states b' = alpha(c') into files bp0.txt..bp{0}.txt .", competitors.Count - 1);
-                Console.WriteLine("Abstract states b' are \"competitors\" to candidate abstract successor a' .");
-                Console.WriteLine("You should compare each b' to a'; the difference might reveal why b' is reachable while a' is not (IF the latter is the case).");
+                Console.WriteLine("Pretty-printed reachable parallel abstract states into files {0}0.txt..{0}{1}.txt .", bp_str, competitors.Count - 1);
+                Console.WriteLine("These states are \"competitors\" to the so-far unreached abstract state.");
+                Console.WriteLine("You should compare each reached state to the unreached state; the difference might reveal why the former are reachable while the latter may not be.");
                 // The following is experimental
                 string cmd = "c:\\Program Files\\Meld\\Meld.exe"; // your favorite diff command here. It must accept two filename arguments
-                string arg = "bp0.txt ap.txt";
+                string arg = bp_str + "0.txt " + ap_str + ".txt";
                 Console.Write("Press <ENTER> to run \"{0} {1}\", anything else to 'Exit(0)': ", cmd, arg);
                 bool run = (Console.ReadKey().Key == ConsoleKey.Enter); Console.WriteLine();
                 if (run)
@@ -253,7 +257,7 @@ namespace P.Tester
             if (size_abstracts_previous_previous < size_abstracts_previous && size_abstracts_previous == abstracts.Count)
             {
                 Console.WriteLine("New plateau detected.");
-                Console.Write("Running abstract state convergence test with tail-" + PrtEventBuffer.qt.ToString() + " abstraction ... ");
+                Console.Write("Running abstract state convergence test with tail-list abstraction ... ");
 
                 if (abstract_converged())
                 {
@@ -280,7 +284,7 @@ namespace P.Tester
                 int bp_hash = bp.GetHashCode();
                 if (competitors.Add(bp_hash))
                 {
-                    var bp_SW = new StreamWriter("bp" + (competitors.Count - 1).ToString() + ".txt");
+                    var bp_SW = new StreamWriter("reached" + (competitors.Count - 1).ToString() + ".txt");
                     bp_SW.WriteLine(bp.ToPrettyString());
                     bp_SW.Close();
                 }

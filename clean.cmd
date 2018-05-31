@@ -9,5 +9,6 @@ del *.pdb 2> nul
 del concretes*      2> nul
 del abstracts*      2> nul
 del abstract_succs* 2> nul
-del a.txt ap.txt    2> nul
-del bp*.txt         2> nul
+del a.txt           2> nul
+del unreached.txt   2> nul
+del reached*.txt    2> nul
