@@ -1,2 +1,0 @@
-- how does the program perform in non-debug mode?
-- q_prefix feature

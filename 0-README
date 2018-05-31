@@ -1,0 +1,44 @@
+About P's facility to dequeue multiple events: this is not implementable
+with the queue LIST abstraction. The reason is that P may dequeue multiple
+copies of the same event, and we have no information in the abstraction how
+many such copies exist.
+
+If there is a bound on the number of dequeues /per event/, then it becomes
+implementable, but it will be inefficient: P will dequeue the multiple
+elements in the order they appear in the queue. We have to essentially
+enumerate these orders, since the final effect may depend on it. (The LIST
+order keeps the first-occurrence order intact, but after that it is again
+just a permutation.)
+
+For only 1 dequeue we just try all elements, so the cost is linear (just
+like P's dequeue itself).
+
+===========================================================================
+
+I decided to abandon the queue SET abstraction, for the following reasons:
+
+- the abstract successor function is far more complicated to implement: the
+  unabstracted prefix and the abstracted suffix are now different data
+  structures (list vs. set), so they need to be treated differently and
+  stored separately.
+
+- the abstract successor function is also more EXPENSIVE to implement:
+  since we don't know anything about ordering, we must try dequeuing all
+  events in the queue, and for each we must nondet decide whether it still
+  is in the queue after dequeue (original multiplicity > 1) or not. So for
+  an abstract queue of length r, this is 2r successors.
+
+  In contrast, for the LIST abstraction, I only dequeue the FIRST event
+  that is dequeuable (since the order is maintained). Once dequeued, I have
+  to nondet decide whether the event is still in the queue after
+  dequeue. If so, since I need to maintain order I need to insert it in all
+  positions AFTER the original one -- those occurrences were deleted in the
+  abstraction. These are r positions, so r successors.
+
+2. Even though there are situations where the SET abstraction converges
+   faster (since the abstraction is more coarse), it means that I can
+   verify fewer properties about the converged abstract reachability set,
+   since I have no ordering information in the abstraction. E.g. if the
+   abstract set contains queue (A,B), I don't know whether "A followed by
+   B" is possible. In the LIST abstraction I know that. So the possible
+   earlier convergence of SET comes at a price, which decreases its value.

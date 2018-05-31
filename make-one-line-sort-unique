@@ -3,9 +3,9 @@
 # This script assumes a stream of pretty-printed states in /dev/stdin
 # where states are separated by lines of the form
 # =====================================================================
-# (without the leading # ) and produces a stream of states in /dev/stdout,
+# (without the # ) and produces a stream of states in /dev/stdout,
 # one state per line, sorted. The script warns if there are duplicate lines
-# (there shouldn't be if the input is a /set/ of states).
+# (which is an error if the input is a /set/ of states).
 
 # Usage example: cat pretty-printed-states.txt | make-one-line-sort-unique > sorted-compact-states.txt
 
@@ -17,7 +17,7 @@ cat /dev/stdin > $INP
 cat $INP | dos2unix.exe | diff -q - $INP > /dev/null || {
     {
 	echo "$0: warning: given input stream uses DOS line breaks."
-	echo "Please convert to UNIX format first (e.g. dos2unix)."
+	echo "Please convert to UNIX format first (e.g. using dos2unix)."
 	echo "Exiting."
     } > /dev/stderr
     exit -1; }
