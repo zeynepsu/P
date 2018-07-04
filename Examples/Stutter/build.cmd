@@ -1,1 +1,1 @@
-..\..\build-generic.cmd
+../../build-generic.cmd
