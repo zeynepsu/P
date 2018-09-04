@@ -11,6 +11,7 @@ namespace Plang.Compiler.Backend
 
         static TargetLanguage()
         {
+            RegisterCodeGenerator(CompilerOutput.Solidity, new SolidityCodeGenerator());
             RegisterCodeGenerator(CompilerOutput.PSharp, new PSharpCodeGenerator());
             RegisterCodeGenerator(CompilerOutput.C, new PrtCodeGenerator());
         }
