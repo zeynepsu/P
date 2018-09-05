@@ -35,7 +35,8 @@ namespace Microsoft.Pc.Backend.Solidity
 
             // TODO: generate tuple type classes.
 
-            WriteSourceEpilogue(context, source.Stream);
+            // TODO:
+            //WriteSourceEpilogue(context, source.Stream);
             
             return source;
         }
@@ -45,38 +46,16 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, "pragma solidity ^0.4.24;");
         }
 
-        /*
+        
         private void WriteDecl(CompilationContext context, StringWriter output, IPDecl decl)
         {
             string declName = context.Names.GetNameForDecl(decl);
             switch (decl)
             {
-                case Function function:
-                    context.WriteLine(output, $"public static partial class {context.GlobalFunctionClassName}");
-                    context.WriteLine(output, "{");
-                    WriteFunction(context, output, function);
-                    context.WriteLine(output, "}");
-                    break;
-                case PEvent pEvent when !pEvent.IsBuiltIn:
-                    context.WriteLine(output, $"internal class {declName} : Event");
-                    context.WriteLine(output, "{");
-                    WriteEvent(context, output, pEvent);
-                    context.WriteLine(output, "}");
-                    break;
                 case Machine machine:
                     context.WriteLine(output, $"contract {declName}");
                     context.WriteLine(output, "{");
-                    WriteMachine(context, output, machine);
-                    context.WriteLine(output, "}");
-                    break;
-                case PEnum pEnum:
-                    context.WriteLine(output, $"public enum {declName}");
-                    context.WriteLine(output, "{");
-                    foreach (EnumElem enumElem in pEnum.Values)
-                    {
-                        context.WriteLine(output, $"{declName} = {enumElem.Value},");
-                    }
-
+                    // WriteMachine(context, output, machine);
                     context.WriteLine(output, "}");
                     break;
                 default:
@@ -85,7 +64,6 @@ namespace Microsoft.Pc.Backend.Solidity
             }
             
         }
-        */
 
     }
 
