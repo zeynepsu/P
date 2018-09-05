@@ -252,6 +252,7 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, "{");
             context.WriteLine(output, $"if(!IsRunning)");
             context.WriteLine(output, "{");
+            context.WriteLine(output, "IsRunning = true");
             context.WriteLine(output, $"if(e.name == \"eTransfer\")");
             context.WriteLine(output, "{");
             context.WriteLine(output, "Transfer();");    // TODO: Add payload for transfer
@@ -262,7 +263,6 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, $"currentState = LookupNextState(currentState, e.name);");
             context.WriteLine(output, $"m();");
             context.WriteLine(output, "}");
-            context.WriteLine(output, "IsRunning = true");
             context.WriteLine(output, "}");
             context.WriteLine(output, $"else");
             context.WriteLine(output, "{");
