@@ -74,7 +74,7 @@ namespace Microsoft.Pc.Backend.Solidity
             }
 
             // Add the queue data structure
-            AddInboxDataStructures(context, output);
+            AddInternalDataStructures(context, output);
             #endregion
 
             #region functions
@@ -89,7 +89,7 @@ namespace Microsoft.Pc.Backend.Solidity
             AddInboxEnqDeq(context, output);
 
             // Add the scheduler
-            // AddScheduler(CompilationContext context, StringWriter output);
+            AddScheduler(context, output);
             #endregion
 
             foreach (State state in machine.States)
@@ -187,9 +187,9 @@ namespace Microsoft.Pc.Backend.Solidity
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Float):
                     return "double";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Event):
-                    return "Event";
+                    return "struct";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Machine):
-                    return "Machine";
+                    return "address";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Null):
                     return "void";
                 case SequenceType sequenceType:
@@ -201,16 +201,22 @@ namespace Microsoft.Pc.Backend.Solidity
             }
         }
 
-        #region helpers to add queues
+        #region helpers for queues
 
-        private void AddInboxDataStructures(CompilationContext context, StringWriter output)
+        private void AddInternalDataStructures(CompilationContext context, StringWriter output)
         {
             // TODO: Define the type of the value for the inbox
+            context.WriteLine(output, $"struct Event");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"string name;");
+            context.WriteLine(output, "}");
             context.WriteLine(output, $"// Adding inbox for the contract");
-            context.WriteLine(output, $"private mapping (uint => uint) inbox;");
+            context.WriteLine(output, $"private mapping (uint => Event) inbox;");
             context.WriteLine(output, $"private uint first = 1;");
             context.WriteLine(output, $"private uint last = 0;");
             context.WriteLine(output, $"private bool IsRunning = false;");
+            context.WriteLine(output, $"private string currentState;");
+           
         }
 
         private void AddInboxEnqDeq(CompilationContext context, StringWriter output)
@@ -218,16 +224,16 @@ namespace Microsoft.Pc.Backend.Solidity
             // Enqueue to inbox
             context.WriteLine(output, $"// Enqueue in the inbox");
             // TODO: fix the type of the inbox
-            context.WriteLine(output, $"function enqueue (uint data) private");
+            context.WriteLine(output, $"function enqueue (Event e) private");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"last += 1;");
-            context.WriteLine(output, $"inbox[last] = data");
+            context.WriteLine(output, $"inbox[last] = e");
             context.WriteLine(output, "}");
 
             // Dequeue from inbox
             context.WriteLine(output, $"// Dequeue from the inbox");
             // TODO: fix the type of the inbox
-            context.WriteLine(output, $"function dequeue (uint data) private returns (uint data)");
+            context.WriteLine(output, $"function dequeue () private returns (Event e)");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"data = inbox[first];");
             context.WriteLine(output, $"delete inbox[first];");
@@ -237,6 +243,35 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #endregion
 
+        #region scheduler
+        private void AddScheduler(CompilationContext context, StringWriter output)
+        {
+            context.WriteLine(output, $"// Scheduler");
+            // TODO: fix the type of the inbox
+            context.WriteLine(output, $"function scheduler (Event e) public");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"if(!IsRunning)");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"if(e.name == \"eTransfer\")");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "Transfer();");    // TODO: Add payload for transfer
+            context.WriteLine(output, "}");
+            context.WriteLine(output, $"else");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"m = LookupAction(currentState, e.name);");
+            context.WriteLine(output, $"currentState = LookupNextState(currentState, e.name);");
+            context.WriteLine(output, $"m();");
+            context.WriteLine(output, "}");
+            context.WriteLine(output, "IsRunning = true");
+            context.WriteLine(output, "}");
+            context.WriteLine(output, $"else");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"enqueue(e)");
+            context.WriteLine(output, "}");
+            context.WriteLine(output, "}");
+        }
+
+        #endregion
 
     }
 
