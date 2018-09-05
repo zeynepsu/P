@@ -36,7 +36,7 @@ namespace Microsoft.Pc.Backend.Solidity
             // TODO: generate tuple type classes.
 
             WriteSourceEpilogue(context, source.Stream);
-
+            
             return source;
         }
 
@@ -45,6 +45,7 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, "pragma solidity ^0.4.24;");
         }
 
+        /*
         private void WriteDecl(CompilationContext context, StringWriter output, IPDecl decl)
         {
             string declName = context.Names.GetNameForDecl(decl);
@@ -63,7 +64,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     context.WriteLine(output, "}");
                     break;
                 case Machine machine:
-                    context.WriteLine(output, $"internal class {declName} : Machine");
+                    context.WriteLine(output, $"contract {declName}");
                     context.WriteLine(output, "{");
                     WriteMachine(context, output, machine);
                     context.WriteLine(output, "}");
@@ -82,8 +83,9 @@ namespace Microsoft.Pc.Backend.Solidity
                     context.WriteLine(output, $"// TODO: {decl.GetType().Name} {declName}");
                     break;
             }
+            
         }
-
+        */
 
     }
 
