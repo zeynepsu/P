@@ -4,14 +4,14 @@ namespace Microsoft.Pc.Backend.Solidity
 {
     internal class CompilationContext : CompilationContextBase
     {
-        public PSNameManager Names { get; }
+        public SolidityNameManager Names { get; }
 
         public CompilationContext(ICompilationJob job)
             : base(job)
         {
-            Names = new PSharpNameManager("PGEN_");
+            Names = new SolidityNameManager("SGEN_");
 
-            FileName = $"{ProjectName}.cs";
+            FileName = $"{ProjectName}.sol";
             GlobalFunctionClassName = $"GlobalFunctions_{ProjectName}";
         }
 
