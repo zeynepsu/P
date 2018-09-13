@@ -83,20 +83,20 @@ namespace P.Runtime
         public string ToPrettyString(string indent = "")
         {
             string result = "";
-            result += indent + "renamedName:      " + renamedName                 + "\n";
-            result += indent + "isSafe:           " + isSafe.ToString()           + "\n";
-            result += indent + "instanceNumber:   " + instanceNumber.ToString()   + "\n";
-            result += indent + "fields:           " + ( fields.Count == 0 ? "null" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) )  + "\n";
-            result += indent + "eventValue:       " + eventValue.ToString()       + "\n";
-            result += indent + "stateStack:       " + stateStack.ToString()       + "\n";
+            result += indent + "renamedName:      " + renamedName + "\n";
+            result += indent + "isSafe:           " + isSafe.ToString() + "\n";
+            result += indent + "instanceNumber:   " + instanceNumber.ToString() + "\n";
+            result += indent + "fields:           " + (fields.Count == 0 ? "null" : fields.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2)) + "\n";
+            result += indent + "eventValue:       " + eventValue.ToString() + "\n";
+            result += indent + "stateStack:       " + stateStack.ToString() + "\n";
             result += indent + "invertedFunStack: " + invertedFunStack.ToString() + "\n";
-            result += indent + "continuation:     " + continuation.ToString()     + "\n";
-            result += indent + "currentStatus:    " + currentStatus.ToString()    + "\n";
-            result += indent + "nextSMOperation:  " + nextSMOperation.ToString()  + "\n";
-            result += indent + "stateExitReason:  " + stateExitReason.ToString()  + "\n";
-            result += indent + "currentTrigger:   " + currentTrigger.ToString()   + "\n";
-            result += indent + "currentPayload:   " + currentPayload.ToString()   + "\n";
-            result += indent + "destOfGoto:       " + ( destOfGoto == null ? "null" : destOfGoto.ToString() ) + "\n";
+            result += indent + "continuation:     " + continuation.ToString() + "\n";
+            result += indent + "currentStatus:    " + currentStatus.ToString() + "\n";
+            result += indent + "nextSMOperation:  " + nextSMOperation.ToString() + "\n";
+            result += indent + "stateExitReason:  " + stateExitReason.ToString() + "\n";
+            result += indent + "currentTrigger:   " + currentTrigger.ToString() + "\n";
+            result += indent + "currentPayload:   " + currentPayload.ToString() + "\n";
+            result += indent + "destOfGoto:       " + (destOfGoto == null ? "null" : destOfGoto.ToString()) + "\n";
 
             return result;
         }
@@ -108,7 +108,7 @@ namespace P.Runtime
             Debug.Assert(isSafe == machine.isSafe);
             Debug.Assert(instanceNumber == machine.instanceNumber);
             Debug.Assert(fields.Count == machine.fields.Count);
-            for(int i = 0; i < fields.Count; i++)
+            for (int i = 0; i < fields.Count; i++)
             {
                 Debug.Assert(fields[i].GetHashCode() == machine.fields[i].GetHashCode());
             }
@@ -121,7 +121,7 @@ namespace P.Runtime
             Debug.Assert(stateExitReason == machine.stateExitReason);
             Debug.Assert(currentTrigger.GetHashCode() == machine.currentTrigger.GetHashCode());
             Debug.Assert(currentPayload.GetHashCode() == machine.currentPayload.GetHashCode());
-            Debug.Assert((destOfGoto == null && machine.destOfGoto == null) || 
+            Debug.Assert((destOfGoto == null && machine.destOfGoto == null) ||
                 (destOfGoto != null && machine.destOfGoto != null && destOfGoto.GetHashCode() == machine.destOfGoto.GetHashCode()));
         }
 
@@ -369,10 +369,10 @@ namespace P.Runtime
         public abstract bool IsAnonFun
         {
             get;
-        } 
+        }
 
         public List<Dictionary<PrtValue, PrtFun>> receiveCases;
-        
+
         public PrtFun()
         {
             receiveCases = new List<Dictionary<PrtValue, PrtFun>>();
@@ -525,10 +525,19 @@ namespace P.Runtime
 
     public class PrtEventNodeComparer : IEqualityComparer<PrtEventNode>
     {
-        public int GetHashCode(PrtEventNode ev) { return ev.GetHashCode(); }
-        public bool Equals(PrtEventNode ev1, PrtEventNode ev2) { return ev1.GetHashCode() == ev2.GetHashCode(); }
+        public int GetHashCode(PrtEventNode ev)
+        {
+            return ev.GetHashCode();
+        }
+        public bool Equals(PrtEventNode ev1, PrtEventNode ev2)
+        {
+            return ev1.GetHashCode() == ev2.GetHashCode();
+        }
     }
 
+    /// <summary>
+    /// A wrapper for eventqueue
+    /// </summary>
     public class PrtEventBuffer
     {
         public static int last_ev_dequeued_idx; // index last dequeued
@@ -539,30 +548,40 @@ namespace P.Runtime
         public List<PrtEventNode> events;      // used as concrete and abstract queue
         public bool concrete;
 
-        public PrtEventBuffer() { events = new List<PrtEventNode>(); concrete = true; }
+        public PrtEventBuffer()
+        {
+            events = new List<PrtEventNode>();
+            concrete = true;
+        }
 
-        public bool is_concrete() { return concrete; }
-        public bool is_abstract() { return !is_concrete(); }
+        public bool IsConcrete() { return concrete; }
+        public bool IsAbstract() { return !IsConcrete(); }
 
-        public int   Size() { return events.Count; }  // concrete or abstract
+        public int Size() { return events.Count; }  // concrete or abstract
         public bool Empty() { return Size() == 0; }   // concrete or abstract
 
-        // Convert the queue into a list that, for the suffix starting at p, keeps the ordering restricted to first-time occurrence but ignores multiplicity. This creates a very fine-grained abstraction.
-        // For instance, for p=0,
-        // [X,X,Y] -> [X,Y]            but also
-        // [X,Y,X] -> [X,Y]
-        // A more precise abstraction keeps the queue in a map<PrtEventNode,bool> , which stores the elements
-        // and whether they occur once or more than once (0,1,infinity abstraction). (This would still not distinguish the above two examples.)
+        /// <summary>
+        /// Convert the queue into a list that, for the suffix starting at p, 
+        /// keeps the ordering restricted to first-time occurrence but ignores 
+        /// multiplicity. This creates a very fine-grained abstraction.
+        /// For instance, for p=0,
+        /// [X,X,Y] -> [X,Y]            but also
+        /// [X,Y,X] -> [X,Y]
+        /// A more precise abstraction keeps the queue in a map<PrtEventNode,bool>, 
+        /// which stores the elements and whether they occur once or more than once 
+        /// (0,1,infinity abstraction). (This would still not distinguish the above 
+        /// two examples.)
+        /// </summary>
         public void abstract_me()
         {
-            Debug.Assert(is_concrete());
+            Debug.Assert(IsConcrete());
             concrete = false; // a bit premature, but remove_dups_in_suffix operates on abstract queues only
             remove_dups_in_suffix();
         }
 
         public void remove_dups_in_suffix()
         {
-            Debug.Assert(is_abstract());
+            Debug.Assert(IsAbstract());
             HashSet<PrtEventNode> suffix_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
             int i = p;
             while (i < Size())
@@ -600,9 +619,9 @@ namespace P.Runtime
                 for (int i = 0; i < Size(); ++i)
                 {
                     if (i > 0)
-                        title += ( is_abstract() && i == p ? "|" : "," );
+                        title += (IsAbstract() && i == p ? "|" : ",");
                     title += events[i].ToString();
-                 }
+                }
             return title + "\n";
         }
 
@@ -613,7 +632,7 @@ namespace P.Runtime
 
         public int CalculateInstances(PrtValue e)
         {
-            Debug.Assert(is_concrete());
+            Debug.Assert(IsConcrete());
             return events.Select(en => en.ev).Where(ev => ev == e).Count();
         }
 
@@ -623,7 +642,7 @@ namespace P.Runtime
 
             var en = new PrtEventNode(e, arg, senderMachineName, senderMachineStateName);
 
-            if (is_concrete()) // concrete: honor k-bounded queue semantics, instance counters, etc
+            if (IsConcrete()) // concrete: honor k-bounded queue semantics, instance counters, etc
             {
 
                 if (k > 0 && Size() == k)
@@ -645,21 +664,21 @@ namespace P.Runtime
 
             events.Add(en); // concrete or abstract
 
-            if (is_abstract() && Size() >= p + 2)   // if the suffix was not empty before enqueuing this element
+            if (IsAbstract() && Size() >= p + 2)   // if the suffix was not empty before enqueuing this element
                 remove_dups_in_suffix();
         }
 
         public bool DequeueEvent(PrtImplMachine owner)
         {
             HashSet<PrtValue> deferredSet = owner.CurrentDeferredSet;
-            HashSet<PrtValue> receiveSet  = owner.receiveSet;
+            HashSet<PrtValue> receiveSet = owner.receiveSet;
 
             int iter = 0;
             last_ev_dequeued_idx = events.Count + 1; // if, AFTER DequeueEvent, last_... = Count + 1, nothing was dequeued. Otherwise last_... will be <= Count and points to the OLD index dequeued
             while (iter < events.Count)
             {
-                if ( (receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev)) ||  // we check deferredSet and receiveSet only against ev (event type), not arg
-                     (receiveSet.Count >  0 &&   receiveSet.Contains(events[iter].ev)))
+                if ((receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev)) ||  // we check deferredSet and receiveSet only against ev (event type), not arg
+                     (receiveSet.Count > 0 && receiveSet.Contains(events[iter].ev)))
                 {
                     owner.currentTrigger = events[iter].ev;
                     owner.currentPayload = events[iter].arg;
@@ -684,8 +703,8 @@ namespace P.Runtime
             receiveSet = owner.receiveSet;
             foreach (var evNode in events)
             {
-                if (    (receiveSet.Count == 0 && !deferredSet.Contains(evNode.ev) )
-                     || (receiveSet.Count >  0 &&   receiveSet.Contains(evNode.ev) ))
+                if ((receiveSet.Count == 0 && !deferredSet.Contains(evNode.ev))
+                     || (receiveSet.Count > 0 && receiveSet.Contains(evNode.ev)))
                 {
                     return true;
                 }
@@ -735,7 +754,7 @@ namespace P.Runtime
             return state.ToString();
         }
     }
-    
+
     public class PrtStateStack
     {
         public PrtStateStack()
@@ -755,11 +774,11 @@ namespace P.Runtime
                     return null;
             }
         }
-       
+
         public PrtStateStack Clone()
         {
             var clone = new PrtStateStack();
-            foreach(var s in stateStack.Reverse())
+            foreach (var s in stateStack.Reverse())
             {
                 clone.stateStack.Push(s.Clone());
             }
@@ -798,7 +817,8 @@ namespace P.Runtime
 
         public bool HasNullTransitionOrAction()
         {
-            if (TopOfStack.state.hasNullTransition) return true;
+            if (TopOfStack.state.hasNullTransition)
+                return true;
             return TopOfStack.actionSet.Contains(PrtValue.@null);
         }
 
@@ -809,7 +829,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return ( stateStack.Count == 0 ? "null" : stateStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            return (stateStack.Count == 0 ? "null" : stateStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2));
         }
     }
 
@@ -829,9 +849,9 @@ namespace P.Runtime
     {
         public int returnToLocation;
         public List<PrtValue> locals;
-        
+
         public PrtFun fun;
-        public PrtFunStackFrame(PrtFun fun,  List<PrtValue> locals)
+        public PrtFunStackFrame(PrtFun fun, List<PrtValue> locals)
         {
             this.fun = fun;
             this.locals = locals;
@@ -857,7 +877,7 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return returnToLocation.ToString() + "," + ( locals.Count == 0 ? "null" : locals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            return returnToLocation.ToString() + "," + (locals.Count == 0 ? "null" : locals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2));
         }
 
         public void Resolve(StateImpl state)
@@ -877,11 +897,11 @@ namespace P.Runtime
         public PrtFunStack Clone()
         {
             var clonedStack = new PrtFunStack();
-            foreach(var frame in funStack.Reverse())
+            foreach (var frame in funStack.Reverse())
             {
                 clonedStack.funStack.Push(frame.Clone());
             }
-            
+
             return clonedStack;
         }
 
@@ -923,12 +943,12 @@ namespace P.Runtime
 
         public override string ToString()
         {
-            return ( funStack.Count == 0 ? "null" : funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2) );
+            return (funStack.Count == 0 ? "null" : funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2));
         }
 
         public void Resolve(StateImpl state)
         {
-            foreach(var f in funStack)
+            foreach (var f in funStack)
             {
                 f.Resolve(state);
             }
@@ -958,7 +978,7 @@ namespace P.Runtime
             var clonedVal = new PrtContinuation();
             clonedVal.reason = this.reason;
             clonedVal.retVal = this.retVal.Clone();
-            foreach(var loc in retLocals)
+            foreach (var loc in retLocals)
             {
                 clonedVal.retLocals.Add(loc.Clone());
             }
@@ -981,7 +1001,7 @@ namespace P.Runtime
         // I print the Boolean nondet before the List retLocals (easier since list length varies)
         public override string ToString()
         {
-            return reason.ToString() + "," + retVal.ToString() + "," + nondet.ToString() + "," + ( retLocals.Count == 0 ? "null" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2) );
+            return reason.ToString() + "," + retVal.ToString() + "," + nondet.ToString() + "," + (retLocals.Count == 0 ? "null" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2));
         }
 
         public void Resolve(StateImpl state)

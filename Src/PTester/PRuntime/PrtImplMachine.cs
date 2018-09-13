@@ -321,7 +321,7 @@ namespace P.Runtime
         }
         #endregion
 
-        public bool PrtRunStateMachine_next_choice(List<bool> ChoiceVector)
+        public bool PrtRunStateMachineNextChoice(List<bool> ChoiceVector)
         {
             int choiceIndex = 0;
 
@@ -676,12 +676,17 @@ namespace P.Runtime
             return hasMoreWork;
         }
 
-        // to abstract a machine means to abstract its queue
-        public void abstract_me() { eventQueue.abstract_me(); }
-
-        public bool is_abstract()
+        /// <summary>
+        /// to abstract a machine means to abstract its queue
+        /// </summary>
+        public void AbstractMe()
         {
-            return eventQueue.is_abstract();
+            eventQueue.abstract_me();
+        }
+
+        public bool IsAbstract()
+        {
+            return eventQueue.IsAbstract();
         }
     }
 }

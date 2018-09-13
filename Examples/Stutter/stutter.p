@@ -10,7 +10,9 @@ machine Main {
   start state Init {
     entry {
       client = new Client();
-      goto SendPrefix; }}
+      goto SendPrefix; 
+	}
+  }
 
   state SendPrefix {
     entry {
@@ -18,20 +20,30 @@ machine Main {
       i = 0;
       while (i < X) {
         send client, WAIT;
-        i = i + 1; }
+        i = i + 1; 
+	  }
       send client, DONE;
-      goto Flood; }}
+      goto Flood; 
+	}
+  }
 
   state Flood {
     entry {
       send client, PING;
-      goto Flood; }}}
+      goto Flood; 
+	}
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////
 
 machine Client {
   start state Init {
     defer WAIT, PING;
-    on DONE goto Consume; }
+    on DONE goto Consume; 
+  }
 
-  state Consume { ignore WAIT, PING; }}
+  state Consume { 
+    ignore WAIT, PING; 
+  }
+}

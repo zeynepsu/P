@@ -79,10 +79,21 @@ namespace P.Runtime
 
         public static bool invariants = false;
 
-        public enum Explore_Mode { normal , find_a_ap , find_comp };
+        public enum ExploreMode
+        {
+            normal ,
+            find_a_ap , // --PL: used for investigation
+            find_comp
+        };
 
-        public static Explore_Mode mode = Explore_Mode.normal;
+        public static ExploreMode mode = ExploreMode.normal;
+        /// <summary>
+        /// Store the hashcode of the successor -- PL 
+        /// </summary>
         public static int succHash;
+        /// <summary>
+        /// Store the hashcode of the predecessor -- PL
+        /// </summary>
         public static int predHash;
 
         public static bool FileDump = false;
@@ -193,44 +204,56 @@ namespace P.Runtime
             }
         }
 #endregion
-
-        public void abstract_me()
+        /// <summary>
+        /// 
+        /// </summary>
+        public void AbstractMe()
         {
             foreach (var m in ImplMachines)
-                m.abstract_me();
+                m.AbstractMe();
         }
-
-        public void collect_abstract_successors(HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        /// <summary>
+        /// -- PL: compute all abstract successors of current state. Note: the computation is done by
+        /// abstract interpretation. 
+        /// </summary>
+        /// <param name="abstract_succs"></param>
+        /// <param name="abstract_succs_SW"></param>
+        public void CollectAbstractSuccessors(HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
             for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
             {
-                PrtImplMachine m = ImplMachines[currIndex];
-                PrtEventBuffer m_q = m.eventQueue;
+                PrtImplMachine machine = ImplMachines[currIndex];
+                PrtEventBuffer queue = machine.eventQueue; /// --PL: the queue of current machine
 
                 // reject disabled machines
-                if (!(m.currentStatus == PrtMachineStatus.Enabled))
+                if (!(machine.currentStatus == PrtMachineStatus.Enabled))
                     continue;
 
                 // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
-                if (!(m.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
-                      m.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
+                if (!(machine.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
+                      machine.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
                     continue;
 
                 // reject machines with empty queues. Apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
-                if (m.eventQueue.Empty())
+                if (machine.eventQueue.Empty())
                     continue;
 
                 // reject "non-abstract" queues: those with empty suffix. In this case the abstraction is precise,
                 // so the successor function cannot generate anything new
-                if (m_q.Size() <= PrtEventBuffer.p)
+                if (queue.Size() <= PrtEventBuffer.p) // prefix
                     continue;
 
-                collect_abstract_successors_from_list(currIndex, abstract_succs, abstract_succs_SW);
+                CollectAbstractSuccessorsFromList(currIndex, abstract_succs, abstract_succs_SW);
             }
         }
 
-        // for queue-list abstraction:
-        void collect_abstract_successors_from_list(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        /// <summary>
+        /// for queue-list abstraction:
+        /// </summary>
+        /// <param name="currIndex"></param>
+        /// <param name="abstract_succs"></param>
+        /// <param name="abstract_succs_SW"></param>
+        void CollectAbstractSuccessorsFromList(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
             List<PrtEventNode> m_l = ImplMachines[currIndex].eventQueue.events; // pre-dequeue events list
 
@@ -243,42 +266,58 @@ namespace P.Runtime
                 PrtEventBuffer     succ_m_q = succ_m.eventQueue;
                 List<PrtEventNode> succ_m_l = succ_m_q.events; // events list
 
-                more = succ_m.PrtRunStateMachine_next_choice(ChoiceVector);
+                more = succ_m.PrtRunStateMachineNextChoice(ChoiceVector);
                 Debug.Assert(m_l.Count - succ_m_q.Size() <= 1); // we have dequeued at most one event
                 if (m_l.Count == succ_m_q.Size() || succ.CheckFailure(0)) // if dequeing was unsuccessful
                     return;                                                // then there is nothing left to do. No more nondet choices to try
 
-                int          moved_from_suffix_idx = Math.Max(PrtEventBuffer.last_ev_dequeued_idx, PrtEventBuffer.p);
-                PrtEventNode moved_from_suffix     = m_l[moved_from_suffix_idx];
+                int moved_from_suffix_idx = Math.Max(PrtEventBuffer.last_ev_dequeued_idx, PrtEventBuffer.p);
+                PrtEventNode moved_from_suffix = m_l[moved_from_suffix_idx];
 
                 // choice 1: last_ev_dequeued moved_from_suff existed exactly once in the concrete suffix. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                succ.AddToSuccessorsIfInv(currIndex, this, abstract_succs, abstract_succs_SW);
 
                 // choice 2: moved_from_suffix existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
                 for (int j = moved_from_suffix_idx; j < succ_m_q.Size(); ++j)
                 {
                     // insert moved_from_suffix at position j (push the rest to the right)
                     succ_m_l.Insert(j, moved_from_suffix);
-                    succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                    succ.AddToSuccessorsIfInv(currIndex, this, abstract_succs, abstract_succs_SW);
                     succ_m_l.RemoveAt(j); // restore previous state
                 }
                 succ_m_l.Add(moved_from_suffix); // finally, insert moved_from_suffix at end
-                succ.add_to_succs_if_inv(currIndex, this, abstract_succs, abstract_succs_SW);
+                succ.AddToSuccessorsIfInv(currIndex, this, abstract_succs, abstract_succs_SW);
             } while (more);
         }
 
         public class SuccessorFound : System.Exception
         {
+            /// <summary>
+            /// a: a state
+            /// ap: a', the successor of a
+            /// so a -> ap
+            /// </summary>
             public StateImpl a, ap;
-            public SuccessorFound(StateImpl a, StateImpl ap) { this.a = a; this.ap = ap; }
+            public SuccessorFound(StateImpl a, StateImpl ap)
+            {
+                this.a = a;
+                this.ap = ap;
+            }
         }
 
-        void add_to_succs_if_inv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="currIndex"></param>
+        /// <param name="pred"></param>
+        /// <param name="abstract_succs"></param>
+        /// <param name="abstract_succs_SW"></param>
+        void AddToSuccessorsIfInv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
             int p_hash = pred.GetHashCode();
             int   hash =      GetHashCode();
 
-            if (mode == Explore_Mode.find_a_ap) // if we are locating a and ap
+            if (mode == ExploreMode.find_a_ap) // if we are locating a and ap
                 if (succHash == hash)
                 {
                     predHash = p_hash;
@@ -296,6 +335,14 @@ namespace P.Runtime
             } 
         }
 
+        /// <summary>
+        /// --PL: check if state fails assume
+        /// </summary>
+        /// <param name="depth">Useless for now</param>
+        /// <returns> 
+        /// - true: if current state fails assume
+        /// - false: othewise
+        /// </returns>
         public bool CheckFailure(int depth)
         {
             //if (UseDepthBounding && depth > DepthBound)    // ignore this for now. These parameters are part of class DfsExploration, so can't use here
@@ -330,7 +377,7 @@ namespace P.Runtime
         }
 
         // this is like a typedef and must, unfortunately, pollute the global scope. Should be inside below function def.
-        delegate bool Event_is_and_queue_contains(PrtImplMachine m, string s);
+        ///delegate bool Event_is_and_queue_contains(PrtImplMachine machine, string s);
 
         // STATE AND TRANSITION INVARIANTS.
 
@@ -343,8 +390,8 @@ namespace P.Runtime
         public bool Check_state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
 #if true
-            PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract());
-            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract());
+            PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.IsAbstract());
+            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.IsAbstract());
             List<PrtEventNode> Client_q = Client.eventQueue.events;
 
             // can't have just dequeued DONE and then there are still DONE's in the queue
@@ -391,21 +438,32 @@ namespace P.Runtime
             return true;
         }
 
-        // Implementation note: there are currently three distinct methods that crawl over the hierarchy of a StateImpl and collect various kinds of information:
-        // - GetHashCode computes the combined hash value of the state
-        // -   ToString  computes a combined string representation of the state
-        // -    Clone    computes a copy of the state, in fresh memory
-        // The descent into the StateImpl hierarchy is at least very similar, if not identical. Sometimes we RELY on it being identical, e.g. the hash and the string
-        // (both are used to store a state, in different contexts). This code redundancy is unreliable and error prone.
+        /// <summary>
+        /// Implementation note: there are currently three distinct methods 
+        /// that crawl over the hierarchy of a StateImpl and collect various 
+        /// kinds of information:
+        /// - GetHashCode computes the combined hash value of the state
+        /// - ToString    computes a combined string representation of the state
+        /// - Clone       computes a copy of the state, in fresh memory.
+        /// The descent into the StateImpl hierarchy is at least very similar, 
+        /// if not identical. Sometimes we RELY on it being identical, e.g. 
+        /// the hash and the string(both are used to store a state, in different 
+        /// contexts). This code redundancy is unreliable and error prone.
+        /// </summary>
+        /// <returns></returns>
         public override int GetHashCode()
         {
             var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash();
             var hash2 = specMachinesMap.Select(pair => pair.Value.GetHashCode()).Hash();
             return Hashing.Hash(hash1, hash2);
         }
-
-        // A good convention for converting a state into a compressed string might be to define a separator char (like '|')
-        // that is used twice, thrice, etc. depending on how deep in the state hierarchy you are. This way you need to reserve only 1 char
+        /// <summary>
+        /// A good convention for converting a state into a compressed string 
+        /// might be to define a separator char (like '|')
+        /// that is used twice, thrice, etc. depending on how deep in the state 
+        /// hierarchy you are. This way you need to reserve only 1 char
+        /// </summary>
+        /// <returns></returns>
         public override string ToString()
         {
             // the debugger seems to use the following code to print
@@ -432,6 +490,11 @@ namespace P.Runtime
             return result;
         }
 
+        /// <summary>
+        /// --PL: define this as we can't use the ToString??
+        /// </summary>
+        /// <param name="indent"></param>
+        /// <returns></returns>
         public string ToPrettyString(string indent = "")
         {
             string result = "Hash: " + GetHashCode().ToString() + "\n";

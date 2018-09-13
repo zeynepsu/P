@@ -28,8 +28,8 @@ namespace P.Tester
         AssertionFailure = 2,
 
         /// <summary>
-        /// An execution was found in which all P machines are blocked and at least one liveness monitor
-        /// is in a hot state.
+        /// An execution was found in which all P machines are blocked and at least 
+        /// one liveness monitor is in a hot state.
         /// </summary>
         Deadlock = 3,
 
@@ -62,22 +62,25 @@ namespace P.Tester
     public class CommandLineOptions
     {
         public string inputFileName;
-        public bool   printStats;
-        public int    timeout;
-        public bool   UsePSharp = false;
+        public bool printStats;
+        public int timeout;
+        public bool UsePSharp = false;
 
-        public bool   DfsExploration;
-        public bool   OSList;
-        public bool   OSSet;
-        public int    k;
+        /// <summary>
+        /// OS realted commandline options
+        /// </summary>
+        public bool DfsExploration; // unbounded exploration
+        public bool OSList; // OS exploration: abstract with list
+        public bool OSSet;  // OS exploration: abstract with set
+        public int k;
 
-        public bool   UseStateHashing;
-        public bool   isRefinement;
+        public bool UseStateHashing;
+        public bool isRefinement;
         public string LHSModel;
         public string RHSModel;
-        public bool   verbose;
-        public int    numberOfSchedules;
-        public bool   debugHashing;
+        public bool verbose;
+        public int numberOfSchedules;
+        public bool debugHashing;
 
         public CommandLineOptions()
         {
@@ -131,31 +134,46 @@ namespace P.Tester
                         {
                             case "?":
                             case "h":
-                            case "help": PrintHelp(null, null); Environment.Exit((int)TestResult.Success); break;
+                            case "help":
+                                PrintHelp(null, null);
+                                Environment.Exit((int)TestResult.Success);
+                                break;
 
-                            case "stats": options.printStats = true; break;
+                            case "stats":
+                                options.printStats = true;
+                                break;
 
                             case "v":
-                            case "verbose": options.verbose = true; break;
+                            case "verbose":
+                                options.verbose = true;
+                                break;
 
-                            case "ns": if (param.Length != 0) { options.numberOfSchedules = int.Parse(param); } break;
+                            case "ns":
+                                if (param.Length != 0)
+                                { options.numberOfSchedules = int.Parse(param); }
+                                break;
 
-                            case "timeout": if (param.Length != 0) { options.timeout = int.Parse(param); } break;
+                            case "timeout":
+                                if (param.Length != 0)
+                                { options.timeout = int.Parse(param); }
+                                break;
 
-                            case "psharp": options.UsePSharp = true; break;
+                            case "psharp":
+                                options.UsePSharp = true;
+                                break;
 
                             case "dfs":
                                 if (param.Length > 0)
                                     throw new ArgumentException("/" + option + ": no argument expected (did you mean to supply a queue-bound? use /queue-bound:" + int.Parse(param).ToString() + ")");
                                 options.DfsExploration = true;
-                                DfsExploration.UseStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
+                                DfsExploration.useStateHashing = true; // turned on by default for now, since DFS w/o SH is not implemented
                                 break;
 
                             case "os-list":
                                 if (param.Length > 0)
                                     throw new ArgumentException("/" + option + ": no argument expected (did you mean to supply a queue-bound? use /queue-bound:" + int.Parse(param).ToString() + ")");
                                 options.OSList = true;
-                                DfsExploration.UseStateHashing = true; // ditto
+                                DfsExploration.useStateHashing = true; // ditto
                                 break;
 
                             case "os-set":
@@ -164,7 +182,7 @@ namespace P.Tester
                                 if (param.Length > 0)
                                     throw new ArgumentException("/" + option + ": no argument expected (did you mean to supply a queue-bound? use /queue-bound:" + int.Parse(param).ToString() + ")");
                                 options.OSSet = true;
-                                DfsExploration.UseStateHashing = true; // ditto
+                                DfsExploration.useStateHashing = true; // ditto
                                 // PrtEventBuffer.qt = PrtEventBuffer.Queue_Type.set;
                                 break;
 
@@ -189,15 +207,21 @@ namespace P.Tester
                                 break;
 
                             case "file-dump":
-                                DfsExploration.FileDump = true;
+                                DfsExploration.fileDump = true;
                                 StateImpl.FileDump = true;
                                 break;
 
-                            case "hash": options.UseStateHashing = true; break;
+                            case "hash":
+                                options.UseStateHashing = true;
+                                break;
 
-                            case "debughash": options.debugHashing = true; break;
+                            case "debughash":
+                                options.debugHashing = true;
+                                break;
 
-                            case "break": System.Diagnostics.Debugger.Launch(); break;
+                            case "break":
+                                System.Diagnostics.Debugger.Launch();
+                                break;
 
                             case "lhs":
                                 if (param.Length != 0)
@@ -232,7 +256,7 @@ namespace P.Tester
                                 return null;
                         }
                     }
-                    catch(ArgumentException e)
+                    catch (ArgumentException e)
                     {
                         Console.WriteLine(e.Message);
                         Console.WriteLine("Exiting.");
@@ -302,7 +326,6 @@ namespace P.Tester
 
         public static void Main(string[] args)
         {
-
             if (args.Length > 0)
                 if (args[0] == "!")     // scratch space for quick testing
                 {
@@ -335,7 +358,9 @@ namespace P.Tester
                 return;
             }
 
+            /// --PL: load a assembly (a P application) given its file name
             var asm = Assembly.LoadFrom(options.inputFileName);
+            /// --PL: create an instance of P program state
             StateImpl s = (StateImpl)asm.CreateInstance("P.Program.Application",
                                                         false,
                                                         BindingFlags.CreateInstance,
@@ -351,6 +376,7 @@ namespace P.Tester
 
             DfsExploration.start = s;
 
+            ///-- PL: stopwatch: to measure the elapsed time
             var sw = new System.Diagnostics.Stopwatch();
             sw.Start();
 
@@ -364,7 +390,7 @@ namespace P.Tester
             }
             else if (options.OSList || options.OSSet)
             {
-                DfsExploration.OS_Iterate();                    // OS exploration from s, using queue list or set abstraction
+                DfsExploration.OSIterate();                    // OS exploration from s, using queue list or set abstraction
             }
             else
             {

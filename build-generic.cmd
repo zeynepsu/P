@@ -5,7 +5,7 @@ if %1. == /h. goto no-file
 
 set src=%1
 
-set pc=%PHOME%\bld\drops\Debug\x64\Binaries\pc.exe
+set pc=%PHOME%\bld\drops\Release\x86\Binaries\pc.exe
 
 echo %pc% /generate:C# %src%.p /t:%src%.4ml
 call %pc% /generate:C# %src%.p /t:%src%.4ml
