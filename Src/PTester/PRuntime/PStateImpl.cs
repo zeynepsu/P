@@ -83,7 +83,7 @@ namespace P.Runtime
         {
             normal ,
             find_a_ap , // --PL: used for investigation
-            find_comp
+            find_comp // find competitors
         };
 
         public static ExploreMode mode = ExploreMode.normal;
@@ -324,7 +324,7 @@ namespace P.Runtime
                     throw new SuccessorFound(pred, this);
                 }
 
-            if ( invariants ? Check_state_invariant(currIndex) && Check_trans_invariant(currIndex, pred) : true )
+            if ( invariants ? CheckStateInvariant(currIndex) && Check_trans_invariant(currIndex, pred) : true )
             {
                 if (abstract_succs.Add(hash))
                     if (FileDump)
@@ -387,7 +387,7 @@ namespace P.Runtime
 
         // Abstract states obtained by abstraction from a reachable concrete state satisfy all invariants by construction.
         // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
-        public bool Check_state_invariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
+        public bool CheckStateInvariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
         {
 #if true
             PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.IsAbstract());
@@ -458,10 +458,11 @@ namespace P.Runtime
             return Hashing.Hash(hash1, hash2);
         }
         /// <summary>
-        /// A good convention for converting a state into a compressed string 
-        /// might be to define a separator char (like '|')
-        /// that is used twice, thrice, etc. depending on how deep in the state 
-        /// hierarchy you are. This way you need to reserve only 1 char
+        /// A good convention for converting a state into a compressed 
+        /// string might be to define a separator char (like '|')
+        /// that is used twice, thrice, etc. depending on how deep in 
+        /// the state hierarchy you are. This way you need to reserve 
+        /// only 1 char
         /// </summary>
         /// <returns></returns>
         public override string ToString()

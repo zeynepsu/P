@@ -9,119 +9,253 @@ using System.Diagnostics;
 
 namespace P.Tester
 {
+  static class Constants
+  {
+    public const string dumpFileConcretePrefix = "concretes-";
+    public const string dumpFileAbstractPrefix = "abstracts-";
+    public const string dumpFileAbstractSuccPrefix = "abstract_succs-";
+    public const string dumpFileTransitionPrefix = "transitions-";
+
+    public const string dumpFileExtension = ".txt";
+
+    public const string consoleSeparator = "==================================================";
+  }
+  /// <summary>
+  /// The main class of OS approach
+  /// </summary>
+  static class DfsExploration
+  {
+    // static bool UseDepthBounding = false;
+    // static int DepthBound = 100;
+
+    public static bool useStateHashing = true; // currently doesn't make sense without hashing
+    public static bool fileDump = false;
+
     /// <summary>
-    /// The main class of OS approach
+    /// the set of concrete states, storing in succHash values, we have found so far
     /// </summary>
-    static class DfsExploration
+    static HashSet<int> concretesInHash = new HashSet<int>();
+    /// <summary>
+    /// the set of abstract states, storing in succHash values, we have found so far
+    /// </summary>
+    static HashSet<int> abstractsInHash = new HashSet<int>();
+    /// <summary>
+    /// the set of successors of abstract states, storing in succHash values, we have found so far
+    /// </summary>
+    static HashSet<int> abstractSuccInHash = new HashSet<int>();
+
+    /// <summary>
+    /// --PL: the number of reached concrete states when queue is bounded by k-1
+    /// </summary>
+    static int countConcretesPrevious = 0;
+    /// <summary>
+    /// --PL: the number of reached abstract states when queue is bounded by k-1
+    /// </summary>
+    static int countAbstractsPrevious = 0;
+    /// <summary>
+    /// --PL: the number of reached abstract states when queue is bounded by k-2
+    /// </summary>
+    static int countAbstractsPreviousPrevious = 0;
+
+    /// <summary>
+    /// For convergence detection:
+    /// c -> c'
+    /// |    |
+    /// |    |
+    /// a -> a', b' = alpha(c') (MUST: b' in A)
+    /// </summary>
+    static HashSet<int> competitors;
+
+    public static StateImpl start = null;
+
+    /// <summary>
+    /// -- PL: the main procedure of OS exploration
+    /// </summary>
+    public static void OSIterate()
     {
-        // static bool UseDepthBounding = false;
-        // static int DepthBound = 100;
+      //if (PrtEventBuffer.k == 0)
+      //  goto Next_Round; // skip 0: makes no sense
 
-        public static bool useStateHashing = true; // currently doesn't make sense without hashing
-        public static bool fileDump = false;
-
-        /// <summary>
-        /// the set of concrete states, storing in hash values, we have found so far
-        /// </summary>
-        static HashSet<int> concretes = new HashSet<int>();
-        /// <summary>
-        /// the set of abstract states, storing in hash values, we have found so far
-        /// </summary>
-        static HashSet<int> abstracts = new HashSet<int>();
-        /// <summary>
-        /// the set of successors of abstract states, storing in hash values, we have found so far
-        /// </summary>
-        static HashSet<int> abstract_succs = new HashSet<int>();
-
-        /// <summary>
-        /// --PL: the number of reached concrete states when queue is bounded by k-1
-        /// </summary>
-        static int size_concretes_previous = 0;
-        /// <summary>
-        /// --PL: the number of reached abstract states when queue is bounded by k-1
-        /// </summary>
-        static int size_abstracts_previous = 0;
-        /// <summary>
-        /// --PL: the number of reached abstract states when queue is bounded by k-2
-        /// </summary>
-        static int size_abstracts_previous_previous = 0;
-
-        /// <summary>
-        /// For convergence detection:
-        /// c -> c'
-        /// |    |
-        /// |    |
-        /// a -> a', b' = alpha(c') (MUST: b' in A)
-        /// </summary>
-        static HashSet<int> competitors; 
-
-        public static StateImpl start = null;
-
-        /// <summary>
-        /// --PL: Queue-unbounded exploration, in DFS mode
-        /// </summary>
-        /// <param name="queueAbstraction">Abstracting queue or not, default is not (set param as false)</param>
-        public static void Dfs(bool queueAbstraction = false)
+      while (true)
+      {
+        // skip k=0: makes no sense
+        if (PrtEventBuffer.k == 0)
         {
-            if (!useStateHashing)
-                throw new NotImplementedException();
+          ++PrtEventBuffer.k;
+          continue;
+        }
 
-            Console.WriteLine("Using " + (PrtEventBuffer.k == 0 ? "unbounded queue" : "queue bound of " + PrtEventBuffer.k.ToString()));
-            /// --PL: need to clear the following three Hashsets as all of them are static variables 
-            concretes.Clear();
-            abstracts.Clear();
-            abstract_succs.Clear();
+        Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", PrtEventBuffer.k);
+        bool stop = (Console.ReadKey().Key != ConsoleKey.Enter);
+        Console.WriteLine();
+        if (stop)
+        {
+          Console.WriteLine("Exiting.");
+          Environment.Exit(0);
+        }
+
+        try
+        {
+          Dfs(true); /// with abstraction
+          Debug.Assert(StateImpl.mode == StateImpl.ExploreMode.normal, "Dfs should always find the successor state with the given hash code"); // --PL Q?
+        }
+        catch (StateImpl.SuccessorFound sfe) // --PL if a successor found
+        {
+          string ap_str = "unreached";
+          string bp_str = "reached";
+          StreamWriter a_SW = new StreamWriter("a.txt");
+          a_SW.WriteLine(sfe.a.ToPrettyString());
+          a_SW.Close();
+          StreamWriter ap_SW = new StreamWriter(ap_str + ".txt");
+          ap_SW.WriteLine(sfe.ap.ToPrettyString());
+          ap_SW.Close();
+          Console.WriteLine("Located the so-far unreached abstract state and pretty-printed it into file {0}.txt .", ap_str);
+          StateImpl.mode = StateImpl.ExploreMode.find_comp;
+          competitors = new HashSet<int>();
+          Console.WriteLine("Restarting Dfs to find reachable abstract states 'parallel' to this so-far unreached state ...");
+          Dfs(); /// DFS restarts, why not queueAbstraction
+          Debug.Assert(competitors.Count > 0);
+          Console.WriteLine("Pretty-printed reachable parallel abstract states into files {0}0.txt..{0}{1}.txt .", bp_str, competitors.Count - 1);
+          Console.WriteLine("These states are \"competitors\" to the so-far unreached abstract state.");
+          Console.WriteLine("You should compare each reached state to the unreached state; the difference might reveal why the former are reachable while the latter may not be.");
+          /// The following is experimental
+          /// TODO: rewrite this part
+          string cmd = "c:\\Program Files\\Meld\\Meld.exe"; // your favorite diff command here. It must accept two filename arguments
+          string arg = bp_str + "0.txt " + ap_str + ".txt";
+          Console.Write("Press <ENTER> to run \"{0} {1}\", anything else to 'Exit(0)': ", cmd, arg);
+          bool run = (Console.ReadKey().Key == ConsoleKey.Enter);
+          Console.WriteLine();
+          if (run)
+          {
+            Console.WriteLine("Running external command.");
+            try
+            {
+              Process.Start(cmd, arg);
+            }
+            catch (System.Exception e)
+            {
+              Console.WriteLine("External command: something went wrong: {0}", e.Message);
+              Environment.Exit(-1);
+            }
+          }
+          Console.WriteLine("Exiting.");
+          Environment.Exit(0);
+        }
+
+        if (countConcretesPrevious == concretesInHash.Count) /// --PL: OS1 converges
+        {
+          Console.WriteLine("Global state sequence converged!");
+          Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
+          stop = (Console.ReadKey().Key != ConsoleKey.Enter);
+          Console.WriteLine();
+          if (stop)
+          {
+            Console.WriteLine("Exiting.");
+            Environment.Exit(0);
+          }
+        }
+
+        // --PL: reach a plateau in OS3
+        if (countAbstractsPreviousPrevious < countAbstractsPrevious && countAbstractsPrevious == abstractsInHash.Count)
+        {
+          Console.WriteLine("New plateau detected.");
+          Console.Write("Running abstract state convergence test with tail-list abstraction ... ");
+
+          if (HasAbstractConverged()) /// -- PL: convergence detection
+          {
+            Console.WriteLine("converged!");
+            Environment.Exit(0);
+          }
+        }
+
+        countAbstractsPreviousPrevious = countAbstractsPrevious;
+        countAbstractsPrevious = abstractsInHash.Count;
+        countConcretesPrevious = concretesInHash.Count;
+
+        ++PrtEventBuffer.k; /// step into next round
+      }
+      //Next_Round:
+      //++PrtEventBuffer.k;
+      //OSIterate();
+    }
+
+    /// <summary>
+    /// --PL: Queue-unbounded exploration, in DFS mode
+    /// </summary>
+    /// <param name="queueAbstraction">Abstracting queue or not, default is not (set param as false)</param>
+    public static void Dfs(bool queueAbstraction = false)
+    {
+      if (!useStateHashing)
+        throw new NotImplementedException();
+
+      Console.WriteLine("Using "
+          + (PrtEventBuffer.k == 0 ? "unbounded queue" : "queue bound of " + PrtEventBuffer.k.ToString()));
+      /// --PL: need to clear the following three Hashsets as all of them are static variables 
+      concretesInHash.Clear();
+      abstractsInHash.Clear();
+      abstractSuccInHash.Clear();
 
 #if DEBUG
             int max_queue_size = 0;
             int max_stack_size = 0;
 #endif
-            var stack = new Stack<BacktrackingState>();
+      /// worklist, implemented using stack
+      var worklist = new Stack<BacktrackingState>();
 
-            /// --PL: dump states & transitions to files
-            StreamWriter concretes_SW = null;
-            StreamWriter abstracts_SW = null;
-            StreamWriter abstract_succs_SW = null;
-            StreamWriter transitions_SW = null;
-            if (fileDump)
-            {
-                concretes_SW = new StreamWriter("concretes-" + (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString() + ".txt"); /// add "0" for name formating
-                abstracts_SW = new StreamWriter("abstracts-" + (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString() + ".txt");
-                abstract_succs_SW = new StreamWriter("abstract_succs-" + (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString() + ".txt");
-                transitions_SW = new StreamWriter("transitions-" + (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString() + ".txt");
-            }
+      /// --PL: dump states & transitions to files
+      StreamWriter concretesFile = null;
+      StreamWriter abstractsFile = null;
+      StreamWriter abstractSuccsFile = null;
+      StreamWriter transitionsFile = null;
+      if (fileDump)
+      {
+        /// add "0" for name formating
+        var suffix = (PrtEventBuffer.k < 10 ? "0" : "") + PrtEventBuffer.k.ToString();
+        concretesFile = new StreamWriter(Constants.dumpFileConcretePrefix
+            + suffix
+            + Constants.dumpFileExtension);
+        abstractsFile = new StreamWriter(Constants.dumpFileAbstractPrefix
+            + suffix
+            + Constants.dumpFileExtension);
+        abstractSuccsFile = new StreamWriter(Constants.dumpFileAbstractSuccPrefix
+            + suffix
+            + Constants.dumpFileExtension);
+        transitionsFile = new StreamWriter(Constants.dumpFileTransitionPrefix
+            + suffix
+            + Constants.dumpFileExtension);
+      }
 
-            Debug.Assert(start != null);
-            StateImpl start_c = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs Q: Why --PL
+      Debug.Assert(start != null);
+      var startClone = (StateImpl)start.Clone(); // we need a fresh clone in each iteration (k) of Dfs Q: Why --PL
 
-            stack.Push(new BacktrackingState(start_c));
-            int start_hash = start_c.GetHashCode();
-            concretes.Add(start_hash);
-            if (fileDump)
-            {
-                concretes_SW.Write(start_c.ToPrettyString()); // + " = " + start_hash.ToPrettyString());
-                concretes_SW.WriteLine("==================================================");
+      // TODO: the following code is duplicate. Need to refine it. 
+      worklist.Push(new BacktrackingState(startClone));
+      var startHash = startClone.GetHashCode();
+      concretesInHash.Add(startHash);
+      if (fileDump)
+      {
+        concretesFile.Write(startClone.ToPrettyString()); // + " = " + startHash.ToPrettyString());
+        concretesFile.WriteLine(Constants.consoleSeparator);
+        transitionsFile.WriteLine(startHash);
+      }
 
-                transitions_SW.WriteLine(start_hash);
-            }
+      if (queueAbstraction)
+      {
+        var startCloneAbstract = (StateImpl)start.Clone();
+        startCloneAbstract.AbstractMe(); // abstract queue
+        abstractsInHash.Add(startCloneAbstract.GetHashCode());
+        /// compute abstract succs right way
+        startCloneAbstract.CollectAbstractSuccessors(abstractSuccInHash, abstractSuccsFile);
+        if (fileDump)
+        {
+          abstractsFile.Write(startCloneAbstract.ToPrettyString());
+          abstractsFile.WriteLine(Constants.consoleSeparator);
+        }
+      }
 
-            if (queueAbstraction)
-            {
-                StateImpl start_c_ab = (StateImpl)start.Clone();
-                start_c_ab.AbstractMe(); // abstract queue
-                abstracts.Add(start_c_ab.GetHashCode());
-                /// compute abstract succs right way
-                start_c_ab.CollectAbstractSuccessors(abstract_succs, abstract_succs_SW);
-                if (fileDump)
-                {
-                    abstracts_SW.Write(start_c_ab.ToPrettyString());
-                    abstracts_SW.WriteLine("==================================================");
-                }
-            }
-
-            /// the main loop of DFS
-            while (stack.Count != 0) /// if stack is not empty
-            {
+      /// the main loop of DFS
+      while (worklist.Count != 0) /// if worklist is not empty
+      {
 
 #if false // code for investigating memory usage
                 if(stack.Count == 5000)
@@ -149,365 +283,273 @@ namespace P.Tester
                     Environment.Exit(0);
                 }
 #endif
-                /// -PL: pop a state from stack, and operate on it
-                var curr = stack.Pop();
-                if (curr.CurrIndex >= curr.State.EnabledMachines.Count) // if "done" with curr
-                {
-                    continue;
-                }
+        /// -PL: pop a state from worklist, and operate on it
+        var curr = worklist.Pop();
+        if (curr.CurrIndex >= curr.State.EnabledMachines.Count) // if "done" with curr
+        {
+          continue;
+        }
 
-                /// Get a successor by executing the enabled machine pointed to by currIndex. 
-                /// Also, advance currIndex and/or choiceIndex and push curr state back to stack
-                BacktrackingState succ = Execute(curr); 
-                stack.Push(curr);
+        /// Get a successor by executing the enabled machine pointed to by currIndex. 
+        /// Also, advance currIndex and/or choiceIndex and push curr state back to worklist
+        BacktrackingState succ = Execute(curr);
+        worklist.Push(curr);
 
-                if (StateImpl.mode == StateImpl.ExploreMode.find_comp) // if we are in competitor finding mode
-                    CheckPredHash(curr.State, succ.State);
+        // if we are in competitor finding mode
+        if (StateImpl.mode == StateImpl.ExploreMode.find_comp)
+          CheckPredHash(curr.State, succ.State);
 
-                if (!succ.State.CheckFailure(succ.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
-                {
-                    // update concrete state hashset
-                    var hash = succ.State.GetHashCode();
-                    if (!concretes.Add(hash)) // -- PL: if successor has been explored
-                        continue;
-
-                    stack.Push(succ);
+        if (!succ.State.CheckFailure(succ.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
+        {
+          // update concrete state hashset
+          var succHash = succ.State.GetHashCode();
+          if (!concretesInHash.Add(succHash)) // -- PL: if successor has been explored
+            continue;
+          worklist.Push(succ);
 #if DEBUG
                     max_stack_size = Math.Max(max_stack_size, stack.Count);
 #endif
 
-                    if (fileDump)
-                    {
-                        concretes_SW.Write(succ.State.ToPrettyString()); // + " = " + hash.ToPrettyString());
-                        concretes_SW.WriteLine("==================================================");
-                        transitions_SW.WriteLine("{0} -> {1}", curr.State.GetHashCode(), hash);
-                    }
+          if (fileDump)
+          {
+            concretesFile.Write(succ.State.ToPrettyString()); // + " = " + succHash.ToPrettyString());
+            concretesFile.WriteLine(Constants.consoleSeparator);
+            transitionsFile.WriteLine("{0} -> {1}", curr.State.GetHashCode(), succHash);
+          }
 
-                    if (queueAbstraction)
-                    {
-                        StateImpl succ_ab_s = (StateImpl)succ.State.Clone();
-                        succ_ab_s.AbstractMe();
-                        if (abstracts.Add(succ_ab_s.GetHashCode())) /// --PL: if the abstract of current state has NOT been explored
-                        {
-                            succ_ab_s.CollectAbstractSuccessors(abstract_succs, abstract_succs_SW);
-                            if (fileDump)
-                            {
-                                abstracts_SW.Write(succ_ab_s.ToPrettyString());
-                                abstracts_SW.WriteLine("==================================================");
-                            }
-                        }
-                    }
+          if (queueAbstraction)
+          {
+            var succAbs = (StateImpl)succ.State.Clone();
+            succAbs.AbstractMe();
+            if (abstractsInHash.Add(succAbs.GetHashCode())) /// --PL: if the abstract of current state has NOT been explored
+            {
+              succAbs.CollectAbstractSuccessors(abstractSuccInHash, abstractSuccsFile);
+              if (fileDump)
+              {
+                abstractsFile.Write(succAbs.ToPrettyString());
+                abstractsFile.WriteLine(Constants.consoleSeparator);
+              }
+            }
+          }
 
-                    // status and diagnostics
-                    if (concretes.Count % 1000 == 0)
-                    {
-                        Console.WriteLine("-------------- Number of concrete states visited so far   = {0}", concretes.Count);
-                        if (queueAbstraction)
-                        {
-                            Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstracts.Count);
-                            Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstract_succs.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
-                        }
+          // status and diagnostics
+          if (concretesInHash.Count % 1000 == 0)
+          {
+            Console.WriteLine("-------------- Number of concrete states visited so far   = {0}", concretesInHash.Count);
+            if (queueAbstraction)
+            {
+              Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstractsInHash.Count);
+              Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstractSuccInHash.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
+            }
 #if DEBUG
                         Console.WriteLine("-------------- Maximum queue size encountered so far      = {0}", max_queue_size);
                         Console.WriteLine("-------------- Maximum stack size encountered so far      = {0}", max_stack_size);
 #endif
-                        Console.WriteLine();
-                    }
+            Console.WriteLine();
+          }
 
 #if DEBUG
                     // update maximum encountered queue size
                     foreach (PrtImplMachine m in succ.State.ImplMachines)
                         max_queue_size = Math.Max(max_queue_size, m.eventQueue.Size());
 #endif
-                }
-            }
+        }
+      } // end of while loop
 
-            Console.WriteLine("");
+      Console.WriteLine("");
 
-            Console.WriteLine("Number of concrete states visited     = {0}", concretes.Count);
-            if (queueAbstraction)
-            {
-                Console.WriteLine("Number of abstract states encountered = {0}", abstracts.Count);
-                Console.WriteLine("Number of abstract successors found   = {0}{1}", abstract_succs.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
-            }
+      Console.WriteLine("Number of concrete states visited     = {0}", concretesInHash.Count);
+      if (queueAbstraction)
+      {
+        Console.WriteLine("Number of abstract states encountered = {0}", abstractsInHash.Count);
+        Console.WriteLine("Number of abstract successors found   = {0}{1}", abstractSuccInHash.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
+      }
 
 #if DEBUG
             Console.WriteLine("Maximum queue size  encountered       = {0}", max_queue_size);
             Console.WriteLine("Maximum stack size  encountered       = {0}", max_stack_size);
 #endif
-            Console.WriteLine();
+      Console.WriteLine();
 
-            if (fileDump)
-            {
-                /// flush streams before close them
-                concretes_SW.Flush();
-                abstracts_SW.Flush();
-                abstract_succs_SW.Flush();
-                transitions_SW.Flush();
-                /// close streams
-                concretes_SW.Close();
-                abstracts_SW.Close();
-                abstract_succs_SW.Close();
-                transitions_SW.Close();
-            }
-        }
-
-        /// <summary>
-        /// -- PL: the main procedure of OS exploration
-        /// </summary>
-        public static void OSIterate()
-        {
-            if (PrtEventBuffer.k == 0)
-                goto Next_Round; // skip 0: makes no sense
-
-            Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", PrtEventBuffer.k);
-            bool stop = (Console.ReadKey().Key != ConsoleKey.Enter);
-            Console.WriteLine();
-            if (stop)
-            {
-                Console.WriteLine("Exiting.");
-                Environment.Exit(0);
-            }
-
-            try
-            {
-                Dfs(true); /// with abstraction
-                Debug.Assert(StateImpl.mode == StateImpl.ExploreMode.normal, "Dfs should always find the successor state with the given hash code"); // --PL Q?
-            }
-            catch (StateImpl.SuccessorFound sfe) // --PL if a successor found
-            {
-                string ap_str = "unreached";
-                string bp_str = "reached";
-                StreamWriter a_SW = new StreamWriter("a.txt");
-                a_SW.WriteLine(sfe.a.ToPrettyString());
-                a_SW.Close();
-                StreamWriter ap_SW = new StreamWriter(ap_str + ".txt");
-                ap_SW.WriteLine(sfe.ap.ToPrettyString());
-                ap_SW.Close();
-                Console.WriteLine("Located the so-far unreached abstract state and pretty-printed it into file {0}.txt .", ap_str);
-                StateImpl.mode = StateImpl.ExploreMode.find_comp;
-                competitors = new HashSet<int>();
-                Console.WriteLine("Restarting Dfs to find reachable abstract states 'parallel' to this so-far unreached state ...");
-                Dfs(); /// DFS restarts, why not queueAbstraction
-                Debug.Assert(competitors.Count > 0);
-                Console.WriteLine("Pretty-printed reachable parallel abstract states into files {0}0.txt..{0}{1}.txt .", bp_str, competitors.Count - 1);
-                Console.WriteLine("These states are \"competitors\" to the so-far unreached abstract state.");
-                Console.WriteLine("You should compare each reached state to the unreached state; the difference might reveal why the former are reachable while the latter may not be.");
-                /// The following is experimental
-                /// TODO: rewrite this part
-                string cmd = "c:\\Program Files\\Meld\\Meld.exe"; // your favorite diff command here. It must accept two filename arguments
-                string arg = bp_str + "0.txt " + ap_str + ".txt";
-                Console.Write("Press <ENTER> to run \"{0} {1}\", anything else to 'Exit(0)': ", cmd, arg);
-                bool run = (Console.ReadKey().Key == ConsoleKey.Enter);
-                Console.WriteLine();
-                if (run)
-                {
-                    Console.WriteLine("Running external command.");
-                    try
-                    {
-                        Process.Start(cmd, arg);
-                    }
-                    catch (System.Exception e)
-                    {
-                        Console.WriteLine("External command: something went wrong: {0}", e.Message);
-                        Environment.Exit(-1);
-                    }
-                }
-                Console.WriteLine("Exiting.");
-                Environment.Exit(0);
-            }
-
-            if (size_concretes_previous == concretes.Count) /// --PL: OS1 converges
-            {
-                Console.WriteLine("Global state sequence converged!");
-                Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
-                stop = (Console.ReadKey().Key != ConsoleKey.Enter);
-                Console.WriteLine();
-                if (stop)
-                {
-                    Console.WriteLine("Exiting.");
-                    Environment.Exit(0);
-                }
-            }
-
-            // when do we have to run the abstract convergence test?
-            // --PL: reach a plateau in OS3
-            if (size_abstracts_previous_previous < size_abstracts_previous && size_abstracts_previous == abstracts.Count)
-            {
-                Console.WriteLine("New plateau detected.");
-                Console.Write("Running abstract state convergence test with tail-list abstraction ... ");
-
-                if (HasAbstractConverged()) /// -- PL: convergence detection
-                {
-                    Console.WriteLine("converged!");
-                    Environment.Exit(0);
-                }
-            }
-
-            size_abstracts_previous_previous = size_abstracts_previous;
-            size_abstracts_previous = abstracts.Count;
-            size_concretes_previous = concretes.Count;
-
-            Next_Round:
-            ++PrtEventBuffer.k;
-            OSIterate();
-        }
-
-        /// <summary>
-        /// Dump cp to file if cp's abstract state is a competitor
-        /// </summary>
-        /// <param name="c"> current state</param>
-        /// <param name="cp">the successor, cp = c'</param>
-        static void CheckPredHash(StateImpl c, StateImpl cp)
-        {
-            StateImpl a = (StateImpl)c.Clone();
-            a.AbstractMe();
-            if (a.GetHashCode() == StateImpl.predHash)
-            {
-                StateImpl bp = (StateImpl)cp.Clone();
-                bp.AbstractMe();
-                int bp_hash = bp.GetHashCode();
-                if (competitors.Add(bp_hash))
-                {
-                    var bp_SW = new StreamWriter("reached" + (competitors.Count - 1).ToString() + ".txt");
-                    bp_SW.WriteLine(bp.ToPrettyString());
-                    bp_SW.Close();
-                }
-            }
-        }
-
-        /// <summary>
-        /// compute abstract successors, and return true ("converged") 
-        /// iff all of them are already contained in abstracts
-        /// </summary>
-        static bool HasAbstractConverged()
-        {
-            foreach (int hash in abstract_succs)
-            {
-                if (!abstracts.Contains(hash))
-                {
-                    Console.WriteLine("did not converge.");
-                    Console.WriteLine("Found a so-far unreached abstract successor state. Its hash code is {0}.", hash);
-                    Console.WriteLine("Do you want to");
-                    Console.WriteLine("(c)ontinue, by increasing the queue bound, ignoring the unreached successor, OR");
-                    Console.WriteLine("(i)nvestigate; we will then locate the state with that hash code.");
-                    string answer;
-                    do
-                    {
-                        Console.Write(" ? ");
-                        answer = Console.ReadKey().Key.ToString().ToLower();
-                        Console.WriteLine();
-                    } while (answer != "c" && answer != "i");
-
-                    if (answer == "c")
-                        return false;
-
-                    // for the re-run, queue abstraction type remains, k bound remains; file dumping is turned off
-                    StateImpl.mode = StateImpl.ExploreMode.find_a_ap;
-                    StateImpl.succHash = hash;
-                    StateImpl.FileDump = false;
-                    fileDump = false;
-                    OSIterate();
-                    Debug.Assert(false, "DfsExploration.HasAbstractConverged: internal error: can't get here");
-                }
-            }
-            return true;
-        }
-
-        static void PrintStackDepth(int depth)
-        {
-            for (int i = 0; i < depth; i++)
-            {
-                Console.Write(".");
-            }
-            Console.WriteLine();
-        }
-
-
-        /// <summary>
-        /// - runs the state machine pointed to by CurrIndex, in place, and 
-        ///   returns the successor wrapped into a curr
-        /// - assigns to argument a clone (!) of the old curr, and advances 
-        ///   its choice vector and currIndex, as appropriate
-        /// So curr points to new memory after calling Execute. The returned 
-        /// successor is stored in old memory.
-        /// </summary>
-        /// <param name="curr"></param>
-        /// <returns></returns>
-        static BacktrackingState Execute(BacktrackingState curr)
-        {
-            /// create a copy of curr
-            var origState = (StateImpl)curr.State.Clone();
-
-            /// --PL Q: set as 0 every time is called?
-            int choiceIndex = 0;
-            /// curr.State.UserBooleanChoice is a pointer to a function with 
-            /// signature f: {} -> Bool.
-            /// The following assigns the code under 'delegate' to this function pointer.
-            /// curr and choiceIndex are global variables. -- PL: Q: global variables?
-            curr.State.UserBooleanChoice = delegate ()
-            {
-                if (choiceIndex < curr.ChoiceVector.Count)
-                {
-                    return curr.ChoiceVector[choiceIndex++];
-                }
-
-                choiceIndex++;
-                curr.ChoiceVector.Add(false);
-                return false;
-            };
-            /// --PL: Execute the machine with index = CurrIndex
-            curr.State.EnabledMachines[curr.CurrIndex].PrtRunStateMachine();
-
-            Debug.Assert(choiceIndex == curr.ChoiceVector.Count);
-
-            /// flip last choice -- PL Q: What does this mean??
-            
-            /// remove all 1's from the right
-            while (curr.ChoiceVector.Count > 0 && curr.ChoiceVector[curr.ChoiceVector.Count - 1])
-            {
-                curr.ChoiceVector.RemoveAt(curr.ChoiceVector.Count - 1);
-            }
-
-            if (curr.ChoiceVector.Count > 0)
-            {
-                curr.ChoiceVector[curr.ChoiceVector.Count - 1] = true;
-            }
-
-            /// --PL: create the successor
-            var succ = new BacktrackingState(curr.State);
-            succ.depth = curr.depth + 1;
-
-            curr.State = origState; // a clone of curr.State
-            if (curr.ChoiceVector.Count == 0)
-            {
-                curr.CurrIndex++; // first iterate through all choices. When exhausted, step to the next enabled machine
-            }
-
-            return succ;
-        }
-    } /// the end of class DfsExploration
+      if (fileDump)
+      {
+        /// flush streams before close them
+        concretesFile.Flush();
+        abstractsFile.Flush();
+        abstractSuccsFile.Flush();
+        transitionsFile.Flush();
+        /// close streams
+        concretesFile.Close();
+        abstractsFile.Close();
+        abstractSuccsFile.Close();
+        transitionsFile.Close();
+      }
+    }
 
     /// <summary>
-    /// --PL: A wrapper for P program State. Q: Why not use inheritance? 
+    /// For convergence detection:
+    /// c -> cp
+    /// |    |
+    /// |    |
+    /// a -> ap, bp = alpha(cp) (MUST: bp in A)
+    /// 
+    /// Dump cp to file if cp's abstract state is a competitor
     /// </summary>
-    class BacktrackingState
+    /// <param name="c"> a concrete state</param>
+    /// <param name="cp">the successor of c, cp means c'</param>
+    static void CheckPredHash(StateImpl c, StateImpl cp)
     {
-        public StateImpl State;
-        public int CurrIndex;            // index of the next machine to execute
-        /// <summary>
-        /// Enumerate all non-deterministic choices
-        /// </summary>
-        public List<bool> ChoiceVector;  // length = number of choices to be made; contents of list = current choice as bitvector
-        public int depth;                // only used with depth bounding
+      /// build the abstract state a of c
+      var a = (StateImpl)c.Clone();
+      a.AbstractMe();
+      /// only perfom actions when a == predecessor?
+      if (a.GetHashCode() == StateImpl.predHash)
+      {
+        var bp = (StateImpl)cp.Clone();
+        bp.AbstractMe();
 
-        public BacktrackingState(StateImpl state)
+        var bp_hash = bp.GetHashCode();
+        if (competitors.Add(bp_hash))
         {
-            this.State = state;
-            CurrIndex = 0;
-            ChoiceVector = new List<bool>();
-            depth = 0;
+          var bp_SW = new StreamWriter("reached" + (competitors.Count - 1).ToString() + ".txt");
+          bp_SW.WriteLine(bp.ToPrettyString());
+          bp_SW.Close();
+        }
+      }
+    }
+
+    /// <summary>
+    /// compute abstract successors, and return true ("converged") 
+    /// iff all of them are already contained in abstractsInHash
+    /// </summary>
+    static bool HasAbstractConverged()
+    {
+      foreach (int hash in abstractSuccInHash)
+      {
+        if (!abstractsInHash.Contains(hash))
+        {
+          Console.WriteLine("did not converge.");
+          Console.WriteLine("Found a so-far unreached abstract successor state. Its hash code is {0}.", hash);
+          Console.WriteLine("Do you want to");
+          Console.WriteLine("(c)ontinue, by increasing the queue bound, ignoring the unreached successor, OR");
+          Console.WriteLine("(i)nvestigate; we will then locate the state with that succHash code.");
+          string answer;
+          do
+          {
+            Console.Write(" ? ");
+            answer = Console.ReadKey().Key.ToString().ToLower();
+            Console.WriteLine();
+          } while (answer != "c" && answer != "i");
+
+          if (answer == "c")
+            return false;
+
+          // for the re-run, queue abstraction type remains, k bound remains; file dumping is turned off
+          StateImpl.mode = StateImpl.ExploreMode.find_a_ap;
+          StateImpl.succHash = hash;
+          StateImpl.FileDump = false;
+          fileDump = false;
+          OSIterate();
+          Debug.Assert(false, "DfsExploration.HasAbstractConverged: internal error: can't get here");
+        }
+      }
+      return true;
+    }
+
+    static void PrintStackDepth(int depth)
+    {
+      for (int i = 0; i < depth; i++)
+      {
+        Console.Write(".");
+      }
+      Console.WriteLine();
+    }
+
+
+    /// <summary>
+    /// - runs the state machine pointed to by CurrIndex, in place, and 
+    ///   returns the successor wrapped into a curr
+    /// - assigns to argument a clone (!) of the old curr, and advances 
+    ///   its choice vector and currIndex, as appropriate
+    /// So curr points to new memory after calling Execute. The returned 
+    /// successor is stored in old memory.
+    /// </summary>
+    /// <param name="curr"></param>
+    /// <returns></returns>
+    static BacktrackingState Execute(BacktrackingState curr)
+    {
+      /// create a copy of curr
+      var origState = (StateImpl)curr.State.Clone();
+
+      /// --PL Q: set as 0 every time is called?
+      int choiceIndex = 0;
+      /// curr.State.UserBooleanChoice is a pointer to a function with 
+      /// signature f: {} -> Bool.
+      /// The following assigns the code under 'delegate' to this function pointer.
+      /// curr and choiceIndex are global variables. -- PL: Q: global variables?
+      curr.State.UserBooleanChoice = delegate ()
+      {
+        if (choiceIndex < curr.ChoiceVector.Count)
+        {
+          return curr.ChoiceVector[choiceIndex++];
         }
 
+        choiceIndex++;
+        curr.ChoiceVector.Add(false);
+        return false;
+      };
+      /// --PL: Execute the machine with index = CurrIndex
+      curr.State.EnabledMachines[curr.CurrIndex].PrtRunStateMachine();
+
+      Debug.Assert(choiceIndex == curr.ChoiceVector.Count);
+
+      /// flip last choice -- PL Q: What does this mean??
+
+      /// remove all 1's from the right
+      while (curr.ChoiceVector.Count > 0 && curr.ChoiceVector[curr.ChoiceVector.Count - 1])
+      {
+        curr.ChoiceVector.RemoveAt(curr.ChoiceVector.Count - 1);
+      }
+
+      if (curr.ChoiceVector.Count > 0)
+      {
+        curr.ChoiceVector[curr.ChoiceVector.Count - 1] = true;
+      }
+
+      /// --PL: create the successor
+      var succ = new BacktrackingState(curr.State);
+      succ.depth = curr.depth + 1;
+
+      curr.State = origState; // a clone of curr.State
+      if (curr.ChoiceVector.Count == 0)
+      {
+        curr.CurrIndex++; // first iterate through all choices. When exhausted, step to the next enabled machine
+      }
+
+      return succ;
     }
+  } /// the end of class DfsExploration
+
+  /// <summary>
+  /// --PL: A wrapper for P program State. Q: Why not use inheritance? 
+  /// </summary>
+  class BacktrackingState
+  {
+    public StateImpl State;
+    public int CurrIndex;            // index of the next machine to execute
+                                     /// <summary>
+                                     /// Enumerate all non-deterministic choices
+                                     /// </summary>
+    public List<bool> ChoiceVector;  // length = number of choices to be made; contents of list = current choice as bitvector
+    public int depth;                // only used with depth bounding
+
+    public BacktrackingState(StateImpl state)
+    {
+      this.State = state;
+      CurrIndex = 0;
+      ChoiceVector = new List<bool>();
+      depth = 0;
+    }
+
+  }
 }

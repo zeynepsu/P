@@ -610,6 +610,11 @@ namespace P.Runtime
             return x;
         }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="indent"></param>
+    /// <returns></returns>
         public string ToPrettyString(string indent = "")
         {
             string title = indent + "events:           ";
