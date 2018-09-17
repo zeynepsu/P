@@ -681,7 +681,7 @@ namespace P.Runtime
         /// </summary>
         public void AbstractMe()
         {
-            eventQueue.abstract_me();
+            eventQueue.AbstractMe();
         }
 
         public bool IsAbstract()

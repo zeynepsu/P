@@ -572,14 +572,14 @@ namespace P.Runtime
         /// (0,1,infinity abstraction). (This would still not distinguish the above 
         /// two examples.)
         /// </summary>
-        public void abstract_me()
+        public void AbstractMe()
         {
             Debug.Assert(IsConcrete());
-            concrete = false; // a bit premature, but remove_dups_in_suffix operates on abstract queues only
-            remove_dups_in_suffix();
+            concrete = false; // a bit premature, but RemoveDupsInSuffix operates on abstract queues only
+            RemoveDupsInSuffix();
         }
 
-        public void remove_dups_in_suffix()
+        public void RemoveDupsInSuffix()
         {
             Debug.Assert(IsAbstract());
             HashSet<PrtEventNode> suffix_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
@@ -603,7 +603,7 @@ namespace P.Runtime
             return clonedVal;
         }
 
-        public PrtEventBuffer Clone_Resolve(StateImpl s)
+        public PrtEventBuffer CloneAndResolve(StateImpl s)
         {
             PrtEventBuffer x = Clone();
             x.Resolve(s);
@@ -670,7 +670,7 @@ namespace P.Runtime
             events.Add(en); // concrete or abstract
 
             if (IsAbstract() && Size() >= p + 2)   // if the suffix was not empty before enqueuing this element
-                remove_dups_in_suffix();
+                RemoveDupsInSuffix();
         }
 
         public bool DequeueEvent(PrtImplMachine owner)
@@ -877,12 +877,12 @@ namespace P.Runtime
 
         public override int GetHashCode()
         {
-            return Hashing.Hash(returnToLocation.GetHashCode(), locals.Select(v => v.GetHashCode()).Hash());
+            return Hashing.Hash(fun.GetHashCode(), returnToLocation.GetHashCode(), locals.Select(v => v.GetHashCode()).Hash());
         }
 
         public override string ToString()
         {
-            return returnToLocation.ToString() + "," + (locals.Count == 0 ? "null" : locals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2));
+            return returnToLocation.ToString() + ",(" + (locals.Count == 0 ? "null" : locals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2)) +")," + fun.ToString();
         }
 
         public void Resolve(StateImpl state)
@@ -946,9 +946,13 @@ namespace P.Runtime
             return funStack.Select(v => v.GetHashCode()).Hash();
         }
 
+        /// <summary>
+        /// print all contents (aka all PrtFunStackFrames) as a string
+        /// </summary>
+        /// <returns></returns>
         public override string ToString()
         {
-            return (funStack.Count == 0 ? "null" : funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "," + s2));
+            return (funStack.Count == 0 ? "null" : funStack.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + "|" + s2));
         }
 
         public void Resolve(StateImpl state)

@@ -40,7 +40,7 @@ namespace P.Tester
     /// </summary>
     static HashSet<int> abstractsInHash = new HashSet<int>();
     /// <summary>
-    /// the set of successors of abstract states, storing in succHash values, we have found so far
+    /// the set of successors of abstract states, storing in hash values, we have found so far
     /// </summary>
     static HashSet<int> abstractSuccInHash = new HashSet<int>();
 
@@ -178,6 +178,7 @@ namespace P.Tester
       //++PrtEventBuffer.k;
       //OSIterate();
     }
+
 
     /// <summary>
     /// --PL: Queue-unbounded exploration, in DFS mode
