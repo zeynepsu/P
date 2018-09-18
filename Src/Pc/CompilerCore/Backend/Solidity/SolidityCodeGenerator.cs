@@ -74,7 +74,8 @@ namespace Microsoft.Pc.Backend.Solidity
             }
 
             // Add the queue data structure
-            AddInternalDataStructures(context, output);
+            AddInternalDataStructures(context, output, machine);
+
             #endregion
 
             #region functions
@@ -201,9 +202,9 @@ namespace Microsoft.Pc.Backend.Solidity
             }
         }
 
-        #region helpers for queues
+        #region internal data structures
 
-        private void AddInternalDataStructures(CompilationContext context, StringWriter output)
+        private void AddInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
         {
             // TODO: Define the type of the value for the inbox
             context.WriteLine(output, $"struct Event");
@@ -215,10 +216,45 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, $"private uint first = 1;");
             context.WriteLine(output, $"private uint last = 0;");
             context.WriteLine(output, $"private bool IsRunning = false;");
-            context.WriteLine(output, $"private string currentState;");
-           
+
+            // Add all the states as an enumerated data type
+            EnumerateStates(context, output, machine);
+
         }
 
+        /// <summary>
+        /// Add the states as an enumerated data type
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="output"></param>
+        private void EnumerateStates(CompilationContext context, StringWriter output, Machine machine)
+        {
+            string startState = "";
+
+            context.WriteLine(output, $"enum State");
+            context.WriteLine(output, "{");
+
+            foreach(State state in machine.States)
+            {
+                if(state.IsStart)
+                {
+                    startState = state.QualifiedName;
+                }
+
+                context.WriteLine(output, state.QualifiedName + ",");
+            }
+
+            // Add a system defined error state
+            context.WriteLine(output, "Sys_Error_State");
+            context.WriteLine(output, "}");
+
+            // Add a variable which tracks the current state of the contract
+            context.WriteLine(output, $"private State ContractCurrentState = " + startState + ";");
+        }
+
+        #endregion
+
+        #region queue helper functions
         private void AddInboxEnqDeq(CompilationContext context, StringWriter output)
         {
             // Enqueue to inbox
