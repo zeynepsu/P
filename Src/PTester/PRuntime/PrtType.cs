@@ -81,7 +81,7 @@ namespace P.Runtime
         }
     }
 
-    public class PrtInterfaceType: PrtType
+    public class PrtInterfaceType : PrtType
     {
         public List<PrtEventValue> permissions;
         public string name;
@@ -97,22 +97,22 @@ namespace P.Runtime
 
         public PrtValue PrtReduceValue(PrtValue value)
         {
-            if(value == PrtValue.@null)
+            if (value == PrtValue.@null)
             {
                 return value.Clone();
             }
-            else if(value is PrtMachineValue)
+            else if (value is PrtMachineValue)
             {
                 return new PrtInterfaceValue(((PrtMachineValue)value).mach, permissions);
             }
-            else if(value is PrtInterfaceValue)
+            else if (value is PrtInterfaceValue)
             {
-                if(permissions == null)
+                if (permissions == null)
                 {
                     throw new PrtInternalException("Unexpected value of permissions in Interface Type");
                 }
 
-               
+
                 var iVal = value as PrtInterfaceValue;
 
                 //permissions in iVal is all events
@@ -123,7 +123,7 @@ namespace P.Runtime
 
 
                 //type_permissions is subset of value_permissions
-                if(permissions.Where(ev => !iVal.permissions.Contains(ev)).Count() > 0)
+                if (permissions.Where(ev => !iVal.permissions.Contains(ev)).Count() > 0)
                 {
                     throw new PrtInhabitsTypeException(String.Format("value {0} cannot be reduced to value of type {1}", value.ToString(), this.ToString()));
                 }
@@ -190,7 +190,7 @@ namespace P.Runtime
     {
         public List<PrtType> fieldTypes;
 
-        public PrtTupleType() 
+        public PrtTupleType()
         {
             /*
                This constructor is added only to prevent the other constructor from being called
@@ -202,7 +202,7 @@ namespace P.Runtime
         {
             Debug.Assert(fields.Count() > 0);
             this.fieldTypes = new List<PrtType>();
-            foreach(var f in fields)
+            foreach (var f in fields)
             {
                 fieldTypes.Add(f);
             }
@@ -231,7 +231,7 @@ namespace P.Runtime
             fieldTypes = new List<PrtType>();
 
             int index = 0;
-            while(index < args.Count())
+            while (index < args.Count())
             {
                 fieldNames.Add((string)args[index]);
                 index++;

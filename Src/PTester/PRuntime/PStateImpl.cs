@@ -234,7 +234,7 @@ namespace P.Runtime
                       machine.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
                     continue;
 
-                // reject machines with empty queues. Apparently enabled machines whose next SM op is dequeue or receive may have still an empty queue
+                // reject machines with empty queues. Apparently enabled machines whose nextSMOperation is dequeue or receive may have still an empty queue
                 if (machine.eventQueue.Empty())
                     continue;
 
@@ -242,6 +242,7 @@ namespace P.Runtime
                 // so the successor function cannot generate anything new
                 if (queue.Size() <= PrtEventBuffer.p) // prefix
                     continue;
+                Console.WriteLine("queue size passed.......................");
 
                 CollectAbstractSuccessorsFromList(currIndex, abstract_succs, abstract_succs_SW);
             }
