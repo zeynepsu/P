@@ -95,11 +95,6 @@ namespace Microsoft.Pc.Backend.Solidity
 
             foreach (State state in machine.States)
             {
-                if (state.IsStart)
-                {
-                    context.WriteLine(output, "[Start]");
-                }
-
                 if (state.Entry != null)
                 {
                     context.WriteLine(output, $"[OnEntry(nameof({context.Names.GetNameForDecl(state.Entry)}))]");
