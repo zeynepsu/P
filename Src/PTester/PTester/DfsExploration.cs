@@ -309,7 +309,7 @@ namespace P.Tester
                         continue;
                     worklist.Push(succ);
 #if DEBUG
-                    max_stack_size = Math.Max(max_stack_size, stack.Count);
+                    max_stack_size = Math.Max(max_stack_size, worklist.Count);
 #endif
 
                     if (fileDump)
