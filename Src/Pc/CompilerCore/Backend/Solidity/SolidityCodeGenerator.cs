@@ -212,10 +212,10 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, $"string name;");
             context.WriteLine(output, "}");
             context.WriteLine(output, $"// Adding inbox for the contract");
-            context.WriteLine(output, $"private mapping (uint => Event) inbox;");
-            context.WriteLine(output, $"private uint first = 1;");
-            context.WriteLine(output, $"private uint last = 0;");
-            context.WriteLine(output, $"private bool IsRunning = false;");
+            context.WriteLine(output, $"mapping (uint => Event) private inbox;");
+            context.WriteLine(output, $"uint private first = 1;");
+            context.WriteLine(output, $"uint private last = 0;");
+            context.WriteLine(output, $"bool private IsRunning = false;");
 
             // Add all the states as an enumerated data type
             EnumerateStates(context, output, machine);
@@ -238,10 +238,10 @@ namespace Microsoft.Pc.Backend.Solidity
             {
                 if(state.IsStart)
                 {
-                    startState = state.QualifiedName;
+                    startState = GetQualifiedStateName(state);
                 }
 
-                context.WriteLine(output, state.QualifiedName + ",");
+                context.WriteLine(output, GetQualifiedStateName(state) + ",");
             }
 
             // Add a system defined error state
@@ -249,7 +249,7 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, "}");
 
             // Add a variable which tracks the current state of the contract
-            context.WriteLine(output, $"private State ContractCurrentState = " + startState + ";");
+            context.WriteLine(output, $"State private ContractCurrentState = " + startState + ";");
         }
 
         #endregion
@@ -263,7 +263,7 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, $"function enqueue (Event e) private");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"last += 1;");
-            context.WriteLine(output, $"inbox[last] = e");
+            context.WriteLine(output, $"inbox[last] = e;");
             context.WriteLine(output, "}");
 
             // Dequeue from inbox
@@ -279,6 +279,15 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #endregion
 
+        #region misc helper functions
+
+        private string GetQualifiedStateName(State state)
+        {
+            return state.QualifiedName.Replace(".", "_");
+        }
+
+        #endregion
+
         #region scheduler
         private void AddScheduler(CompilationContext context, StringWriter output)
         {
@@ -288,7 +297,7 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, "{");
             context.WriteLine(output, $"if(!IsRunning)");
             context.WriteLine(output, "{");
-            context.WriteLine(output, "IsRunning = true");
+            context.WriteLine(output, "IsRunning = true;");
             context.WriteLine(output, $"if(e.name == \"eTransfer\")");
             context.WriteLine(output, "{");
             context.WriteLine(output, "Transfer();");    // TODO: Add payload for transfer
@@ -302,7 +311,7 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, "}");
             context.WriteLine(output, $"else");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"enqueue(e)");
+            context.WriteLine(output, $"enqueue(e);");
             context.WriteLine(output, "}");
             context.WriteLine(output, "}");
         }
