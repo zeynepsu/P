@@ -79,18 +79,20 @@ namespace Microsoft.Pc.Backend.Solidity
             #endregion
 
             #region functions
-            /*
+            
             foreach (Function method in machine.Methods)
             {
                 WriteFunction(context, output, method);
             }
-            */
+
+            // Add basic fallback function
+            AddTransferFunction(context, output);
 
             // Add helper functions for the queue
             AddInboxEnqDeq(context, output);
 
             // Add the scheduler
-            AddScheduler(context, output);
+            AddScheduler(context, output, machine);
             #endregion
 
             foreach (State state in machine.States)
@@ -226,7 +228,7 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             string startState = "";
 
-            context.WriteLine(output, $"enum State");
+            context.WriteLine(output, $"enum private State");
             context.WriteLine(output, "{");
 
             foreach(State state in machine.States)
@@ -274,6 +276,85 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #endregion
 
+        #region scheduler
+        private void AddScheduler(CompilationContext context, StringWriter output, Machine machine)
+        {
+            context.WriteLine(output, $"// Schedulers");
+
+            foreach (State state in machine.States)
+            {
+                foreach (var eventHandler in state.AllEventHandlers)
+                {
+                    PEvent pEvent = eventHandler.Key;
+                    IStateAction stateAction = eventHandler.Value;
+
+                    context.WriteLine(output, $"function scheduler (" + pEvent + " e)  public");
+                    context.WriteLine(output, "{");
+                    context.WriteLine(output, $"if(!IsRunning)");
+                    context.WriteLine(output, "{");
+                    context.WriteLine(output, $"IsRunning = true;");
+
+                    switch (stateAction)
+                    {
+                        case EventGotoState eventGotoState when eventGotoState.TransitionFunction != null:
+                            // update the next state
+                            context.WriteLine(output, $"ContractCurrentState = " + context.Names.GetNameForDecl(eventGotoState.Target) + ";");
+                            // call the event handler
+                            context.WriteLine(output, $"" + context.Names.GetNameForDecl(eventGotoState.Target) + "();");
+                            // fill in the rest
+                            context.WriteLine(output, "}");
+                            context.WriteLine(output, "}");
+                            context.WriteLine(output, $"else");
+                            context.WriteLine(output, "{");
+                            context.WriteLine(output, $"enqueue(e);");
+                            context.WriteLine(output, "}");
+                            context.WriteLine(output, "}");
+                            break;
+
+                        case EventDoAction eventDoAction:
+                            // call the event handler
+                            context.WriteLine(output, $"" + context.Names.GetNameForDecl(eventDoAction.Target) + "();");
+                            // fill in the rest
+                            context.WriteLine(output, "}");
+                            context.WriteLine(output, "}");
+                            context.WriteLine(output, $"else");
+                            context.WriteLine(output, "{");
+                            context.WriteLine(output, $"enqueue(e);");
+                            context.WriteLine(output, "}");
+                            context.WriteLine(output, "}");
+                            break;
+
+                        default:
+                            throw new Exception("Unsupported/Incorrect event handler specification");
+                    }
+                }
+
+            }
+        }
+
+        #endregion
+
+        #region WriteFunction
+
+        private void WriteFunction(CompilationContext context, StringWriter output, Function function)
+        {
+            bool isStatic = function.Owner == null;
+            FunctionSignature signature = function.Signature;
+
+            string staticKeyword = isStatic ? "static " : "";
+            string returnType = GetSolidityType(context, signature.ReturnType);
+            string functionName = context.Names.GetNameForDecl(function);
+            string functionParameters =
+                string.Join(
+                    ", ",
+                    signature.Parameters.Select(param => $"{GetSolidityType(context, param.Type)} {context.Names.GetNameForDecl(param)}"));
+
+            context.WriteLine(output, $"{staticKeyword}{returnType} private {functionName}({functionParameters})");
+            // WriteFunctionBody(context, output, function);
+        }
+
+        #endregion
+
         #region misc helper functions
 
         private string GetQualifiedStateName(State state)
@@ -281,39 +362,14 @@ namespace Microsoft.Pc.Backend.Solidity
             return state.QualifiedName.Replace(".", "_");
         }
 
-        #endregion
-
-        #region scheduler
-        private void AddScheduler(CompilationContext context, StringWriter output)
+        private void AddTransferFunction(CompilationContext context, StringWriter output)
         {
-            context.WriteLine(output, $"// Scheduler");
-            // TODO: fix the type of the inbox
-            context.WriteLine(output, $"function scheduler (Event e) public");
+            context.WriteLine(output, $"function Transfer () public payable");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"if(!IsRunning)");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, "IsRunning = true;");
-            context.WriteLine(output, $"if(e.name == \"eTransfer\")");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, "Transfer();");    // TODO: Add payload for transfer
-            context.WriteLine(output, "}");
-            context.WriteLine(output, $"else");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, $"m = LookupAction(currentState, e.name);");
-            context.WriteLine(output, $"currentState = LookupNextState(currentState, e.name);");
-            context.WriteLine(output, $"m();");
-            context.WriteLine(output, "}");
-            context.WriteLine(output, "}");
-            context.WriteLine(output, $"else");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, $"enqueue(e);");
-            context.WriteLine(output, "}");
             context.WriteLine(output, "}");
         }
 
         #endregion
 
     }
-
-
 }
