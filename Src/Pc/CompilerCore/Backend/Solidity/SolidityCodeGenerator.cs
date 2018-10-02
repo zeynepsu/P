@@ -15,6 +15,9 @@ namespace Microsoft.Pc.Backend.Solidity
 {
     public class SolidityCodeGenerator : ICodeGenerator
     {
+        Dictionary<string, Dictionary<string, string>> NextStateMap;
+        Dictionary<string, Dictionary<string, string>> ActionMap;
+
         public IEnumerable<CompiledFile> GenerateCode(ICompilationJob job, Scope globalScope)
         {
             var context = new CompilationContext(job);
@@ -25,7 +28,7 @@ namespace Microsoft.Pc.Backend.Solidity
         private CompiledFile GenerateSource(CompilationContext context, Scope globalScope)
         {
             var source = new CompiledFile(context.FileName);
-
+        
             WriteSourcePrologue(context, source.Stream);
 
             foreach (IPDecl decl in globalScope.AllDecls)
@@ -67,6 +70,12 @@ namespace Microsoft.Pc.Backend.Solidity
 
         private void WriteMachine(CompilationContext context, StringWriter output, Machine machine)
         {
+            NextStateMap = new Dictionary<string, Dictionary<string, string>>();
+            ActionMap = new Dictionary<string, Dictionary<string, string>>();
+
+            BuildNextStateMap(context, machine);
+            BuildActionMap(context, machine);
+
             #region variables and data structures
             foreach (Variable field in machine.Fields)
             {
@@ -281,54 +290,64 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             context.WriteLine(output, $"// Schedulers");
 
-            foreach (State state in machine.States)
+            // Get all the events we have processed 
+            HashSet<string> events = new HashSet<string>(NextStateMap.Keys);
+            events.UnionWith(ActionMap.Keys);
+
+            foreach (string ev in events)
             {
-                foreach (var eventHandler in state.AllEventHandlers)
+                Dictionary<string, string> stateChanges = null;
+                Dictionary<string, string> actions = null;
+
+                // Get the set og state changes associated with this event, if any
+                if(NextStateMap.ContainsKey(ev))
                 {
-                    PEvent pEvent = eventHandler.Key;
-                    IStateAction stateAction = eventHandler.Value;
+                    stateChanges = NextStateMap[ev];
+                }
+                // Get the action associated with each state, for this event
+                if(ActionMap.ContainsKey(ev))
+                {
+                    actions = ActionMap[ev];
+                }
 
-                    context.WriteLine(output, $"function scheduler (" + pEvent + " e)  public");
-                    context.WriteLine(output, "{");
-                    context.WriteLine(output, $"if(!IsRunning)");
-                    context.WriteLine(output, "{");
-                    context.WriteLine(output, $"IsRunning = true;");
+                context.WriteLine(output, $"function scheduler (" + ev + " e)  public");
+                context.WriteLine(output, "{");
+                context.WriteLine(output, $"State memory prevContractState = ContractCurrentState");
+                context.WriteLine(output, $"if(!IsRunning)");
+                context.WriteLine(output, "{");
+                context.WriteLine(output, $"IsRunning = true;");
 
-                    switch (stateAction)
+                // Update contract state
+                if(stateChanges != null)
+                {
+                    foreach(string prevState in stateChanges.Keys)
                     {
-                        case EventGotoState eventGotoState when eventGotoState.TransitionFunction != null:
-                            // update the next state
-                            context.WriteLine(output, $"ContractCurrentState = " + context.Names.GetNameForDecl(eventGotoState.Target) + ";");
-                            // call the event handler
-                            context.WriteLine(output, $"" + context.Names.GetNameForDecl(eventGotoState.Target) + "();");
-                            // fill in the rest
-                            context.WriteLine(output, "}");
-                            context.WriteLine(output, "}");
-                            context.WriteLine(output, $"else");
-                            context.WriteLine(output, "{");
-                            context.WriteLine(output, $"enqueue(e);");
-                            context.WriteLine(output, "}");
-                            context.WriteLine(output, "}");
-                            break;
-
-                        case EventDoAction eventDoAction:
-                            // call the event handler
-                            context.WriteLine(output, $"" + context.Names.GetNameForDecl(eventDoAction.Target) + "();");
-                            // fill in the rest
-                            context.WriteLine(output, "}");
-                            context.WriteLine(output, "}");
-                            context.WriteLine(output, $"else");
-                            context.WriteLine(output, "{");
-                            context.WriteLine(output, $"enqueue(e);");
-                            context.WriteLine(output, "}");
-                            context.WriteLine(output, "}");
-                            break;
-
-                        default:
-                            throw new Exception("Unsupported/Incorrect event handler specification");
+                        context.WriteLine(output, $"if(prevContractState == " + prevState + ")");
+                        context.WriteLine(output, "{");
+                        context.WriteLine(output, $"ContractCurrentState = " + stateChanges[prevState] + ";");
+                        context.WriteLine(output, "}");
                     }
                 }
 
+                // Invoke the handler
+                if (actions != null)
+                {
+                    foreach (string prevState in actions.Keys)
+                    {
+                        context.WriteLine(output, $"if(prevContractState == " + prevState + ")");
+                        context.WriteLine(output, "{");
+                        context.WriteLine(output, $"" + actions[prevState] + "(" + ev + ");");
+                        context.WriteLine(output, "}");
+                    }
+                }
+               
+                // enqueue if the contract is busy
+                context.WriteLine(output, "}");
+                context.WriteLine(output, $"else");
+                context.WriteLine(output, "{");
+                context.WriteLine(output, $"enqueue(e);");
+                context.WriteLine(output, "}");
+                context.WriteLine(output, "}");
             }
         }
 
@@ -357,16 +376,135 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #region misc helper functions
 
+        /// <summary>
+        /// Get the name of the state, in a Solidity-supported format
+        /// </summary>
+        /// <param name="state"></param>
+        /// <returns></returns>
         private string GetQualifiedStateName(State state)
         {
             return state.QualifiedName.Replace(".", "_");
         }
 
+        /// <summary>
+        /// Adds the default handler for the eTransfer event, which accepts ether.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="output"></param>
         private void AddTransferFunction(CompilationContext context, StringWriter output)
         {
             context.WriteLine(output, $"function Transfer () public payable");
             context.WriteLine(output, "{");
             context.WriteLine(output, "}");
+        }
+
+        /// <summary>
+        /// Adds a function which can compare two strings in Solidity
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="output"></param>
+        private void AddStringComparator(CompilationContext context, StringWriter output)
+        {
+            context.WriteLine(output, $"function CompareStrings (string s1, string s2) view returns (bool)");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"return keccak256(s1) == keccak256(s2);");
+            context.WriteLine(output, "}");
+        }
+
+        /// <summary>
+        /// Build the NextStateMap: Event -> (CurrentState -> NextState)
+        /// </summary>
+        /// <param name="machine"></param>
+        private void BuildNextStateMap(CompilationContext context, Machine machine)
+        {
+            foreach(State state in machine.States)
+            {
+                foreach (var eventHandler in state.AllEventHandlers)
+                {
+                    PEvent pEvent = eventHandler.Key;
+                    Dictionary<string, string> pEventStateChanges;
+
+                    // Create an entry for pEvent, if we haven't encountered this before
+                    if(! NextStateMap.Keys.Contains(pEvent.Name))
+                    {
+                        NextStateMap.Add(pEvent.Name, new Dictionary<string, string>());
+                        pEventStateChanges = new Dictionary<string, string>();
+                    }
+                    else
+                    {
+                        pEventStateChanges = NextStateMap[pEvent.Name];
+                    }
+
+                    IStateAction stateAction = eventHandler.Value;
+
+                    switch (stateAction)
+                    {
+                        case EventGotoState eventGotoState when eventGotoState.TransitionFunction != null:
+                            pEventStateChanges.Add(GetQualifiedStateName(state), GetQualifiedStateName(eventGotoState.Target));
+                            break;
+
+                        case EventGotoState eventGotoState when eventGotoState.TransitionFunction == null:
+                            pEventStateChanges.Add(GetQualifiedStateName(state), GetQualifiedStateName(eventGotoState.Target));
+                            break;
+
+                        case EventDoAction eventDoAction:
+                            break;
+
+                        default:
+                            throw new Exception("BuildNextStateMap: Unsupported/Incorrect event handler specification");
+                    }
+
+                    NextStateMap[pEvent.Name] = pEventStateChanges;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Build the action lookup map: Event -> (CurrentState -> Action)
+        /// </summary>
+        /// <param name="machine"></param>
+        private void BuildActionMap(CompilationContext context, Machine machine)
+        {
+            foreach (State state in machine.States)
+            {
+                foreach (var eventHandler in state.AllEventHandlers)
+                {
+                    PEvent pEvent = eventHandler.Key;
+                    Dictionary<string, string> pEventActionForState;
+
+                    // Create an entry for pEvent, if we haven't encountered this before
+                    if (! ActionMap.Keys.Contains(pEvent.Name))
+                    {
+                        NextStateMap.Add(pEvent.Name, new Dictionary<string, string>());
+                        pEventActionForState = new Dictionary<string, string>();
+                    }
+                    else
+                    {
+                        pEventActionForState = ActionMap[pEvent.Name];
+                    }
+
+                    IStateAction stateAction = eventHandler.Value;
+
+                    switch (stateAction)
+                    {
+                        case EventGotoState eventGotoState when eventGotoState.TransitionFunction != null:
+                            pEventActionForState.Add(GetQualifiedStateName(state), eventGotoState.TransitionFunction.Name);
+                            break;
+
+                        case EventGotoState eventGotoState when eventGotoState.TransitionFunction == null:
+                            break;
+
+                        case EventDoAction eventDoAction:
+                            pEventActionForState.Add(GetQualifiedStateName(state), context.Names.GetNameForDecl(eventDoAction.Target));
+                            break;
+
+                        default:
+                            throw new Exception("BuildActionMap: Unsupported/Incorrect event handler specification");
+                    }
+
+                    ActionMap[pEvent.Name] = pEventActionForState;
+                }
+            }
         }
 
         #endregion
