@@ -17,6 +17,7 @@ namespace Microsoft.Pc.Backend.Solidity
     {
         Dictionary<string, Dictionary<string, string>> NextStateMap;
         Dictionary<string, Dictionary<string, string>> ActionMap;
+        HashSet<PEvent> AllPEvents;
 
         public IEnumerable<CompiledFile> GenerateCode(ICompilationJob job, Scope globalScope)
         {
@@ -61,6 +62,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     WriteMachine(context, output, machine);
                     context.WriteLine(output, "}");
                     break;
+                
                 default:
                     context.WriteLine(output, $"// TODO: {decl.GetType().Name} {declName}");
                     break;
@@ -72,6 +74,7 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             NextStateMap = new Dictionary<string, Dictionary<string, string>>();
             ActionMap = new Dictionary<string, Dictionary<string, string>>();
+            AllPEvents = new HashSet<PEvent>();
 
             BuildNextStateMap(context, machine);
             BuildActionMap(context, machine);
@@ -213,6 +216,12 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #region internal data structures
 
+        /// <summary>
+        /// Adds data structures to encode the P message passing (with run-to-completion) semantics in EVM.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="output"></param>
+        /// <param name="machine"></param>
         private void AddInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
         {
             // TODO: Define the type of the value for the inbox
@@ -229,6 +238,8 @@ namespace Microsoft.Pc.Backend.Solidity
             // Add all the states as an enumerated data type
             EnumerateStates(context, output, machine);
 
+            // Add a struct type for each PEvent
+            WriteEvents(context, output);
         }
 
         /// <summary>
@@ -356,6 +367,25 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #endregion
 
+        #region WriteEvents
+
+        private void WriteEvents(CompilationContext context, StringWriter output)
+        {
+            foreach(PEvent pEvent in AllPEvents)
+            {
+                context.WriteLine(output, $"struct " + pEvent.Name);
+                context.WriteLine(output, "{");
+                if (!pEvent.PayloadType.IsSameTypeAs(PrimitiveType.Null))
+                {
+                    string payloadType = GetSolidityType(context, pEvent.PayloadType);
+                    context.WriteLine(output, $"{payloadType} payload;");
+                }
+                context.WriteLine(output, "}");
+            }
+        }
+
+        #endregion
+
         #region WriteFunction
 
         /// <summary>
@@ -450,6 +480,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     {
                         NextStateMap.Add(pEvent.Name, new Dictionary<string, string>());
                         pEventStateChanges = new Dictionary<string, string>();
+                        AllPEvents.Add(pEvent);
                     }
                     else
                     {
@@ -498,6 +529,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     {
                         ActionMap.Add(pEvent.Name, new Dictionary<string, string>());
                         pEventActionForState = new Dictionary<string, string>();
+                        AllPEvents.Add(pEvent);
                     }
                     else
                     {
