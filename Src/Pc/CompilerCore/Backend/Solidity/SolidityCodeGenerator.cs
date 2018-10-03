@@ -475,7 +475,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     // Create an entry for pEvent, if we haven't encountered this before
                     if (! ActionMap.Keys.Contains(pEvent.Name))
                     {
-                        NextStateMap.Add(pEvent.Name, new Dictionary<string, string>());
+                        ActionMap.Add(pEvent.Name, new Dictionary<string, string>());
                         pEventActionForState = new Dictionary<string, string>();
                     }
                     else

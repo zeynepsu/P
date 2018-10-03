@@ -2,7 +2,7 @@
   "profiles": {
     "CommandLine": {
       "commandName": "Project",
-      "commandLineArgs": "C:\\Users\\t-sumukh\\source\\repos\\SmartContracts\\PContracts\\SampleContract.p -outputDir:C:\\Users\\t-sumukh\\source\\repos\\SmartContracts\\PContracts\\c_out -generate:Solidity"
+      "commandLineArgs": "E:\\source\\repos\\SmartContracts\\PContracts\\SampleContract.p -outputDir:E:\\source\\repos\\SmartContracts\\PContracts\\c_out -generate:Solidity"
     }
   }
 }
