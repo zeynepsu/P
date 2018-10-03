@@ -104,6 +104,7 @@ namespace Microsoft.Pc.Backend.Solidity
             AddScheduler(context, output, machine);
             #endregion
 
+            /*
             foreach (State state in machine.States)
             {
                 if (state.Entry != null)
@@ -166,7 +167,9 @@ namespace Microsoft.Pc.Backend.Solidity
                 context.WriteLine(output, $"class {context.Names.GetNameForDecl(state)} : MachineState");
                 context.WriteLine(output, "{");
                 context.WriteLine(output, "}");
+                
             }
+            */
         }
 
         private string GetSolidityType(CompilationContext context, PLanguageType returnType)
@@ -237,7 +240,7 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             string startState = "";
 
-            context.WriteLine(output, $"enum private State");
+            context.WriteLine(output, $"enum State");
             context.WriteLine(output, "{");
 
             foreach(State state in machine.States)
@@ -255,7 +258,7 @@ namespace Microsoft.Pc.Backend.Solidity
             context.WriteLine(output, "}");
 
             // Add a variable which tracks the current state of the contract
-            context.WriteLine(output, $"State private ContractCurrentState = " + startState + ";");
+            context.WriteLine(output, $"State private ContractCurrentState = State." + startState + ";");
         }
 
         #endregion
@@ -312,7 +315,7 @@ namespace Microsoft.Pc.Backend.Solidity
 
                 context.WriteLine(output, $"function scheduler (" + ev + " e)  public");
                 context.WriteLine(output, "{");
-                context.WriteLine(output, $"State memory prevContractState = ContractCurrentState");
+                context.WriteLine(output, $"State memory prevContractState = ContractCurrentState;");
                 context.WriteLine(output, $"if(!IsRunning)");
                 context.WriteLine(output, "{");
                 context.WriteLine(output, $"IsRunning = true;");
@@ -322,9 +325,9 @@ namespace Microsoft.Pc.Backend.Solidity
                 {
                     foreach(string prevState in stateChanges.Keys)
                     {
-                        context.WriteLine(output, $"if(prevContractState == " + prevState + ")");
+                        context.WriteLine(output, $"if(prevContractState == State." + prevState + ")");
                         context.WriteLine(output, "{");
-                        context.WriteLine(output, $"ContractCurrentState = " + stateChanges[prevState] + ";");
+                        context.WriteLine(output, $"ContractCurrentState = State." + stateChanges[prevState] + ";");
                         context.WriteLine(output, "}");
                     }
                 }
@@ -334,7 +337,7 @@ namespace Microsoft.Pc.Backend.Solidity
                 {
                     foreach (string prevState in actions.Keys)
                     {
-                        context.WriteLine(output, $"if(prevContractState == " + prevState + ")");
+                        context.WriteLine(output, $"if(prevContractState == State." + prevState + ")");
                         context.WriteLine(output, "{");
                         context.WriteLine(output, $"" + actions[prevState] + "(" + ev + ");");
                         context.WriteLine(output, "}");
@@ -355,6 +358,12 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #region WriteFunction
 
+        /// <summary>
+        /// Sets up and writes the function signature.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="output"></param>
+        /// <param name="function"></param>
         private void WriteFunction(CompilationContext context, StringWriter output, Function function)
         {
             bool isStatic = function.Owner == null;
@@ -368,8 +377,20 @@ namespace Microsoft.Pc.Backend.Solidity
                     ", ",
                     signature.Parameters.Select(param => $"{GetSolidityType(context, param.Type)} {context.Names.GetNameForDecl(param)}"));
 
-            context.WriteLine(output, $"{staticKeyword}{returnType} private {functionName}({functionParameters})");
-            // WriteFunctionBody(context, output, function);
+            context.WriteLine(output, $"function {functionName}({functionParameters}) private");
+            WriteFunctionBody(context, output, function);
+        }
+
+        /// <summary>
+        /// Writes the body of a function.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="output"></param>
+        /// <param name="function"></param>
+        private void WriteFunctionBody(CompilationContext context, StringWriter output, Function function)
+        {
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "}");
         }
 
         #endregion
