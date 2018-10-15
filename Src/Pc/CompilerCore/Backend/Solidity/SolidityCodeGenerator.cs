@@ -15,9 +15,13 @@ namespace Microsoft.Pc.Backend.Solidity
 {
     public class SolidityCodeGenerator : ICodeGenerator
     {
-        Dictionary<string, Dictionary<string, string>> NextStateMap;
-        Dictionary<string, Dictionary<string, string>> ActionMap;
-        HashSet<PEvent> AllPEvents;
+        string ContractName;
+        int TypeId = 0;
+        Dictionary<string, int> TypeMap = new Dictionary<string, int>();
+        HashSet<string> KnownPayloadTypes = new HashSet<string>();
+        Dictionary<int, Dictionary<string, string>> NextStateMap = new Dictionary<int, Dictionary<string, string>>();
+        Dictionary<int, Dictionary<string, string>> ActionMap = new Dictionary<int, Dictionary<string, string>>();
+        //HashSet<PEvent> AllPEvents = new HashSet<PEvent>();
 
         public IEnumerable<CompiledFile> GenerateCode(ICompilationJob job, Scope globalScope)
         {
@@ -54,8 +58,13 @@ namespace Microsoft.Pc.Backend.Solidity
         private void WriteDecl(CompilationContext context, StringWriter output, IPDecl decl)
         {
             string declName = context.Names.GetNameForDecl(decl);
+            ContractName = declName;
             switch (decl)
             {
+                case PEvent pEvent when !pEvent.IsBuiltIn:
+                    AddEventType(context, pEvent);
+                    break;
+
                 case Machine machine:
                     context.WriteLine(output, $"contract {declName}");
                     context.WriteLine(output, "{");
@@ -70,12 +79,22 @@ namespace Microsoft.Pc.Backend.Solidity
             
         }
 
+        private void AddEventType(CompilationContext context, PEvent pEvent)
+        {
+            // Assign a new id to the event type
+            TypeMap.Add(pEvent.Name, TypeId++);
+
+            // If there is a new payload type, add it to known payload types
+            if (!pEvent.PayloadType.IsSameTypeAs(PrimitiveType.Null))
+            {
+                string payloadType = GetSolidityType(context, pEvent.PayloadType);
+                KnownPayloadTypes.Add(pEvent.Name + "_" + payloadType);
+                
+            }
+        }
+
         private void WriteMachine(CompilationContext context, StringWriter output, Machine machine)
         {
-            NextStateMap = new Dictionary<string, Dictionary<string, string>>();
-            ActionMap = new Dictionary<string, Dictionary<string, string>>();
-            AllPEvents = new HashSet<PEvent>();
-
             BuildNextStateMap(context, machine);
             BuildActionMap(context, machine);
 
@@ -224,11 +243,12 @@ namespace Microsoft.Pc.Backend.Solidity
         /// <param name="machine"></param>
         private void AddInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
         {
-            // TODO: Define the type of the value for the inbox
-            context.WriteLine(output, $"struct Event");
+            // Add the event type
+            context.WriteLine(output, $"struct " + ContractName + "_Event");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"string name;");
+            
             context.WriteLine(output, "}");
+
             context.WriteLine(output, $"// Adding inbox for the contract");
             context.WriteLine(output, $"mapping (uint => Event) private inbox;");
             context.WriteLine(output, $"uint private first = 1;");
@@ -302,35 +322,35 @@ namespace Microsoft.Pc.Backend.Solidity
         #region scheduler
         private void AddScheduler(CompilationContext context, StringWriter output, Machine machine)
         {
-            context.WriteLine(output, $"// Schedulers");
-
-            // Get all the events we have processed 
-            HashSet<string> events = new HashSet<string>(NextStateMap.Keys);
-            events.UnionWith(ActionMap.Keys);
-
-            foreach (string ev in events)
+            context.WriteLine(output, $"// Scheduler");
+            context.WriteLine(output, $"function scheduler (Event e)  public");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"State memory prevContractState = ContractCurrentState;");
+            context.WriteLine(output, $"if(!IsRunning)");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"IsRunning = true;");
+            
+            for (int i=0; i<TypeId; i++)
             {
+                context.WriteLine(output, $"// Perform state change for type with id " + i);
+
+                context.WriteLine(output, $"if(e.typeId == " + i + ")");
+                context.WriteLine(output, "{");
+
                 Dictionary<string, string> stateChanges = null;
                 Dictionary<string, string> actions = null;
 
                 // Get the set og state changes associated with this event, if any
-                if(NextStateMap.ContainsKey(ev))
+                if(NextStateMap.ContainsKey(i))
                 {
-                    stateChanges = NextStateMap[ev];
+                    stateChanges = NextStateMap[i];
                 }
                 // Get the action associated with each state, for this event
-                if(ActionMap.ContainsKey(ev))
+                if(ActionMap.ContainsKey(i))
                 {
-                    actions = ActionMap[ev];
+                    actions = ActionMap[i];
                 }
-
-                context.WriteLine(output, $"function scheduler (" + ev + " e)  public");
-                context.WriteLine(output, "{");
-                context.WriteLine(output, $"State memory prevContractState = ContractCurrentState;");
-                context.WriteLine(output, $"if(!IsRunning)");
-                context.WriteLine(output, "{");
-                context.WriteLine(output, $"IsRunning = true;");
-
+                
                 // Update contract state
                 if(stateChanges != null)
                 {
@@ -343,6 +363,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     }
                 }
 
+                context.WriteLine(output, $"// Invoke handler for state and type with id " + i);
                 // Invoke the handler
                 if (actions != null)
                 {
@@ -350,19 +371,19 @@ namespace Microsoft.Pc.Backend.Solidity
                     {
                         context.WriteLine(output, $"if(prevContractState == State." + prevState + ")");
                         context.WriteLine(output, "{");
-                        context.WriteLine(output, $"" + actions[prevState] + "(" + ev + ");");
+                        context.WriteLine(output, $"" + actions[prevState] + "(e);");
                         context.WriteLine(output, "}");
                     }
                 }
-               
-                // enqueue if the contract is busy
-                context.WriteLine(output, "}");
-                context.WriteLine(output, $"else");
-                context.WriteLine(output, "{");
-                context.WriteLine(output, $"enqueue(e);");
-                context.WriteLine(output, "}");
                 context.WriteLine(output, "}");
             }
+            // enqueue if the contract is busy
+            context.WriteLine(output, "}");
+            context.WriteLine(output, $"else");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"enqueue(e);");
+            context.WriteLine(output, "}");
+            context.WriteLine(output, "}");
         }
 
         #endregion
@@ -475,16 +496,17 @@ namespace Microsoft.Pc.Backend.Solidity
                     PEvent pEvent = eventHandler.Key;
                     Dictionary<string, string> pEventStateChanges;
 
+                    int typeId = TypeMap[pEvent.Name];
+
                     // Create an entry for pEvent, if we haven't encountered this before
-                    if(! NextStateMap.Keys.Contains(pEvent.Name))
+                    if(! NextStateMap.Keys.Contains(typeId))
                     {
-                        NextStateMap.Add(pEvent.Name, new Dictionary<string, string>());
+                        NextStateMap.Add(typeId, new Dictionary<string, string>());
                         pEventStateChanges = new Dictionary<string, string>();
-                        AllPEvents.Add(pEvent);
                     }
                     else
                     {
-                        pEventStateChanges = NextStateMap[pEvent.Name];
+                        pEventStateChanges = NextStateMap[typeId];
                     }
 
                     IStateAction stateAction = eventHandler.Value;
@@ -506,7 +528,7 @@ namespace Microsoft.Pc.Backend.Solidity
                             throw new Exception("BuildNextStateMap: Unsupported/Incorrect event handler specification");
                     }
 
-                    NextStateMap[pEvent.Name] = pEventStateChanges;
+                    NextStateMap[typeId] = pEventStateChanges;
                 }
             }
         }
@@ -524,16 +546,17 @@ namespace Microsoft.Pc.Backend.Solidity
                     PEvent pEvent = eventHandler.Key;
                     Dictionary<string, string> pEventActionForState;
 
+                    int typeId = TypeMap[pEvent.Name];
+
                     // Create an entry for pEvent, if we haven't encountered this before
-                    if (! ActionMap.Keys.Contains(pEvent.Name))
+                    if (! ActionMap.Keys.Contains(typeId))
                     {
-                        ActionMap.Add(pEvent.Name, new Dictionary<string, string>());
+                        ActionMap.Add(typeId, new Dictionary<string, string>());
                         pEventActionForState = new Dictionary<string, string>();
-                        AllPEvents.Add(pEvent);
                     }
                     else
                     {
-                        pEventActionForState = ActionMap[pEvent.Name];
+                        pEventActionForState = ActionMap[typeId];
                     }
 
                     IStateAction stateAction = eventHandler.Value;
@@ -555,7 +578,7 @@ namespace Microsoft.Pc.Backend.Solidity
                             throw new Exception("BuildActionMap: Unsupported/Incorrect event handler specification");
                     }
 
-                    ActionMap[pEvent.Name] = pEventActionForState;
+                    ActionMap[typeId] = pEventActionForState;
                 }
             }
         }
