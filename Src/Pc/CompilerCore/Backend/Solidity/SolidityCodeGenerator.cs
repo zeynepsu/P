@@ -15,13 +15,22 @@ namespace Microsoft.Pc.Backend.Solidity
 {
     public class SolidityCodeGenerator : ICodeGenerator
     {
+        // Name of the contract we are processing
         string ContractName;
+        string EventTypeName;
+
+        // Global unique next type identifier
         int TypeId = 0;
-        Dictionary<string, int> TypeMap = new Dictionary<string, int>();
+        
+        // Assign a unique id to each type
+        Dictionary<string, int> TypeIdMap = new Dictionary<string, int>();
+
+        // Map each type id to the set of associated variables
+        Dictionary<int, Dictionary<string, string>> IdVarsMap = new Dictionary<int, Dictionary<string, string>>();
+
         HashSet<string> KnownPayloadTypes = new HashSet<string>();
         Dictionary<int, Dictionary<string, string>> NextStateMap = new Dictionary<int, Dictionary<string, string>>();
         Dictionary<int, Dictionary<string, string>> ActionMap = new Dictionary<int, Dictionary<string, string>>();
-        //HashSet<PEvent> AllPEvents = new HashSet<PEvent>();
 
         public IEnumerable<CompiledFile> GenerateCode(ICompilationJob job, Scope globalScope)
         {
@@ -59,6 +68,8 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             string declName = context.Names.GetNameForDecl(decl);
             ContractName = declName;
+            EventTypeName = ContractName + "_Event";
+
             switch (decl)
             {
                 case PEvent pEvent when !pEvent.IsBuiltIn:
@@ -82,15 +93,22 @@ namespace Microsoft.Pc.Backend.Solidity
         private void AddEventType(CompilationContext context, PEvent pEvent)
         {
             // Assign a new id to the event type
-            TypeMap.Add(pEvent.Name, TypeId++);
+            int typeId = TypeId++;
+            TypeIdMap.Add(pEvent.Name, typeId);
+
+            Dictionary<string, string> varsForId = new Dictionary<string, string>();
 
             // If there is a new payload type, add it to known payload types
             if (!pEvent.PayloadType.IsSameTypeAs(PrimitiveType.Null))
             {
                 string payloadType = GetSolidityType(context, pEvent.PayloadType);
-                KnownPayloadTypes.Add(pEvent.Name + "_" + payloadType);
+
+                // TODO: Current only one payload per event seems to be supported
+                // create and associate variables with this type
+                varsForId.Add(payloadType, pEvent.Name + "_v0");
                 
             }
+            IdVarsMap.Add(typeId, varsForId);
         }
 
         private void WriteMachine(CompilationContext context, StringWriter output, Machine machine)
@@ -244,10 +262,7 @@ namespace Microsoft.Pc.Backend.Solidity
         private void AddInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
         {
             // Add the event type
-            context.WriteLine(output, $"struct " + ContractName + "_Event");
-            context.WriteLine(output, "{");
-            
-            context.WriteLine(output, "}");
+            WriteEvent(context, output);
 
             context.WriteLine(output, $"// Adding inbox for the contract");
             context.WriteLine(output, $"mapping (uint => Event) private inbox;");
@@ -257,9 +272,6 @@ namespace Microsoft.Pc.Backend.Solidity
 
             // Add all the states as an enumerated data type
             EnumerateStates(context, output, machine);
-
-            // Add a struct type for each PEvent
-            WriteEvents(context, output);
         }
 
         /// <summary>
@@ -300,7 +312,7 @@ namespace Microsoft.Pc.Backend.Solidity
             // Enqueue to inbox
             context.WriteLine(output, $"// Enqueue in the inbox");
             // TODO: fix the type of the inbox
-            context.WriteLine(output, $"function enqueue (Event e) private");
+            context.WriteLine(output, $"function enqueue (" + EventTypeName +" e) private");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"last += 1;");
             context.WriteLine(output, $"inbox[last] = e;");
@@ -309,7 +321,7 @@ namespace Microsoft.Pc.Backend.Solidity
             // Dequeue from inbox
             context.WriteLine(output, $"// Dequeue from the inbox");
             // TODO: fix the type of the inbox
-            context.WriteLine(output, $"function dequeue () private returns (Event e)");
+            context.WriteLine(output, $"function dequeue () private returns (" + EventTypeName + " e)");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"data = inbox[first];");
             context.WriteLine(output, $"delete inbox[first];");
@@ -371,7 +383,23 @@ namespace Microsoft.Pc.Backend.Solidity
                     {
                         context.WriteLine(output, $"if(prevContractState == State." + prevState + ")");
                         context.WriteLine(output, "{");
-                        context.WriteLine(output, $"" + actions[prevState] + "(e);");
+
+                        Dictionary<string, string> varsForId = IdVarsMap[i];
+
+                        if (varsForId.Count == 0)
+                        {
+                            context.WriteLine(output, $"" + actions[prevState] + "();");
+                        }
+                        else
+                        {
+                            string callString = actions[prevState] + "(";
+                            foreach(string type in varsForId.Keys)
+                            {
+                                callString += "e." + varsForId[type] + ",";
+                            }
+                            callString = callString.Remove(callString.Length - 1);
+                            context.WriteLine(output, $"" + callString + ");");
+                        }
                         context.WriteLine(output, "}");
                     }
                 }
@@ -388,23 +416,29 @@ namespace Microsoft.Pc.Backend.Solidity
 
         #endregion
 
-        #region WriteEvents
-
-        private void WriteEvents(CompilationContext context, StringWriter output)
+        #region WriteEvent
+        private void WriteEvent(CompilationContext context, StringWriter output)
         {
-            foreach(PEvent pEvent in AllPEvents)
-            {
-                context.WriteLine(output, $"struct " + pEvent.Name);
-                context.WriteLine(output, "{");
-                if (!pEvent.PayloadType.IsSameTypeAs(PrimitiveType.Null))
-                {
-                    string payloadType = GetSolidityType(context, pEvent.PayloadType);
-                    context.WriteLine(output, $"{payloadType} payload;");
-                }
-                context.WriteLine(output, "}");
-            }
-        }
+            context.WriteLine(output, $"// Adding event type");
+            context.WriteLine(output, $"struct " + EventTypeName);
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"int TypeId;");
 
+            foreach(int typeId in IdVarsMap.Keys)
+            {
+                Dictionary<string, string> varsForId = IdVarsMap[typeId];
+
+                if(varsForId.Count > 0)
+                {
+                    foreach(string type in varsForId.Keys)
+                    {
+                        context.WriteLine(output, $"" + type + " " + varsForId[type] + ";");
+                    }
+                }
+            }
+            context.WriteLine(output, "}");
+        }
+        
         #endregion
 
         #region WriteFunction
@@ -496,7 +530,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     PEvent pEvent = eventHandler.Key;
                     Dictionary<string, string> pEventStateChanges;
 
-                    int typeId = TypeMap[pEvent.Name];
+                    int typeId = TypeIdMap[pEvent.Name];
 
                     // Create an entry for pEvent, if we haven't encountered this before
                     if(! NextStateMap.Keys.Contains(typeId))
@@ -546,7 +580,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     PEvent pEvent = eventHandler.Key;
                     Dictionary<string, string> pEventActionForState;
 
-                    int typeId = TypeMap[pEvent.Name];
+                    int typeId = TypeIdMap[pEvent.Name];
 
                     // Create an entry for pEvent, if we haven't encountered this before
                     if (! ActionMap.Keys.Contains(typeId))
