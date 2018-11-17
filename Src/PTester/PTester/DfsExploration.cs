@@ -21,7 +21,8 @@ namespace P.Tester
         public const string consoleSeparator = "==================================================";
     }
     /// <summary>
-    /// The main class of OS approach
+    /// The main class of OS approach:
+    /// TODO: the name is not ideal. 
     /// </summary>
     static class DfsExploration
     {
@@ -66,16 +67,25 @@ namespace P.Tester
         /// </summary>
         static HashSet<int> competitors;
 
+        /// <summary>
+        /// the initial state
+        /// </summary>
         public static StateImpl start = null;
 
         /// <summary>
-        /// -- PL: the main procedure of OS exploration
+        /// The main procedure of OS exploration. 
+        /// 
+        /// Terminologies:
+        /// -- OS1: the observation sequences of global states
+        /// -- OS3: the observation sequences of states with queue abstraction
+        /// 
         /// </summary>
         public static void OSIterate()
         {
-            //if (PrtEventBuffer.k == 0)
-            //  goto Next_Round; // skip 0: makes no sense
-
+            /// The main while-true loop, it may never terminate.
+            /// If it termiantes, then it terminates either when 
+            /// -- we reach an arificial upper bound, or 
+            /// -- the OS converges. 
             while (true)
             {
                 // skip k=0: makes no sense
@@ -97,27 +107,31 @@ namespace P.Tester
                 try
                 {
                     Dfs(true); /// with abstraction
-                    Debug.Assert(StateImpl.mode == StateImpl.ExploreMode.normal, "Dfs should always find the successor state with the given hash code"); // --PL Q?
+                    Debug.Assert(StateImpl.mode == StateImpl.ExploreMode.Normal, "Dfs should always find the successor state with the given hash code"); // --PL Q?
                 }
                 catch (StateImpl.SuccessorFound sfe) // --PL if a successor found
                 {
                     string ap_str = "unreached";
                     string bp_str = "reached";
+
                     StreamWriter a_SW = new StreamWriter("a.txt");
                     a_SW.WriteLine(sfe.a.ToPrettyString());
                     a_SW.Close();
+
                     StreamWriter ap_SW = new StreamWriter(ap_str + Constants.dumpFileExtension);
                     ap_SW.WriteLine(sfe.ap.ToPrettyString());
                     ap_SW.Close();
+
                     Console.WriteLine("Located the so-far unreached abstract state and pretty-printed it into file {0}.txt .", ap_str);
-                    StateImpl.mode = StateImpl.ExploreMode.find_comp;
+                    StateImpl.mode = StateImpl.ExploreMode.Competitor;
                     competitors = new HashSet<int>();
                     Console.WriteLine("Restarting Dfs to find reachable abstract states 'parallel' to this so-far unreached state ...");
                     Dfs(); /// DFS restarts, why not queueAbstraction
                     Debug.Assert(competitors.Count > 0);
                     Console.WriteLine("Pretty-printed reachable parallel abstract states into files {0}0.txt..{0}{1}.txt .", bp_str, competitors.Count - 1);
                     Console.WriteLine("These states are \"competitors\" to the so-far unreached abstract state.");
-                    Console.WriteLine("You should compare each reached state to the unreached state; the difference might reveal why the former are reachable while the latter may not be.");
+                    Console.WriteLine("You should compare each reached state to the unreached state; " +
+                        "the difference might reveal why the former are reachable while the latter may not be.");
                     /// The following is experimental
                     /// TODO: rewrite this part
                     string cmd = "c:\\Program Files\\Meld\\Meld.exe"; // your favorite diff command here. It must accept two filename arguments
@@ -142,10 +156,11 @@ namespace P.Tester
                     Environment.Exit(0);
                 }
 
-                if (countConcretesPrevious == concretesInHash.Count) /// --PL: OS1 converges
+                if (countConcretesPrevious == concretesInHash.Count) /// OS1 converges
                 {
                     Console.WriteLine("Global state sequence converged!");
-                    Console.Write("For fun, do you want to run the abstract convergence test as well? Press <ENTER> to continue, anything else to 'Exit(0)': ");
+                    Console.Write("For fun, do you want to run the abstract convergence test as well? " +
+                        "Press <ENTER> to continue, anything else to 'Exit(0)': ");
                     stop = (Console.ReadKey().Key != ConsoleKey.Enter);
                     Console.WriteLine();
                     if (stop)
@@ -174,9 +189,6 @@ namespace P.Tester
 
                 ++PrtEventBuffer.k; /// step into next round
             }
-            //Next_Round:
-            //++PrtEventBuffer.k;
-            //OSIterate();
         }
 
 
@@ -298,7 +310,7 @@ namespace P.Tester
                 worklist.Push(curr);
 
                 // if we are in competitor finding mode
-                if (StateImpl.mode == StateImpl.ExploreMode.find_comp)
+                if (StateImpl.mode == StateImpl.ExploreMode.Competitor)
                     CheckPredHash(curr.State, succ.State);
 
                 if (!succ.State.CheckFailure(succ.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
@@ -447,7 +459,7 @@ namespace P.Tester
                         return false;
 
                     // for the re-run, queue abstraction type remains, k bound remains; file dumping is turned off
-                    StateImpl.mode = StateImpl.ExploreMode.find_a_ap;
+                    StateImpl.mode = StateImpl.ExploreMode.Find_A_AP;
                     StateImpl.succHash = hash;
                     StateImpl.FileDump = false;
                     fileDump = false;

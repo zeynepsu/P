@@ -81,12 +81,12 @@ namespace P.Runtime
 
         public enum ExploreMode
         {
-            normal ,
-            find_a_ap , // --PL: used for investigation
-            find_comp // find competitors
+            Normal,
+            Find_A_AP, // --PL: used for investigation
+            Competitor // find competitors
         };
 
-        public static ExploreMode mode = ExploreMode.normal;
+        public static ExploreMode mode = ExploreMode.Normal;
         /// <summary>
         /// Store the hashcode of the successor -- PL 
         /// </summary>
@@ -183,12 +183,12 @@ namespace P.Runtime
                 clonedState.currentVisibleTrace.Trace.Add(item);
             }
 #if __ERROR_TRACE__
+            ///  Whether store the error traces or not. This will eat huge memory if turn it on.  
             clonedState.errorTrace = new StringBuilder(errorTrace.ToString());
 #endif
             clonedState.Resolve();
 
             return clonedState;
-
         }
 
         public void Resolve()
@@ -234,7 +234,9 @@ namespace P.Runtime
                       machine.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
                     continue;
 
-                // reject machines with empty queues. Apparently enabled machines whose nextSMOperation is dequeue or receive may have still an empty queue
+                /// reject machines with empty queues. Apparently enabled machines whose 
+                /// nextSMOperation is dequeue or receive may have still an empty queue.
+                /// ---?Peizun?: Why skip empty queue when nextSMOPeration is empty?  
                 if (machine.eventQueue.Empty())
                     continue;
 
@@ -242,16 +244,17 @@ namespace P.Runtime
                 // so the successor function cannot generate anything new
                 if (queue.Size() <= PrtEventBuffer.p) // prefix
                     continue;
-                Console.WriteLine("queue size passed.......................");
 
                 CollectAbstractSuccessorsFromList(currIndex, abstract_succs, abstract_succs_SW);
             }
         }
 
         /// <summary>
-        /// for queue-list abstraction:
+        /// Compute the abstract successors caused by updating the queue of <paramref name="currIndex"/> machine.
+        /// 
+        /// @TODO
         /// </summary>
-        /// <param name="currIndex"></param>
+        /// <param name="currIndex">The index for the machine about to explore</param>
         /// <param name="abstract_succs"></param>
         /// <param name="abstract_succs_SW"></param>
         void CollectAbstractSuccessorsFromList(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
@@ -269,25 +272,32 @@ namespace P.Runtime
 
                 more = succ_m.PrtRunStateMachineNextChoice(ChoiceVector);
                 Debug.Assert(m_l.Count - succ_m_q.Size() <= 1); // we have dequeued at most one event
-                if (m_l.Count == succ_m_q.Size() || succ.CheckFailure(0)) // if dequeing was unsuccessful
-                    return;                                                // then there is nothing left to do. No more nondet choices to try
+                /// If dequeing was unsuccessful, then there is nothing left to do. 
+                /// No more nondet choices to try
+                if (m_l.Count == succ_m_q.Size() || succ.CheckFailure(0)) // 
+                    return;                                               // 
 
-                int moved_from_suffix_idx = Math.Max(PrtEventBuffer.last_ev_dequeued_idx, PrtEventBuffer.p);
-                PrtEventNode moved_from_suffix = m_l[moved_from_suffix_idx];
+                int idxOfEventDequeuedFromSuffix = Math.Max(PrtEventBuffer.idxOfLastDequeuedEvent, PrtEventBuffer.p);
+                PrtEventNode eventDequeuedFromSuffix = m_l[idxOfEventDequeuedFromSuffix];
 
-                // choice 1: last_ev_dequeued moved_from_suff existed exactly once in the concrete suffix. Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                succ.AddToSuccessorsIfInv(currIndex, this, abstract_succs, abstract_succs_SW);
+                /// <remarks>Choice 1: </remarks> The eventDequeuedFromSuffix, aka the last dequeued event, existed 
+                /// exactly once in the concrete suffix. 
+                /// Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
+                succ.AddToAbstractSuccsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
 
-                // choice 2: moved_from_suffix existed >= twice in concrete suffix. We need to find the positions where to re-introduce it in the abstract, and try them all non-deterministically
-                for (int j = moved_from_suffix_idx; j < succ_m_q.Size(); ++j)
+                ///  <remarks>Choice 1: </remarks> The eventDequeuedFromSuffix, aka the last dequeued event, existed 
+                ///  >= twice in concrete suffix. 
+                ///  We need to find all positions where to re-introduce it in the abstract queue, and try them all 
+                ///  non-deterministically.
+                for (int pos = idxOfEventDequeuedFromSuffix; pos < succ_m_q.Size(); ++pos)
                 {
-                    // insert moved_from_suffix at position j (push the rest to the right)
-                    succ_m_l.Insert(j, moved_from_suffix);
-                    succ.AddToSuccessorsIfInv(currIndex, this, abstract_succs, abstract_succs_SW);
-                    succ_m_l.RemoveAt(j); // restore previous state
+                    // insert eventDequeuedFromSuffix at position pos (push the rest to the right)
+                    succ_m_l.Insert(pos, eventDequeuedFromSuffix);
+                    succ.AddToAbstractSuccsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
+                    succ_m_l.RemoveAt(pos); // restore previous state
                 }
-                succ_m_l.Add(moved_from_suffix); // finally, insert moved_from_suffix at end
-                succ.AddToSuccessorsIfInv(currIndex, this, abstract_succs, abstract_succs_SW);
+                succ_m_l.Add(eventDequeuedFromSuffix); // finally, insert eventDequeuedFromSuffix at end
+                succ.AddToAbstractSuccsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
             } while (more);
         }
 
@@ -307,25 +317,25 @@ namespace P.Runtime
         }
 
         /// <summary>
-        /// 
+        /// Add <paramref name="this"/> to abstract successors if <paramref name="this"/> satisfies the invariants.
         /// </summary>
         /// <param name="currIndex"></param>
         /// <param name="pred"></param>
         /// <param name="abstract_succs"></param>
         /// <param name="abstract_succs_SW"></param>
-        void AddToSuccessorsIfInv(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        void AddToAbstractSuccsIfInvSat(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
             int p_hash = pred.GetHashCode();
             int   hash =      GetHashCode();
 
-            if (mode == ExploreMode.find_a_ap) // if we are locating a and ap
+            if (mode == ExploreMode.Find_A_AP) // if we are locating a and ap
                 if (succHash == hash)
                 {
                     predHash = p_hash;
                     throw new SuccessorFound(pred, this);
                 }
 
-            if ( invariants ? CheckStateInvariant(currIndex) && Check_trans_invariant(currIndex, pred) : true )
+            if ( invariants ? CheckStateInvariant(currIndex) && CheckTransInvariant(currIndex, pred) : true )
             {
                 if (abstract_succs.Add(hash))
                     if (FileDump)
@@ -377,22 +387,32 @@ namespace P.Runtime
             return false;
         }
 
-        // this is like a typedef and must, unfortunately, pollute the global scope. Should be inside below function def.
-        ///delegate bool Event_is_and_queue_contains(PrtImplMachine machine, string s);
 
-        // STATE AND TRANSITION INVARIANTS.
+        ///<summary>
+        /// This is like a typedef and must, unfortunately, pollute the global scope. 
+        /// Should be inside below function def.
+        /// delegate bool Event_is_and_queue_contains(PrtImplMachine machine, string s);
+        /// STATE AND TRANSITION INVARIANTS.
+        /// This is application dependent, so eventually this needs to be done differently.
+        /// 1. STATE INVARIANTS
+        /// Abstract states obtained by abstraction from a reachable concrete 
+        /// state satisfy all invariants by construction.
+        /// But abstract states are also obtained via the succesor function 
+        /// from another abstract state. This function must overapproximate 
+        /// and may therefore violate some invariant.
 
-        // This is application dependent, so eventually this needs to be done differently.
-
-        // 1. STATE INVARIANTS
-
-        // Abstract states obtained by abstraction from a reachable concrete state satisfy all invariants by construction.
-        // But abstract states are also obtained via the succesor function from another abstract state. This function must overapproximate and may therefore violate some invariant.
-        public bool CheckStateInvariant(int currIndex)  // currIndex = index of the ImplMachine that has just been run (other machines have not changed, so their invariants need not be checked)
+        /// currIndex = index of the ImplMachine that has just been run (other 
+        /// machines have not changed, so their invariants need not be checked)
+        /// 
+        ///</summary>
+        public bool CheckStateInvariant(int currIndex)  
         {
 #if true
-            PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.IsAbstract());
-            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.IsAbstract());
+            PrtImplMachine  Main  = implMachines[0];
+            Debug.Assert( Main .eventQueue.IsAbstract());
+            PrtImplMachine Client = implMachines[1];
+            Debug.Assert(Client.eventQueue.IsAbstract());
+
             List<PrtEventNode> Client_q = Client.eventQueue.events;
 
             // can't have just dequeued DONE and then there are still DONE's in the queue
@@ -434,7 +454,7 @@ namespace P.Runtime
             return true;
         }
 
-        public bool Check_trans_invariant(int currIndex, StateImpl pred)
+        public bool CheckTransInvariant(int currIndex, StateImpl pred)
         {
             return true;
         }
@@ -558,7 +578,7 @@ namespace P.Runtime
 
             CreateMachineCallback?.Invoke(machine);
 
-            //TraceLine("<CreateLog> Machine {0}-{1} was created by machine {2}-{3}", currMach.renamedName, currMach.instanceNumber, machine.renamedName, machine.instanceNumber);
+            // TraceLine("<CreateLog> Machine {0}-{1} was created by machine {2}-{3}", currMach.renamedName, currMach.instanceNumber, machine.renamedName, machine.instanceNumber);
             TraceLine("<CreateLog> Machine {0}-{1} was created by machine {2}-{3}", machine.renamedName, machine.instanceNumber, currMach.renamedName, currMach.instanceNumber);
 
             if (interfaceMap.ContainsKey(interfaceOrMachineName))

@@ -540,7 +540,7 @@ namespace P.Runtime
     /// </summary>
     public class PrtEventBuffer
     {
-        public static int last_ev_dequeued_idx; // index last dequeued
+        public static int idxOfLastDequeuedEvent; // index last dequeued
 
         public static int k = 0;  // queue size bound. For DFS, '0' is interpreted as 'unbounded'
         public static int p = 0;  // prefix of queue that is maintained concretely (not abstracted)
@@ -679,7 +679,7 @@ namespace P.Runtime
             HashSet<PrtValue> receiveSet = owner.receiveSet;
 
             int iter = 0;
-            last_ev_dequeued_idx = events.Count + 1; // if, AFTER DequeueEvent, last_... = Count + 1, nothing was dequeued. Otherwise last_... will be <= Count and points to the OLD index dequeued
+            idxOfLastDequeuedEvent = events.Count + 1; // if, AFTER DequeueEvent, last_... = Count + 1, nothing was dequeued. Otherwise last_... will be <= Count and points to the OLD index dequeued
             while (iter < events.Count)
             {
                 if ((receiveSet.Count == 0 && !deferredSet.Contains(events[iter].ev)) ||  // we check deferredSet and receiveSet only against ev (event type), not arg
@@ -689,7 +689,7 @@ namespace P.Runtime
                     owner.currentPayload = events[iter].arg;
                     owner.currentTriggerSenderInfo = Tuple.Create(events[iter].senderMachineName, events[iter].senderMachineStateName);
                     events.Remove(events[iter]);
-                    last_ev_dequeued_idx = iter;
+                    idxOfLastDequeuedEvent = iter;
                     return true;
                 }
                 else
