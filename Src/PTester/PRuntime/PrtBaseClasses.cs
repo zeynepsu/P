@@ -540,14 +540,33 @@ namespace P.Runtime
     /// </summary>
     public class PrtEventBuffer
     {
-        public static int idxOfLastDequeuedEvent; // index last dequeued
+        /// <summary>
+        /// queue size bound. For DFS, '0' is interpreted as 'unbounded'
+        /// </summary>
+        public static int k = 0;
+        /// <summary>
+        /// prefix of queue that is maintained concretely (not abstracted)
+        /// </summary>
+        public static int p = 0; 
+        /// <summary>
+        ///  The index of last dequeued event
+        /// </summary>
+        public static int idxOfLastDequeuedEvent;
 
-        public static int k = 0;  // queue size bound. For DFS, '0' is interpreted as 'unbounded'
-        public static int p = 0;  // prefix of queue that is maintained concretely (not abstracted)
+        /// <summary>
+        /// Used as concrete and abstract queue
+        /// </summary>
+        public List<PrtEventNode> events;
 
-        public List<PrtEventNode> events;      // used as concrete and abstract queue
-        public bool concrete;
+        /// <summary>
+        /// To mark whether the queue is concrete or not. 
+        /// Define it as private, to prevent incorrectly setting it.
+        /// </summary>
+        private bool concrete;
 
+        /// <summary>
+        /// Constructor
+        /// </summary>
         public PrtEventBuffer()
         {
             events = new List<PrtEventNode>();
@@ -575,11 +594,11 @@ namespace P.Runtime
         public void AbstractMe()
         {
             Debug.Assert(IsConcrete());
-            concrete = false; // a bit premature, but RemoveDupsInSuffix operates on abstract queues only
-            RemoveDupsInSuffix();
+            concrete = false; // a bit premature, but RemoveDuplicatesInSuffix operates on abstract queues only
+            RemoveDuplicatesInSuffix();
         }
 
-        public void RemoveDupsInSuffix()
+        public void RemoveDuplicatesInSuffix()
         {
             Debug.Assert(IsAbstract());
             HashSet<PrtEventNode> suffix_set = new HashSet<PrtEventNode>(new PrtEventNodeComparer());
@@ -670,7 +689,7 @@ namespace P.Runtime
             events.Add(en); // concrete or abstract
 
             if (IsAbstract() && Size() >= p + 2)   // if the suffix was not empty before enqueuing this element
-                RemoveDupsInSuffix();
+                RemoveDuplicatesInSuffix();
         }
 
         public bool DequeueEvent(PrtImplMachine owner)

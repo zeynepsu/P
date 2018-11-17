@@ -6,23 +6,20 @@ using System.Threading.Tasks;
 
 namespace P.Tester
 {
+
     /// <summary>
-    /// Parse invariants
+    /// Interpret the invariants.
+    /// TODO: PL: this will call a ".dll" file written in c++.
     /// </summary>
-    class InvariantParser
+    class QuLTLParser
     {
 
     }
-
     /// <summary>
-    /// Interpret the invariants
+    /// 
+    /// TODO: PL: this will call a ".dll" file written in c++.
     /// </summary>
-    class InvariantInterpreter
-    {
-
-    }
-
-    class InvariantChecking
+    class QuLTLModelChecker
     {
 
     }

@@ -252,7 +252,7 @@ namespace P.Runtime
         /// <summary>
         /// Compute the abstract successors caused by updating the queue of <paramref name="currIndex"/> machine.
         /// 
-        /// @TODO
+        /// TODO: PL: Why only dequeue operation? Enqueue still need to update.
         /// </summary>
         /// <param name="currIndex">The index for the machine about to explore</param>
         /// <param name="abstract_succs"></param>
@@ -283,7 +283,7 @@ namespace P.Runtime
                 /// <remarks>Choice 1: </remarks> The eventDequeuedFromSuffix, aka the last dequeued event, existed 
                 /// exactly once in the concrete suffix. 
                 /// Then it is gone after the dequeue, in both abstract and concrete. The new state abstract is valid.
-                succ.AddToAbstractSuccsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
+                succ.AddToAbstractSuccessorsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
 
                 ///  <remarks>Choice 1: </remarks> The eventDequeuedFromSuffix, aka the last dequeued event, existed 
                 ///  >= twice in concrete suffix. 
@@ -293,11 +293,11 @@ namespace P.Runtime
                 {
                     // insert eventDequeuedFromSuffix at position pos (push the rest to the right)
                     succ_m_l.Insert(pos, eventDequeuedFromSuffix);
-                    succ.AddToAbstractSuccsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
+                    succ.AddToAbstractSuccessorsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
                     succ_m_l.RemoveAt(pos); // restore previous state
                 }
                 succ_m_l.Add(eventDequeuedFromSuffix); // finally, insert eventDequeuedFromSuffix at end
-                succ.AddToAbstractSuccsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
+                succ.AddToAbstractSuccessorsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
             } while (more);
         }
 
@@ -323,7 +323,7 @@ namespace P.Runtime
         /// <param name="pred"></param>
         /// <param name="abstract_succs"></param>
         /// <param name="abstract_succs_SW"></param>
-        void AddToAbstractSuccsIfInvSat(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
+        void AddToAbstractSuccessorsIfInvSat(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
             int p_hash = pred.GetHashCode();
             int   hash =      GetHashCode();
