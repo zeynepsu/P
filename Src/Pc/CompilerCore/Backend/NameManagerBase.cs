@@ -53,6 +53,7 @@ namespace Plang.Compiler.Backend
             if (declNames.TryGetValue(node, out var existing))
                 throw new ArgumentException($"Decl {node.Name} already has name {existing}", nameof(node));
 
+            // name = AdjustName(name);
             declNames.Add(node, name);
             return name;
         }
