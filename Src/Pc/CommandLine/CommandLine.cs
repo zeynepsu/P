@@ -1,4 +1,6 @@
+using System;
 ﻿using static Plang.Compiler.CommandLineParseResult;
+
 
 namespace Plang.Compiler
 {
@@ -19,6 +21,9 @@ namespace Plang.Compiler
                     {
                         ICompiler compiler = new Compiler();
                         compiler.Compile(job);
+
+                        Console.WriteLine("Press any key to exit...");
+                        Console.ReadLine();
                         return 0;
                     }
                     catch (TranslationException e)
