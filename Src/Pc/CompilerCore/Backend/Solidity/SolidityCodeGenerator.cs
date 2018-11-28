@@ -145,44 +145,7 @@ namespace Microsoft.Pc.Backend.Solidity
             #endregion
         }
 
-        private string GetSolidityType(CompilationContext context, PLanguageType returnType)
-        {
-            switch (returnType.Canonicalize())
-            {
-                case BoundedType _:
-                    return "Machine";
-                case EnumType enumType:
-                    return context.Names.GetNameForDecl(enumType.EnumDecl);
-                case ForeignType _:
-                    throw new NotImplementedException();
-                case MapType mapType:
-                    return $"Dictionary<{GetSolidityType(context, mapType.KeyType)}, {GetSolidityType(context, mapType.ValueType)}>";
-                case NamedTupleType _:
-                    throw new NotImplementedException();
-                case PermissionType _:
-                    return "Machine";
-                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Any):
-                    return "object";
-                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Bool):
-                    return "bool";
-                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Int):
-                    return "int";
-                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Float):
-                    return "double";
-                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Event):
-                    return "struct";
-                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Machine):
-                    return "address";
-                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Null):
-                    return "void";
-                case SequenceType sequenceType:
-                    return $"List<{GetSolidityType(context, sequenceType.ElementType)}>";
-                case TupleType _:
-                    throw new NotImplementedException();
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(returnType));
-            }
-        }
+       
 
         #region internal data structures
 
@@ -430,6 +393,14 @@ namespace Microsoft.Pc.Backend.Solidity
                 case AssertStmt assertStmt:
                     break;
                 case AssignStmt assignStmt:
+                    // if a new temporary variable is being declared, correctly specify the type
+                    if(assignStmt.Location is VariableAccessExpr)
+                    {
+                        if(((VariableAccessExpr)assignStmt.Location).Variable.Name.StartsWith("$"))
+                        {
+                            context.Write(output, ((VariableAccessExpr)assignStmt.Location).Variable.Type.OriginalRepresentation + " ");
+                        }
+                    }
                     WriteLValue(context, output, assignStmt.Location);
                     context.Write(output, " = ");
                     WriteExpr(context, output, assignStmt.Value);
@@ -756,6 +727,45 @@ namespace Microsoft.Pc.Backend.Solidity
         #endregion
 
         #region misc helper functions
+
+        private string GetSolidityType(CompilationContext context, PLanguageType returnType)
+        {
+            switch (returnType.Canonicalize())
+            {
+                case BoundedType _:
+                    return "Machine";
+                case EnumType enumType:
+                    return context.Names.GetNameForDecl(enumType.EnumDecl);
+                case ForeignType _:
+                    throw new NotImplementedException();
+                case MapType mapType:
+                    return $"Dictionary<{GetSolidityType(context, mapType.KeyType)}, {GetSolidityType(context, mapType.ValueType)}>";
+                case NamedTupleType _:
+                    throw new NotImplementedException();
+                case PermissionType _:
+                    return "Machine";
+                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Any):
+                    return "object";
+                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Bool):
+                    return "bool";
+                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Int):
+                    return "int";
+                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Float):
+                    return "double";
+                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Event):
+                    return "struct";
+                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Machine):
+                    return "address";
+                case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Null):
+                    return "void";
+                case SequenceType sequenceType:
+                    return $"List<{GetSolidityType(context, sequenceType.ElementType)}>";
+                case TupleType _:
+                    throw new NotImplementedException();
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(returnType));
+            }
+        }
 
         /// <summary>
         /// Get the name of the state, in a Solidity-supported format
