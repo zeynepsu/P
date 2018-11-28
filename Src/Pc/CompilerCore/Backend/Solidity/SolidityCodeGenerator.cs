@@ -101,12 +101,24 @@ namespace Microsoft.Pc.Backend.Solidity
             // If there is a new payload type, add it to known payload types
             if (!pEvent.PayloadType.IsSameTypeAs(PrimitiveType.Null))
             {
-                string payloadType = GetSolidityType(context, pEvent.PayloadType);
+                if (! (pEvent.PayloadType is NamedTupleType))
+                {
+                    string payloadType = GetSolidityType(context, pEvent.PayloadType);
 
-                // TODO: Current only one payload per event seems to be supported
-                // create and associate variables with this type
-                varsForId.Add(payloadType, pEvent.Name + "_v0");
-                
+                    // TODO: Current only one payload per event seems to be supported
+                    // create and associate variables with this type
+                    varsForId.Add(pEvent.Name + "_v0", payloadType);
+                }
+                else if(pEvent.PayloadType is NamedTupleType)
+                {
+                    NamedTupleType namedTupleType = pEvent.PayloadType as NamedTupleType;
+                    int i = 0;
+                    foreach(var t in namedTupleType.Types)
+                    {
+                        varsForId.Add(pEvent.Name + "_v" + i, GetSolidityType(context, t));
+                        i++;
+                    }
+                } 
             }
             IdVarsMap.Add(typeId, varsForId);
         }
@@ -119,7 +131,7 @@ namespace Microsoft.Pc.Backend.Solidity
             #region variables and data structures
             foreach (Variable field in machine.Fields)
             {
-                context.WriteLine(output, $"private {GetSolidityType(context, field.Type)} {context.Names.GetNameForDecl(field)};");
+                context.WriteLine(output, $"{GetSolidityType(context, field.Type)} private {context.Names.GetNameForDecl(field)};");
             }
 
             // Add the queue data structure
@@ -231,7 +243,7 @@ namespace Microsoft.Pc.Backend.Solidity
         private void AddScheduler(CompilationContext context, StringWriter output, Machine machine)
         {
             context.WriteLine(output, $"// Scheduler");
-            context.WriteLine(output, $"function scheduler (Event e)  public");
+            context.WriteLine(output, $"function scheduler (Event e)  public payable");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"State memory prevContractState = ContractCurrentState;");
             context.WriteLine(output, $"if(!IsRunning)");
@@ -289,9 +301,9 @@ namespace Microsoft.Pc.Backend.Solidity
                         else
                         {
                             string callString = actions[prevState] + "(";
-                            foreach(string type in varsForId.Keys)
+                            foreach(string var in varsForId.Keys)
                             {
-                                callString += "e." + varsForId[type] + ",";
+                                callString += "e." + var + ",";
                             }
                             callString = callString.Remove(callString.Length - 1);
                             context.WriteLine(output, $"" + callString + ");");
@@ -326,9 +338,9 @@ namespace Microsoft.Pc.Backend.Solidity
 
                 if(varsForId.Count > 0)
                 {
-                    foreach(string type in varsForId.Keys)
+                    foreach(string var in varsForId.Keys)
                     {
-                        context.WriteLine(output, $"" + type + " " + varsForId[type] + ";");
+                        context.WriteLine(output, $"" + varsForId[var] + " " + var + ";");
                     }
                 }
             }
@@ -739,9 +751,10 @@ namespace Microsoft.Pc.Backend.Solidity
                 case ForeignType _:
                     throw new NotImplementedException();
                 case MapType mapType:
-                    return $"Dictionary<{GetSolidityType(context, mapType.KeyType)}, {GetSolidityType(context, mapType.ValueType)}>";
-                case NamedTupleType _:
-                    throw new NotImplementedException();
+                    return $"mapping ({GetSolidityType(context, mapType.KeyType)}, {GetSolidityType(context, mapType.ValueType)})";
+                case NamedTupleType namedTupleType:
+                    // throw new NotImplementedException();
+                    return namedTupleType.CanonicalRepresentation;
                 case PermissionType _:
                     return "Machine";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Any):
@@ -760,8 +773,9 @@ namespace Microsoft.Pc.Backend.Solidity
                     return "void";
                 case SequenceType sequenceType:
                     return $"List<{GetSolidityType(context, sequenceType.ElementType)}>";
-                case TupleType _:
-                    throw new NotImplementedException();
+                case TupleType tupleType:
+                    // throw new NotImplementedException();
+                    return tupleType.CanonicalRepresentation;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(returnType));
             }
