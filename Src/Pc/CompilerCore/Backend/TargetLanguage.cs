@@ -1,8 +1,7 @@
 ﻿using System.Collections.Generic;
-
-using Microsoft.Pc.Backend.Prt;
-using Microsoft.Pc.Backend.PSharp;
-using Microsoft.Pc.Backend.Solidity;
+using Plang.Compiler.Backend.Prt;
+using Plang.Compiler.Backend.PSharp;
+using Plang.Compiler.Backend.Solidity;
 
 
 namespace Plang.Compiler.Backend

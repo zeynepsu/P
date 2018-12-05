@@ -1,6 +1,8 @@
-﻿using Microsoft.Pc.TypeChecker.AST.Declarations;
+﻿using System.Collections.Generic;
+using Plang.Compiler.TypeChecker.AST.Declarations;
+using Plang.Compiler.TypeChecker.Types;
 
-namespace Microsoft.Pc.Backend.Solidity
+namespace Plang.Compiler.Backend.Solidity
 {
     internal class CompilationContext : CompilationContextBase
     {

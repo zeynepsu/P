@@ -2,16 +2,16 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Microsoft.Pc.Backend.ASTExt;
-using Microsoft.Pc.TypeChecker;
-using Microsoft.Pc.TypeChecker.AST;
-using Microsoft.Pc.TypeChecker.AST.Declarations;
-using Microsoft.Pc.TypeChecker.AST.Expressions;
-using Microsoft.Pc.TypeChecker.AST.Statements;
-using Microsoft.Pc.TypeChecker.AST.States;
-using Microsoft.Pc.TypeChecker.Types;
+using Plang.Compiler.Backend.ASTExt;
+using Plang.Compiler.TypeChecker;
+using Plang.Compiler.TypeChecker.AST;
+using Plang.Compiler.TypeChecker.AST.Declarations;
+using Plang.Compiler.TypeChecker.AST.Expressions;
+using Plang.Compiler.TypeChecker.AST.Statements;
+using Plang.Compiler.TypeChecker.AST.States;
+using Plang.Compiler.TypeChecker.Types;
 
-namespace Microsoft.Pc.Backend.Solidity
+namespace Plang.Compiler.Backend.Solidity
 {
     public class SolidityCodeGenerator : ICodeGenerator
     {
@@ -62,13 +62,12 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             context.WriteLine(output, "pragma solidity ^0.4.24;");
         }
-
         
         private void WriteDecl(CompilationContext context, StringWriter output, IPDecl decl)
         {
             string declName = context.Names.GetNameForDecl(decl);
             ContractName = declName;
-            EventTypeName = ContractName + "_Event";
+            EventTypeName = "Lib_" + ContractName + ".Event";
 
             switch (decl)
             {
@@ -77,6 +76,9 @@ namespace Microsoft.Pc.Backend.Solidity
                     break;
 
                 case Machine machine:
+                    // Add library for the event struct
+                    WriteEvent(context, output);
+                    // Write the rest of the machine
                     context.WriteLine(output, $"contract {declName}");
                     context.WriteLine(output, "{");
                     WriteMachine(context, output, machine);
@@ -84,7 +86,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     break;
                 
                 default:
-                    context.WriteLine(output, $"// TODO: {decl.GetType().Name} {declName}");
+                    // context.WriteLine(output, $"// TODO: {decl.GetType().Name} {declName}");
                     break;
             }
             
@@ -154,6 +156,9 @@ namespace Microsoft.Pc.Backend.Solidity
 
             // Add the scheduler
             AddScheduler(context, output, machine);
+
+            // Get library address
+            AddGetLibraryAddress(context, output);
             #endregion
         }
 
@@ -169,14 +174,12 @@ namespace Microsoft.Pc.Backend.Solidity
         /// <param name="machine"></param>
         private void AddInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
         {
-            // Add the event type
-            WriteEvent(context, output);
-
             context.WriteLine(output, $"// Adding inbox for the contract");
-            context.WriteLine(output, $"mapping (uint => Event) private inbox;");
+            context.WriteLine(output, $"mapping (uint => " + EventTypeName + " private inbox;");
             context.WriteLine(output, $"uint private first = 1;");
             context.WriteLine(output, $"uint private last = 0;");
             context.WriteLine(output, $"bool private IsRunning = false;");
+            context.WriteLine(output, $"address private ContractLibrary;");
 
             // Add all the states as an enumerated data type
             EnumerateStates(context, output, machine);
@@ -243,7 +246,7 @@ namespace Microsoft.Pc.Backend.Solidity
         private void AddScheduler(CompilationContext context, StringWriter output, Machine machine)
         {
             context.WriteLine(output, $"// Scheduler");
-            context.WriteLine(output, $"function scheduler (Event e)  public payable");
+            context.WriteLine(output, $"function scheduler (" + EventTypeName + " e)  public payable");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"State memory prevContractState = ContractCurrentState;");
             context.WriteLine(output, $"if(!IsRunning)");
@@ -328,7 +331,9 @@ namespace Microsoft.Pc.Backend.Solidity
         private void WriteEvent(CompilationContext context, StringWriter output)
         {
             context.WriteLine(output, $"// Adding event type");
-            context.WriteLine(output, $"struct " + EventTypeName);
+            context.WriteLine(output, $"library Lib_" + ContractName);
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"struct Event");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"int TypeId;");
 
@@ -344,6 +349,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     }
                 }
             }
+            context.WriteLine(output, "}");
             context.WriteLine(output, "}");
         }
         
@@ -384,10 +390,7 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             context.WriteLine(output, "{");
 
-            foreach (IPStmt bodyStatement in function.Body.Statements)
-            {
-                WriteStmt(context, output, bodyStatement);
-            }
+            foreach (var bodyStatement in function.Body.Statements) WriteStmt(context, output, bodyStatement);
 
             context.WriteLine(output, "}");
         }
@@ -476,6 +479,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     context.WriteLine(output, ";");
                     break;
                 case SendStmt sendStmt:
+                    WriteSendStmt(context, output, sendStmt);
                     break;
                 case SwapAssignStmt swapAssignStmt:
                     break;
@@ -490,14 +494,35 @@ namespace Microsoft.Pc.Backend.Solidity
             }
         }
 
+        private void WriteSendStmt(CompilationContext context, StringWriter output, SendStmt sendStmt)
+        {
+            WriteExpr(context, output, sendStmt.MachineExpr);
+            context.Write(output, ".call");
+            EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
+            string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
+
+            // store the arguments
+            IReadOnlyList<IPExpr> argsList = sendStmt.Arguments;
+            
+            // for a payable event, send the amount of ether
+            if(eventName.Contains("payable_"))
+            {
+                VariableAccessExpr vExpr = (argsList[1] as VariableAccessExpr);
+                context.Write(output, ".value(" + context.Names.GetNameForDecl(vExpr.Variable) + ")");
+            }
+
+            context.WriteLine(output, "(bytes4(sha256(\"scheduler\")));");
+        }
+
         private void WriteLValue(CompilationContext context, StringWriter output, IPExpr lvalue)
         {
             switch (lvalue)
             {
                 case MapAccessExpr mapAccessExpr:
-                    context.Write(output, "(");
+                    //context.Write(output, "(");
                     WriteLValue(context, output, mapAccessExpr.MapExpr);
-                    context.Write(output, ")[");
+                    // context.Write(output, ")[");
+                    context.Write(output, "[");
                     WriteExpr(context, output, mapAccessExpr.IndexExpr);
                     context.Write(output, "]");
                     break;
@@ -558,7 +583,7 @@ namespace Microsoft.Pc.Backend.Solidity
                     context.Write(output, $"{context.Names.GetNameForDecl(enumElem.ParentEnum)}.{context.Names.GetNameForDecl(enumElem)}");
                     break;
                 case EventRefExpr eventRefExpr:
-                    context.Write(output, $"new {context.Names.GetNameForDecl(eventRefExpr.Value)}()");
+                    context.Write(output, $"{context.Names.GetNameForDecl(eventRefExpr.Value)}");
                     break;
                 case FairNondetExpr _:
                     context.Write(output, "this.FairRandom()");
@@ -683,8 +708,7 @@ namespace Microsoft.Pc.Backend.Solidity
                 case PrimitiveType eventType when eventType.IsSameTypeAs(PrimitiveType.Event):
                 case PrimitiveType machineType when machineType.IsSameTypeAs(PrimitiveType.Machine):
                 case ForeignType _:
-                case BoundedType _:
-                    return "null";
+                
                 default:
                     throw new ArgumentOutOfRangeException(nameof(returnType));
             }
@@ -744,8 +768,6 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             switch (returnType.Canonicalize())
             {
-                case BoundedType _:
-                    return "Machine";
                 case EnumType enumType:
                     return context.Names.GetNameForDecl(enumType.EnumDecl);
                 case ForeignType _:
@@ -800,6 +822,14 @@ namespace Microsoft.Pc.Backend.Solidity
         {
             context.WriteLine(output, $"function Transfer () public payable");
             context.WriteLine(output, "{");
+            context.WriteLine(output, "}");
+        }
+
+        private void AddGetLibraryAddress(CompilationContext context, StringWriter output)
+        {
+            context.WriteLine(output, $"function GetLibraryAddress (returns address) public");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"return ContractLibraryAddress;");
             context.WriteLine(output, "}");
         }
 
