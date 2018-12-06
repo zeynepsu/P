@@ -72,6 +72,7 @@ namespace P.Tester
         public bool DfsExploration; // unbounded exploration
         public bool OSList; // OS exploration: abstract with list
         public bool OSSet;  // OS exploration: abstract with set
+        public bool interactive; // interactive mode, need users press button to continue
         public int k;
 
         public bool UseStateHashing;
@@ -96,6 +97,7 @@ namespace P.Tester
             DfsExploration = false;
             OSList = false;
             OSSet = false;
+            interactive = false;
             UseStateHashing = false;
         }
     }
@@ -129,7 +131,8 @@ namespace P.Tester
 
                     try
                     {
-                        // note: the case string must consist of ALL SMALL letters! Otherwise it won't find it (:-(   Found out the hard way
+                        // note: the case string must consist of ALL SMALL letters! Otherwise 
+                        // it won't find it (:-(   Found out the hard way
                         switch (option)
                         {
                             case "?":
@@ -204,6 +207,10 @@ namespace P.Tester
 
                             case "invar":
                                 StateImpl.invariants = true;
+                                break;
+
+                            case "interactive":
+                                options.interactive = true;
                                 break;
 
                             case "file-dump":
@@ -317,6 +324,7 @@ namespace P.Tester
             Console.WriteLine("                         In case of /os search, this bound applies to the first-round queue and is incremented subsequently.");
             Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p) (default: 0)");
             Console.WriteLine("/invar                   Use state/transition invariants implemented for your scenario");
+            Console.WriteLine("/interactive             Interactive mode: need users to press button to increase queue bound and continue exploration");
             Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
             Console.WriteLine();
             // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");
@@ -379,6 +387,11 @@ namespace P.Tester
             ///-- PL: stopwatch: to measure the elapsed time
             var sw = new System.Diagnostics.Stopwatch();
             sw.Start();
+
+            if (options.interactive)
+            {
+                DfsExploration.interativeMode = true;
+            }
 
             if (options.UsePSharp)
             {

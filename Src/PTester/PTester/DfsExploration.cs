@@ -19,6 +19,8 @@ namespace P.Tester
         public const string dumpFileExtension = ".txt";
 
         public const string consoleSeparator = "==================================================";
+
+        public const string diffApp = "C:\\Program Files (x86)\\Meld\\Meld.exe"; // your favorite diff command here. It must accept two filename arguments
     }
     /// <summary>
     /// The main class of OS approach:
@@ -31,6 +33,8 @@ namespace P.Tester
 
         public static bool useStateHashing = true; // currently doesn't make sense without hashing
         public static bool fileDump = false;
+
+        public static bool interativeMode = false;
 
         /// <summary>
         /// the set of concrete states, storing in hash values, we have found in current round
@@ -95,15 +99,17 @@ namespace P.Tester
                     continue;
                 }
 
-                Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", PrtEventBuffer.k);
-                bool stop = (Console.ReadKey().Key != ConsoleKey.Enter);
-                Console.WriteLine();
-                if (stop)
+                if (interativeMode)
                 {
-                    Console.WriteLine("Exiting.");
-                    Environment.Exit(0);
+                    Console.Write("About to explore state space for queue bound k = {0}. Press <ENTER> to continue, anything else to 'Exit(0)': ", PrtEventBuffer.k);
+                    bool stop = (Console.ReadKey().Key != ConsoleKey.Enter);
+                    Console.WriteLine();
+                    if (stop)
+                    {
+                        Console.WriteLine("Exiting.");
+                        Environment.Exit(0);
+                    }
                 }
-
                 try
                 {
                     Dfs(true); /// with abstraction
@@ -134,9 +140,9 @@ namespace P.Tester
                         "the difference might reveal why the former are reachable while the latter may not be.");
                     /// The following is experimental
                     /// TODO: rewrite this part
-                    string cmd = "c:\\Program Files\\Meld\\Meld.exe"; // your favorite diff command here. It must accept two filename arguments
+                    
                     string arg = bp_str + "0.txt " + ap_str + Constants.dumpFileExtension;
-                    Console.Write("Press <ENTER> to run \"{0} {1}\", anything else to 'Exit(0)': ", cmd, arg);
+                    Console.Write("Press <ENTER> to run \"{0} {1}\", anything else to 'Exit(0)': ", Constants.diffApp, arg);
                     bool run = (Console.ReadKey().Key == ConsoleKey.Enter);
                     Console.WriteLine();
                     if (run)
@@ -144,7 +150,7 @@ namespace P.Tester
                         Console.WriteLine("Running external command.");
                         try
                         {
-                            Process.Start(cmd, arg);
+                            Process.Start(Constants.diffApp, arg);
                         }
                         catch (System.Exception e)
                         {
@@ -161,7 +167,7 @@ namespace P.Tester
                     Console.WriteLine("Global state sequence converged!");
                     Console.Write("For fun, do you want to run the abstract convergence test as well? " +
                         "Press <ENTER> to continue, anything else to 'Exit(0)': ");
-                    stop = (Console.ReadKey().Key != ConsoleKey.Enter);
+                    var stop = (Console.ReadKey().Key != ConsoleKey.Enter);
                     Console.WriteLine();
                     if (stop)
                     {
@@ -191,6 +197,10 @@ namespace P.Tester
             }
         }
 
+        public static bool InteractiveOrNot()
+        {
+            return false;
+        }
 
         /// <summary>
         /// --PL: Queue-unbounded exploration, in DFS mode
@@ -446,7 +456,7 @@ namespace P.Tester
                     Console.WriteLine("Found a so-far unreached abstract successor state. Its hash code is {0}.", hash);
                     Console.WriteLine("Do you want to");
                     Console.WriteLine("(c)ontinue, by increasing the queue bound, ignoring the unreached successor, OR");
-                    Console.WriteLine("(i)nvestigate; we will then locate the state with that succHash code.");
+                    Console.WriteLine("(i)nvestigate; we will then locate the state with that hash code.");
                     string answer;
                     do
                     {
