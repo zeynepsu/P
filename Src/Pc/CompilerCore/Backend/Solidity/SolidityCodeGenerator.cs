@@ -496,22 +496,27 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void WriteSendStmt(CompilationContext context, StringWriter output, SendStmt sendStmt)
         {
-            WriteExpr(context, output, sendStmt.MachineExpr);
-            context.Write(output, ".call");
+            context.WriteLine(output, $"address varLibAddr = " + context.Names.GetNameForDecl((sendStmt.MachineExpr as VariableAccessExpr).Variable) + ".GetLibraryAddress();");
+            context.WriteLine(output, $"varLibAddr.Event ev = varLibAddr.Event();");
+            
             EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
             string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
+            int tid = TypeIdMap[eventName];
+            context.WriteLine(output, $"ev.TypeId = " + tid);
 
             // store the arguments
             IReadOnlyList<IPExpr> argsList = sendStmt.Arguments;
-            
+
+            WriteExpr(context, output, sendStmt.MachineExpr);
+            context.Write(output, ".call");
             // for a payable event, send the amount of ether
-            if(eventName.Contains("payable_"))
+            if (eventName.Contains("payable_"))
             {
                 VariableAccessExpr vExpr = (argsList[1] as VariableAccessExpr);
                 context.Write(output, ".value(" + context.Names.GetNameForDecl(vExpr.Variable) + ")");
             }
 
-            context.WriteLine(output, "(bytes4(sha256(\"scheduler\")));");
+            context.WriteLine(output, "(bytes4(sha256(\"scheduler\")), ev);");
         }
 
         private void WriteLValue(CompilationContext context, StringWriter output, IPExpr lvalue)
@@ -827,7 +832,7 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void AddGetLibraryAddress(CompilationContext context, StringWriter output)
         {
-            context.WriteLine(output, $"function GetLibraryAddress (returns address) public");
+            context.WriteLine(output, $"function GetLibraryAddress (returns address) pure public");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"return ContractLibraryAddress;");
             context.WriteLine(output, "}");
