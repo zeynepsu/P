@@ -17,18 +17,25 @@ namespace Plang.Compiler.Backend.Solidity
     {
         // Name of the contract we are processing
         string ContractName;
+
+        // Fully qualified name of the type of the event associated with the contract: <LibraryName>_Event
         string EventTypeName;
 
-        // Global unique next type identifier
+        // Globally unique type identifier
         int TypeId = 0;
         
         // Assign a unique id to each type
         Dictionary<string, int> TypeIdMap = new Dictionary<string, int>();
 
-        // Map each type id to the set of associated variables
+        // Map each event type id to the types it carries as payload
         Dictionary<int, Dictionary<string, string>> IdVarsMap = new Dictionary<int, Dictionary<string, string>>();
 
-        HashSet<string> KnownPayloadTypes = new HashSet<string>();
+        // For each machine, stores the types of events it receives
+        Dictionary<string, HashSet<int>> MachineToReceivedEventsMap = new Dictionary<string, HashSet<int>>();
+
+        // Stores the names of each machine type
+        HashSet<string> KnownMachineTypes = new HashSet<string>();
+
         Dictionary<int, Dictionary<string, string>> NextStateMap = new Dictionary<int, Dictionary<string, string>>();
         Dictionary<int, Dictionary<string, string>> ActionMap = new Dictionary<int, Dictionary<string, string>>();
 
@@ -45,6 +52,8 @@ namespace Plang.Compiler.Backend.Solidity
         
             WriteSourcePrologue(context, source.Stream);
 
+            PopulateLibrary(context, source.Stream, globalScope);
+            
             foreach (IPDecl decl in globalScope.AllDecls)
             {
                 WriteDecl(context, source.Stream, decl);
@@ -66,20 +75,14 @@ namespace Plang.Compiler.Backend.Solidity
         private void WriteDecl(CompilationContext context, StringWriter output, IPDecl decl)
         {
             string declName = context.Names.GetNameForDecl(decl);
-            ContractName = declName;
-            EventTypeName = "Lib_" + ContractName + ".Event";
-
+            
             switch (decl)
             {
-                case PEvent pEvent when !pEvent.IsBuiltIn:
-                    AddEventType(context, pEvent);
-                    break;
-
                 case Machine machine:
-                    // Add library for the event struct
-                    WriteEvent(context, output);
                     // Write the rest of the machine
-                    context.WriteLine(output, $"contract {declName}");
+                    ContractName = machine.Name;
+                    EventTypeName = "ContractLibrary.Event_" + ContractName;
+                    context.WriteLine(output, $"contract {ContractName}");
                     context.WriteLine(output, "{");
                     WriteMachine(context, output, machine);
                     context.WriteLine(output, "}");
@@ -90,6 +93,99 @@ namespace Plang.Compiler.Backend.Solidity
                     break;
             }
             
+        }
+
+        /// <summary>
+        /// This function makes a pass through all the declarations to collect information about the event types.
+        /// It stores the set of event types which each machine receives, assigns a unique type id to each event type, and stores the set of types 
+        /// which each event carries as payload. 
+        /// Finally, it creates a library with all the collected information.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="decl"></param>
+        private void PopulateLibrary(CompilationContext context, StringWriter output, Scope globalScope)
+        {
+            // For each event type, assign a unique type id and gather information about the payload types
+            foreach(IPDecl decl in globalScope.AllDecls)
+            {
+               switch(decl)
+                {
+                    case PEvent pEvent when !pEvent.IsBuiltIn:
+                        AddEventType(context, pEvent);
+                        break;
+
+                    default:
+                        break;
+                }                
+            }
+
+            // For each machine, record the type of events it can receive
+            foreach(IPDecl decl in globalScope.AllDecls)
+            {
+                switch(decl)
+                {
+                    case Machine machine:
+                        string machineName = machine.Name;
+                        KnownMachineTypes.Add(machineName);
+                        HashSet<int> receivedEventsForMachine = MachineToReceivedEventsMap.ContainsKey(machineName) ? MachineToReceivedEventsMap[machineName] : new HashSet<int>();
+
+                        foreach (PEvent pEvent in machine.Receives.Events)
+                        {
+                            if (!pEvent.IsBuiltIn)
+                            {
+                                int typeId = TypeIdMap[pEvent.Name];
+                                receivedEventsForMachine.Add(typeId);
+                            }
+                        }
+                        MachineToReceivedEventsMap[machineName] = receivedEventsForMachine;
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+
+            // Write the library
+            context.WriteLine(output, $"// Adding library");
+            context.WriteLine(output, $"library ContractLibrary");
+            context.WriteLine(output, "{");
+
+            // Add Enum to allow typeof operations 
+            context.Write(output, $"enum ContractTypes ");
+            context.Write(output, "{");
+
+            string machineNames = "";
+            foreach (var machineName in KnownMachineTypes)
+            {
+                machineNames += machineName + ",";
+            }
+            machineNames = machineNames.Remove(machineNames.Length - 1);
+            context.Write(output, machineNames);
+            context.Write(output, "};");
+            context.WriteLine(output, "");
+
+            // For each machine, write the event it can receive
+            foreach (var machineName in MachineToReceivedEventsMap.Keys)
+            {
+                context.WriteLine(output, $"struct Event_" + machineName);
+                context.WriteLine(output, "{");
+                context.WriteLine(output, $"int TypeId;");
+
+                foreach (int typeId in MachineToReceivedEventsMap[machineName])
+                {
+                    Dictionary<string, string> varsForId = IdVarsMap[typeId];
+
+                    if (varsForId.Count > 0)
+                    {
+                        foreach (string var in varsForId.Keys)
+                        {
+                            context.WriteLine(output, $"" + varsForId[var] + " " + var + ";");
+                        }
+                    }
+                }
+                context.WriteLine(output, "}");
+            }
+            context.WriteLine(output, "}");
         }
 
         private void AddEventType(CompilationContext context, PEvent pEvent)
@@ -158,7 +254,7 @@ namespace Plang.Compiler.Backend.Solidity
             AddScheduler(context, output, machine);
 
             // Get library address
-            AddGetLibraryAddress(context, output);
+            AddGetTypeof(context, output, machine);
             #endregion
         }
 
@@ -175,7 +271,7 @@ namespace Plang.Compiler.Backend.Solidity
         private void AddInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
         {
             context.WriteLine(output, $"// Adding inbox for the contract");
-            context.WriteLine(output, $"mapping (uint => " + EventTypeName + " private inbox;");
+            context.WriteLine(output, $"mapping (uint => " + EventTypeName + ") private inbox;");
             context.WriteLine(output, $"uint private first = 1;");
             context.WriteLine(output, $"uint private last = 0;");
             context.WriteLine(output, $"bool private IsRunning = false;");
@@ -197,6 +293,7 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, $"enum State");
             context.WriteLine(output, "{");
 
+            string stateNames = "";
             foreach(State state in machine.States)
             {
                 if(state.IsStart)
@@ -204,11 +301,12 @@ namespace Plang.Compiler.Backend.Solidity
                     startState = GetQualifiedStateName(state);
                 }
 
-                context.WriteLine(output, GetQualifiedStateName(state) + ",");
+                stateNames += GetQualifiedStateName(state) + ",";
             }
 
             // Add a system defined error state
-            context.WriteLine(output, "Sys_Error_State");
+            stateNames = stateNames.Remove(stateNames.Length - 1);
+            context.WriteLine(output, stateNames);
             context.WriteLine(output, "}");
 
             // Add a variable which tracks the current state of the contract
@@ -327,33 +425,8 @@ namespace Plang.Compiler.Backend.Solidity
 
         #endregion
 
-        #region WriteEvent
-        private void WriteEvent(CompilationContext context, StringWriter output)
-        {
-            context.WriteLine(output, $"// Adding event type");
-            context.WriteLine(output, $"library Lib_" + ContractName);
-            context.WriteLine(output, "{");
-            context.WriteLine(output, $"struct Event");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, $"int TypeId;");
-
-            foreach(int typeId in IdVarsMap.Keys)
-            {
-                Dictionary<string, string> varsForId = IdVarsMap[typeId];
-
-                if(varsForId.Count > 0)
-                {
-                    foreach(string var in varsForId.Keys)
-                    {
-                        context.WriteLine(output, $"" + varsForId[var] + " " + var + ";");
-                    }
-                }
-            }
-            context.WriteLine(output, "}");
-            context.WriteLine(output, "}");
-        }
         
-        #endregion
+       
 
         #region WriteFunction
 
@@ -496,6 +569,9 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void WriteSendStmt(CompilationContext context, StringWriter output, SendStmt sendStmt)
         {
+            // Create an event which the destination can parse
+
+
             context.WriteLine(output, $"address varLibAddr = " + context.Names.GetNameForDecl((sendStmt.MachineExpr as VariableAccessExpr).Variable) + ".GetLibraryAddress();");
             context.WriteLine(output, $"varLibAddr.Event ev = varLibAddr.Event();");
             
@@ -830,11 +906,11 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, "}");
         }
 
-        private void AddGetLibraryAddress(CompilationContext context, StringWriter output)
+        private void AddGetTypeof(CompilationContext context, StringWriter output, Machine machine)
         {
-            context.WriteLine(output, $"function GetLibraryAddress (returns address) pure public");
+            context.WriteLine(output, $"function typeOf pure public (returns ContractLibrary.ContractTypes)");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"return ContractLibraryAddress;");
+            context.WriteLine(output, $"return ContractLibrary.ContractTypes." + machine.Name);
             context.WriteLine(output, "}");
         }
 
