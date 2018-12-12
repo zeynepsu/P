@@ -325,18 +325,18 @@ namespace Plang.Compiler.Backend.Solidity
             // Enqueue to inbox
             context.WriteLine(output, $"// Enqueue in the inbox");
             // TODO: fix the type of the inbox
-            context.WriteLine(output, $"function enqueue (" + EventTypeName +" e) private");
+            context.WriteLine(output, $"function enqueue (" + EventTypeName +" memory ev) private");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"last += 1;");
-            context.WriteLine(output, $"inbox[last] = e;");
+            context.WriteLine(output, $"inbox[last] = ev;");
             context.WriteLine(output, "}");
 
             // Dequeue from inbox
             context.WriteLine(output, $"// Dequeue from the inbox");
             // TODO: fix the type of the inbox
-            context.WriteLine(output, $"function dequeue () private returns (" + EventTypeName + " e)");
+            context.WriteLine(output, $"function dequeue () private returns (" + EventTypeName + " memory ev)");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"data = inbox[first];");
+            context.WriteLine(output, $"ev = inbox[first];");
             context.WriteLine(output, $"delete inbox[first];");
             context.WriteLine(output, $"first += 1;");
             context.WriteLine(output, "}");
@@ -348,7 +348,7 @@ namespace Plang.Compiler.Backend.Solidity
         private void AddScheduler(CompilationContext context, StringWriter output, Machine machine)
         {
             context.WriteLine(output, $"// Scheduler");
-            context.WriteLine(output, $"function scheduler (" + EventTypeName + " e)  public payable");
+            context.WriteLine(output, $"function scheduler (" + EventTypeName + " memory ev)  public payable");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"State memory prevContractState = ContractCurrentState;");
             context.WriteLine(output, $"if(!IsRunning)");
@@ -359,7 +359,7 @@ namespace Plang.Compiler.Backend.Solidity
             {
                 context.WriteLine(output, $"// Perform state change for type with id " + i);
 
-                context.WriteLine(output, $"if(e.typeId == " + i + ")");
+                context.WriteLine(output, $"if(ev.typeId == " + i + ")");
                 context.WriteLine(output, "{");
 
                 Dictionary<string, string> stateChanges = null;
@@ -422,7 +422,7 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, "}");
             context.WriteLine(output, $"else");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"enqueue(e);");
+            context.WriteLine(output, $"enqueue(ev);");
             context.WriteLine(output, "}");
             context.WriteLine(output, "}");
         }
@@ -594,7 +594,7 @@ namespace Plang.Compiler.Backend.Solidity
                 context.WriteLine(output, "{");
 
                 // Setup the event to be dispatched
-                context.WriteLine(output, LibraryName + ".Event_" + machineName + " ev = " + LibraryName + ".Event_" + machineName + "();");
+                context.WriteLine(output, LibraryName + ".Event_" + machineName + " memory ev = " + LibraryName + ".Event_" + machineName + "();");
                
                 int tid = TypeIdMap[eventName];
                 context.WriteLine(output, "ev.TypeId = " + tid + ";");
@@ -609,20 +609,20 @@ namespace Plang.Compiler.Backend.Solidity
                     argIndex++;
                 }
 
+                // Write the call statement
+                WriteExpr(context, output, sendStmt.MachineExpr);
+                context.Write(output, ".call");
+                // for a payable event, send the amount of ether
+                if (eventName.Contains("payable_"))
+                {
+                    VariableAccessExpr vExpr = (argsList[1] as VariableAccessExpr);
+                    context.Write(output, ".value(" + context.Names.GetNameForDecl(vExpr.Variable) + ")");
+                }
+
+                context.WriteLine(output, "(bytes4(sha256(\"scheduler\")), ev);");
+
                 context.WriteLine(output, "}");
             }
-
-            // Write the call statement
-            WriteExpr(context, output, sendStmt.MachineExpr);
-            context.Write(output, ".call");
-            // for a payable event, send the amount of ether
-            if (eventName.Contains("payable_"))
-            {
-                VariableAccessExpr vExpr = (argsList[1] as VariableAccessExpr);
-                context.Write(output, ".value(" + context.Names.GetNameForDecl(vExpr.Variable) + ")");
-            }
-
-            context.WriteLine(output, "(bytes4(sha256(\"scheduler\")), ev);");
         }
 
         private void WriteLValue(CompilationContext context, StringWriter output, IPExpr lvalue)
@@ -938,7 +938,7 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void AddGetType(CompilationContext context, StringWriter output, Machine machine)
         {
-            context.WriteLine(output, $"function getType pure public (returns " + LibraryName + ".ContractTypes)");
+            context.WriteLine(output, $"function getType () pure public (returns " + LibraryName + ".ContractTypes)");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"return " + LibraryName + ".ContractTypes." + machine.Name);
             context.WriteLine(output, "}");
