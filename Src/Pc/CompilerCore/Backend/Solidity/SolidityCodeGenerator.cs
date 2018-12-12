@@ -15,6 +15,9 @@ namespace Plang.Compiler.Backend.Solidity
 {
     public class SolidityCodeGenerator : ICodeGenerator
     {
+        // Name of the library containing contract types and event types
+        string LibraryName;
+
         // Name of the contract we are processing
         string ContractName;
 
@@ -81,7 +84,7 @@ namespace Plang.Compiler.Backend.Solidity
                 case Machine machine:
                     // Write the rest of the machine
                     ContractName = machine.Name;
-                    EventTypeName = "ContractLibrary.Event_" + ContractName;
+                    EventTypeName = LibraryName + ".Event_" + ContractName;
                     context.WriteLine(output, $"contract {ContractName}");
                     context.WriteLine(output, "{");
                     WriteMachine(context, output, machine);
@@ -105,6 +108,8 @@ namespace Plang.Compiler.Backend.Solidity
         /// <param name="decl"></param>
         private void PopulateLibrary(CompilationContext context, StringWriter output, Scope globalScope)
         {
+            LibraryName = "ContractLibrary";
+
             // For each event type, assign a unique type id and gather information about the payload types
             foreach(IPDecl decl in globalScope.AllDecls)
             {
@@ -147,7 +152,7 @@ namespace Plang.Compiler.Backend.Solidity
 
             // Write the library
             context.WriteLine(output, $"// Adding library");
-            context.WriteLine(output, $"library ContractLibrary");
+            context.WriteLine(output, $"library " + LibraryName);
             context.WriteLine(output, "{");
 
             // Add Enum to allow typeof operations 
@@ -161,7 +166,7 @@ namespace Plang.Compiler.Backend.Solidity
             }
             machineNames = machineNames.Remove(machineNames.Length - 1);
             context.Write(output, machineNames);
-            context.Write(output, "};");
+            context.Write(output, "}");
             context.WriteLine(output, "");
 
             // For each machine, write the event it can receive
@@ -254,7 +259,7 @@ namespace Plang.Compiler.Backend.Solidity
             AddScheduler(context, output, machine);
 
             // Get library address
-            AddGetTypeof(context, output, machine);
+            AddGetType(context, output, machine);
             #endregion
         }
 
@@ -275,7 +280,6 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, $"uint private first = 1;");
             context.WriteLine(output, $"uint private last = 0;");
             context.WriteLine(output, $"bool private IsRunning = false;");
-            context.WriteLine(output, $"address private ContractLibrary;");
 
             // Add all the states as an enumerated data type
             EnumerateStates(context, output, machine);
@@ -567,22 +571,48 @@ namespace Plang.Compiler.Backend.Solidity
             }
         }
 
+        /// <summary>
+        /// Send translates to a call invocation in Solidity.
+        /// Create an event which the receiving contract can parse.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="output"></param>
+        /// <param name="sendStmt"></param>
         private void WriteSendStmt(CompilationContext context, StringWriter output, SendStmt sendStmt)
         {
-            // Create an event which the destination can parse
 
-
-            context.WriteLine(output, $"address varLibAddr = " + context.Names.GetNameForDecl((sendStmt.MachineExpr as VariableAccessExpr).Variable) + ".GetLibraryAddress();");
-            context.WriteLine(output, $"varLibAddr.Event ev = varLibAddr.Event();");
-            
             EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
             string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
-            int tid = TypeIdMap[eventName];
-            context.WriteLine(output, $"ev.TypeId = " + tid);
-
             // store the arguments
             IReadOnlyList<IPExpr> argsList = sendStmt.Arguments;
 
+            foreach (var machineName in KnownMachineTypes)
+            {
+                context.Write(output, "if (");
+                WriteExpr(context, output, sendStmt.MachineExpr);
+                context.Write(output, ".getType() == " + LibraryName + ".ContractTypes." + machineName + ")");
+                context.WriteLine(output, "{");
+
+                // Setup the event to be dispatched
+                context.WriteLine(output, LibraryName + ".Event_" + machineName + " ev = " + LibraryName + ".Event_" + machineName + "();");
+               
+                int tid = TypeIdMap[eventName];
+                context.WriteLine(output, "ev.TypeId = " + tid + ";");
+
+                int argIndex = 0;
+                foreach (var varName in IdVarsMap[tid])
+                {
+                    context.Write(output, "ev." + varName.Key + " = ");
+                    WriteExpr(context, output, argsList[argIndex]);
+                    context.Write(output, ";");
+                    context.WriteLine(output, "");
+                    argIndex++;
+                }
+
+                context.WriteLine(output, "}");
+            }
+
+            // Write the call statement
             WriteExpr(context, output, sendStmt.MachineExpr);
             context.Write(output, ".call");
             // for a payable event, send the amount of ether
@@ -854,7 +884,7 @@ namespace Plang.Compiler.Backend.Solidity
                 case ForeignType _:
                     throw new NotImplementedException();
                 case MapType mapType:
-                    return $"mapping ({GetSolidityType(context, mapType.KeyType)}, {GetSolidityType(context, mapType.ValueType)})";
+                    return $"mapping ({GetSolidityType(context, mapType.KeyType)} => {GetSolidityType(context, mapType.ValueType)})";
                 case NamedTupleType namedTupleType:
                     // throw new NotImplementedException();
                     return namedTupleType.CanonicalRepresentation;
@@ -906,11 +936,11 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, "}");
         }
 
-        private void AddGetTypeof(CompilationContext context, StringWriter output, Machine machine)
+        private void AddGetType(CompilationContext context, StringWriter output, Machine machine)
         {
-            context.WriteLine(output, $"function typeOf pure public (returns ContractLibrary.ContractTypes)");
+            context.WriteLine(output, $"function getType pure public (returns " + LibraryName + ".ContractTypes)");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"return ContractLibrary.ContractTypes." + machine.Name);
+            context.WriteLine(output, $"return " + LibraryName + ".ContractTypes." + machine.Name);
             context.WriteLine(output, "}");
         }
 
