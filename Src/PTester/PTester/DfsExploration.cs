@@ -188,7 +188,7 @@ namespace P.Tester
                 if (countAbstractsPreviousPrevious < countAbstractsPrevious && countAbstractsPrevious == abstractsInHash.Count)
                 {
                     Console.WriteLine("New plateau detected.");
-                    Console.Write("Running abstract state convergence test with tail-list abstraction ... ");
+                    Console.Write("Running abstract state convergence test with list abstraction ... ");
 
                     if (HasAbstractConverged()) /// convergence detection
                     {
@@ -203,11 +203,6 @@ namespace P.Tester
 
                 ++PrtEventBuffer.k; /// step into next round
             }
-        }
-
-        public static bool InteractiveOrNot()
-        {
-            return false;
         }
 
         /// <summary>
@@ -324,6 +319,7 @@ namespace P.Tester
 
                 /// Get a successor by executing the enabled machine pointed to by currIndex. 
                 /// Also, advance currIndex and/or choiceIndex and push curr state back to worklist
+                /// TODO: try BFS
                 BacktrackingState succ = Execute(curr);
                 worklist.Push(curr);
 

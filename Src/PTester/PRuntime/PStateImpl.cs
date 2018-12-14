@@ -162,7 +162,7 @@ namespace P.Runtime
         public object Clone()
         {
             var clonedState = MakeSkeleton();
-            //clone all the fields
+            // clone all the fields
             clonedState.implMachines = new List<PrtImplMachine>();
             foreach (var machine in implMachines)
             {
