@@ -165,11 +165,19 @@ namespace P.Tester
                 if (countConcretesPrevious == concretesInHash.Count) /// OS1 converges
                 {
                     Console.WriteLine("Global state sequence converged!");
-                    Console.Write("For fun, do you want to run the abstract convergence test as well? " +
-                        "Press <ENTER> to continue, anything else to 'Exit(0)': ");
-                    var stop = (Console.ReadKey().Key != ConsoleKey.Enter);
-                    Console.WriteLine();
-                    if (stop)
+                    if (interativeMode)
+                    {
+                        Console.Write("For fun, do you want to run the abstract convergence test as well? " +
+                            "Press <ENTER> to continue, anything else to 'Exit(0)': ");
+                        var stop = (Console.ReadKey().Key != ConsoleKey.Enter);
+                        Console.WriteLine();
+                        if (stop)
+                        {
+                            Console.WriteLine("Exiting.");
+                            Environment.Exit(0);
+                        }
+                    }
+                    else
                     {
                         Console.WriteLine("Exiting.");
                         Environment.Exit(0);

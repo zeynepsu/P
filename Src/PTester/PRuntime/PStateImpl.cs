@@ -252,14 +252,13 @@ namespace P.Runtime
         /// <summary>
         /// Compute the abstract successors caused by updating the queue of <paramref name="currIndex"/> machine.
         /// 
-        /// TODO: PL: Why only dequeue operation? Enqueue still need to update.
         /// </summary>
         /// <param name="currIndex">The index for the machine about to explore</param>
         /// <param name="abstract_succs"></param>
         /// <param name="abstract_succs_SW"></param>
         void CollectAbstractSuccessorsFromList(int currIndex, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            List<PrtEventNode> m_l = ImplMachines[currIndex].eventQueue.events; // pre-dequeue events list
+            List<PrtEventNode> preDequeEvents = ImplMachines[currIndex].eventQueue.events; // pre-dequeue events list
 
             var ChoiceVector = new List<bool>();
             bool more;
@@ -271,14 +270,14 @@ namespace P.Runtime
                 List<PrtEventNode> succ_m_l = succ_m_q.events; // events list
 
                 more = succ_m.PrtRunStateMachineNextChoice(ChoiceVector);
-                Debug.Assert(m_l.Count - succ_m_q.Size() <= 1); // we have dequeued at most one event
+                Debug.Assert(preDequeEvents.Count - succ_m_q.Size() <= 1); // we have dequeued at most one event
                 /// If dequeing was unsuccessful, then there is nothing left to do. 
                 /// No more nondet choices to try
-                if (m_l.Count == succ_m_q.Size() || succ.CheckFailure(0)) // 
+                if (preDequeEvents.Count == succ_m_q.Size() || succ.CheckFailure(0)) // 
                     return;                                               // 
 
                 int idxOfEventDequeuedFromSuffix = Math.Max(PrtEventBuffer.idxOfLastDequeuedEvent, PrtEventBuffer.p);
-                PrtEventNode eventDequeuedFromSuffix = m_l[idxOfEventDequeuedFromSuffix];
+                PrtEventNode eventDequeuedFromSuffix = preDequeEvents[idxOfEventDequeuedFromSuffix];
 
                 /// <remarks>Choice 1: </remarks> The eventDequeuedFromSuffix, aka the last dequeued event, existed 
                 /// exactly once in the concrete suffix. 
@@ -408,25 +407,37 @@ namespace P.Runtime
         public bool CheckStateInvariant(int currIndex)  
         {
 #if true
-            PrtImplMachine  Main  = implMachines[0];
-            Debug.Assert( Main .eventQueue.IsAbstract());
-            PrtImplMachine Client = implMachines[1];
-            Debug.Assert(Client.eventQueue.IsAbstract());
+           // PrtImplMachine server = implMachines[0];
+           // Debug.Assert(server.eventQueue.IsAbstract());
+            PrtImplMachine client = implMachines[currIndex];
+            Debug.Assert(client.eventQueue.IsAbstract());
 
-            List<PrtEventNode> Client_q = Client.eventQueue.events;
+            List<PrtEventNode> queueOfClient = client.eventQueue.events;
 
             // can't have just dequeued DONE and then there are still DONE's in the queue
-            if (Client.get_eventValue().ToString() == "DONE" && Client_q.Find(ev => ev.ev.ToString() == "DONE") != null)
-                return false;
-
-            for (int i = 0; i < Client_q.Count - 1; ++i)
+            // This is not queue invariant but a transition invariant
+            if (client.GetEventValue().ToString() == "DONE" 
+                && queueOfClient.Find(e => e.ev.ToString() == "DONE") != null)
             {
-                string curr = Client_q[i    ].ev.ToString();
-                string next = Client_q[i + 1].ev.ToString();
+                //Console.WriteLine("-------- state invariant is inviolated");
+                return false;
+            }
+
+            
+            for (int i = 0; i < queueOfClient.Count - 1; ++i)
+            {
+                var curr = queueOfClient[i    ].ev.ToString();
+                var next = queueOfClient[i + 1].ev.ToString();
+
                 // PING cannot be followed by WAIT
                 if (curr == "PING" && next == "WAIT")
+                {
+                    //Console.WriteLine("-------- queue invariant is inviolated");
                     return false;
+                }
+                    
             }
+            
 #endif
 
 #if false
@@ -604,7 +615,7 @@ namespace P.Runtime
             machine.isSafe = isSafeMap[mainInterface];
             machine.renamedName = mainInterface;
             AddImplMachineToStateImpl(machine);
-            TraceLine("<CreateLog> Main machine {0} was created by machine Runtime", impMachineName);
+            TraceLine("<CreateLog> server machine {0} was created by machine Runtime", impMachineName);
 
         }
 

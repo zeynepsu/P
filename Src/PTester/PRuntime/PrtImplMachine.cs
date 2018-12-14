@@ -108,7 +108,7 @@ namespace P.Runtime
             return result;
         }
 
-        public PrtValue get_eventValue() { return eventValue; }
+        public PrtValue GetEventValue() { return eventValue; }
 
         #region Constructor
         public abstract PrtImplMachine MakeSkeleton();

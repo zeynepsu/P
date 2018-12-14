@@ -186,7 +186,6 @@
   <ItemGroup>
     <Compile Include="Coverage.cs" />
     <Compile Include="DfsExploration.cs" />
-    <Compile Include="InvariantChecking.cs" />
     <Compile Include="PSharpExploration.cs" />
     <Compile Include="PTConfig.cs" />
     <Compile Include="PTester.cs" />
