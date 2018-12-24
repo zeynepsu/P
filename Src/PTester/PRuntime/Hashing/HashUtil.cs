@@ -33,7 +33,7 @@ namespace P.Runtime
         public static int Hash(params int[] values)
         {
             var ret = Hash();
-            foreach(var v in values)
+            foreach (var v in values)
             {
                 ret = Hash(ret, v);
             }
@@ -47,6 +47,48 @@ namespace P.Runtime
             foreach (var v in collection)
             {
                 ret = Hash(ret, v);
+            }
+            ret = Hash(ret, collection.Count());
+            return ret;
+        }
+
+        /// <summary>
+        /// Implemented for symmetry reduction
+        /// </summary>
+        /// <param name="collection"></param>
+        /// <returns></returns>
+        public static int Hash(this IEnumerable<int> collection, bool isSymmetryReduction)
+        {
+            var ret = Hash();
+            if (!isSymmetryReduction)
+            {
+                Console.Write("N: " + collection.Count() + ": ");
+                foreach (var v in collection)
+                {
+                    ret = Hash(ret, v);
+                    Console.Write(v + " ");
+                }
+            }
+            else
+            {
+                var list = collection.ToList();
+                if (list.Count() == 4)
+                {
+                    var hash1 = list[1];
+                    var hash2 = list[2];
+                    if (hash2 < hash1)
+                    {
+                        list[1] = hash2;
+                        list[2] = hash1;
+                    }
+
+                }
+                //Console.Write("Y: " + list.Count() + ": ");
+                foreach (var v in list)
+                {
+                    ret = Hash(ret, v);
+                   // Console.Write(v + " ");
+                }
             }
             ret = Hash(ret, collection.Count());
             return ret;

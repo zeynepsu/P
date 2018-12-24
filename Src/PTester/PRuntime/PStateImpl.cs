@@ -540,7 +540,7 @@ namespace P.Runtime
                 // dump each ImplMachine to a string
                 foreach (PrtImplMachine m in implMachines)
                 {
-                    result += indent + "ImplMachine " + (i++).ToString() + ":\n";
+                    result += indent + "ImplMachine " + (i++).ToString() + " Hash: " + m.GetHashCode() + ":\n";
                     result += m.ToPrettyString(indent + "  ");
                 }
             }
