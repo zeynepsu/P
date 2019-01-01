@@ -214,15 +214,15 @@ namespace P.Tester
                                 string qutl = param;
                                 Console.WriteLine(qutl);
                                 QuTLParser parser = new Runtime.QuTLParser(qutl);
-                                QuTLChecker.root = parser.BuildAst();
-                                QuTLChecker.Print(QuTLChecker.root);
+                                ConcreteChecker.root = parser.BuildAst();
+                                ConcreteChecker.Print(ConcreteChecker.root);
                                 var Q = new List<string>();
                                 Q.Add("b");
                                 Q.Add("b");
                                 Q.Add("a");
                                 Q.Add("b");
                                 Q.Add("c");
-                                QuTLChecker.AbstractCheck(2, Q);
+                                ConcreteChecker.AbstractCheck(2, Q);
                                 break;
 
                             case "interactive":

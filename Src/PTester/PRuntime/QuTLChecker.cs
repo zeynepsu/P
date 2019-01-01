@@ -426,7 +426,7 @@ namespace P.Runtime
     class State
     {
 
-        #region
+        #region Constructors
         public State(int id, string label)
         {
             this.id = id;
@@ -441,8 +441,10 @@ namespace P.Runtime
         }
         #endregion
 
+        #region Fileds
         public int id;
         public HashSet<string> labels;
+        #endregion
 
         public override string ToString()
         {
@@ -546,13 +548,14 @@ namespace P.Runtime
             return sb.ToString();
         }
     }
+
     /// <summary>
-    /// 
+    /// Abstract QuTL model checker
     /// </summary>
-    public class QuTLChecker
+    public class AbstractChecker
     {
         #region Constructors
-        protected QuTLChecker()
+        public AbstractChecker()
         {
 
         }
@@ -560,6 +563,7 @@ namespace P.Runtime
 
         public static AstNode root;
 
+        #region Out-of-date code
         public static bool Check(string last, List<PrtEventNode> Q)
         {
 #if true
@@ -574,7 +578,7 @@ namespace P.Runtime
 
             for (int i = 0; i < Q.Count - 1; ++i)
             {
-                var curr = Q[i    ].ev.ToString();
+                var curr = Q[i].ev.ToString();
                 var next = Q[i + 1].ev.ToString();
 
                 // PING cannot be followed by WAIT
@@ -613,16 +617,16 @@ namespace P.Runtime
                 return false;
 #endif
             return true;
-
         }
+        #endregion
 
         /// <summary>
-        /// 
+        /// Check abstract queue
         /// </summary>
         /// <param name="p"></param>
         /// <param name="Q"></param>
         /// <returns></returns>
-        public static bool AbstractCheck(int p, List<string> Q)
+        public static bool Check(int p, List<string> Q)
         {
             LTS lts = new LTS(p, Q);
             Console.WriteLine(lts.ToString());
@@ -630,15 +634,10 @@ namespace P.Runtime
         }
 
         /// <summary>
-        /// 
+        ///  For testing only: print the qutl formula which is organized 
+        ///  as an AST. 
         /// </summary>
-        /// <param name="Q"></param>
-        /// <returns></returns>
-        private bool ConcreteCheck(List<string> Q)
-        {
-            return false;
-        }
-
+        /// <param name="root"></param>
         public static void Print(AstNode root)
         {
             if (root == null)
@@ -662,6 +661,26 @@ namespace P.Runtime
             }
             if (isPar)
                 Console.Write(")");
+        }
+    }
+
+    /// <summary>
+    /// Concrete QuTL model checker
+    /// </summary>
+    public class ConcreteChecker 
+    {
+        #region Constructors
+        public ConcreteChecker()
+        {
+
+        }
+        #endregion
+
+        public static AstNode root;
+
+        bool Check(string processingEvent, List<string> Q)
+        {
+            return true;
         }
     }
 }

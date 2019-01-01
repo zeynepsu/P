@@ -412,7 +412,7 @@ namespace P.Runtime
             Debug.Assert(client.eventQueue.IsAbstract());
 
             List<PrtEventNode> queueOfClient = client.eventQueue.events;
-            return QuTLChecker.Check(client.GetEventValue().ToString(), queueOfClient);
+            return ConcreteChecker.Check(client.GetEventValue().ToString(), queueOfClient);
         }
 
         public bool CheckTransInvariant(int currIndex, StateImpl pred)
