@@ -113,7 +113,9 @@ namespace P.Tester
 
                 if (arg[0] == '-' || arg[0] == '/')
                 {
-                    string option = arg.TrimStart('/', '-').ToLower();
+                    /// Remove ToLower() by Peizun. Do this for invariant input
+                    ///
+                    string option = arg.TrimStart('/', '-');//.ToLower(); 
                     string param = string.Empty;
 
                     int sepIndex = option.IndexOf(':');
@@ -206,7 +208,21 @@ namespace P.Tester
                                 break;
 
                             case "invar":
-                                StateImpl.invariants = true;
+                                StateImpl.invariant = true;
+                                if (param.Length == 0)
+                                    throw new ArgumentException("invar argument: must supply qutl formula in string");
+                                string qutl = param;
+                                Console.WriteLine(qutl);
+                                QuTLParser parser = new Runtime.QuTLParser(qutl);
+                                QuTLChecker.root = parser.BuildAst();
+                                QuTLChecker.Print(QuTLChecker.root);
+                                var Q = new List<string>();
+                                Q.Add("b");
+                                Q.Add("b");
+                                Q.Add("a");
+                                Q.Add("b");
+                                Q.Add("c");
+                                QuTLChecker.AbstractCheck(2, Q);
                                 break;
 
                             case "interactive":
@@ -323,7 +339,7 @@ namespace P.Tester
             Console.WriteLine("/queue-bound:k           Bound queue size to k (i.e. a machine's send is disabled when its current buffer is size k) (default: 0=unbounded for DFS, 1 for OS).");
             Console.WriteLine("                         In case of /os search, this bound applies to the first-round queue and is incremented subsequently.");
             Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p) (default: 0)");
-            Console.WriteLine("/invar                   Use state/transition invariants implemented for your scenario");
+            Console.WriteLine("/invar:qutl              Use state/transition invariants implemented for your scenario");
             Console.WriteLine("/interactive             Interactive mode: need users to press button to increase queue bound and continue exploration");
             Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
             Console.WriteLine();

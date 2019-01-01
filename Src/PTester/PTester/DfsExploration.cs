@@ -367,7 +367,7 @@ namespace P.Tester
                         if (queueAbstraction)
                         {
                             Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstractsInHash.Count);
-                            Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstractSuccsInHash.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
+                            Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstractSuccsInHash.Count, StateImpl.invariant ? " (only those satisfying all static invariants)" : "");
                         }
 #if DEBUG
                         Console.WriteLine("-------------- Maximum queue size encountered so far      = {0}", max_queue_size);
@@ -390,7 +390,7 @@ namespace P.Tester
             if (queueAbstraction)
             {
                 Console.WriteLine("Number of abstract states encountered = {0}", abstractsInHash.Count);
-                Console.WriteLine("Number of abstract successors found   = {0}{1}", abstractSuccsInHash.Count, StateImpl.invariants ? " (only those satisfying all static invariants)" : "");
+                Console.WriteLine("Number of abstract successors found   = {0}{1}", abstractSuccsInHash.Count, StateImpl.invariant ? " (only those satisfying all static invariants)" : "");
             }
 
 #if DEBUG
