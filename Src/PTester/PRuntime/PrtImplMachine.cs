@@ -90,7 +90,7 @@ namespace P.Runtime
         // ToString: use same recursive descent as for GetHashCode
         public override string ToString()
         {
-            // the debugger seems to use the following code to print
+            // the debugger seems to use the following code to Print
 #if !DEBUG
             Console.WriteLine("PrtImplMachine.ToString: error: should not reach this function");
             throw new NotImplementedException();

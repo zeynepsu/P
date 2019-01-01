@@ -77,7 +77,7 @@ namespace P.Runtime
         /// </summary>
         private Exception exception;
 
-        public static bool invariants = false;
+        public static bool invariant = false;
 
         public enum ExploreMode
         {
@@ -334,7 +334,7 @@ namespace P.Runtime
                     throw new SuccessorFound(pred, this);
                 }
 
-            if ( invariants ? CheckStateInvariant(currIndex) && CheckTransInvariant(currIndex, pred) : true )
+            if ( invariant ? CheckStateInvariant(currIndex) && CheckTransInvariant(currIndex, pred) : true )
             {
                 if (abstract_succs.Add(hash))
                     if (FileDump)
@@ -406,63 +406,13 @@ namespace P.Runtime
         ///</summary>
         public bool CheckStateInvariant(int currIndex)  
         {
-#if true
            // PrtImplMachine server = implMachines[0];
            // Debug.Assert(server.eventQueue.IsAbstract());
             PrtImplMachine client = implMachines[currIndex];
             Debug.Assert(client.eventQueue.IsAbstract());
 
             List<PrtEventNode> queueOfClient = client.eventQueue.events;
-
-            // can't have just dequeued DONE and then there are still DONE's in the queue
-            // This is not queue invariant but a transition invariant
-            if (client.GetEventValue().ToString() == "DONE" 
-                && queueOfClient.Find(e => e.ev.ToString() == "DONE") != null)
-            {
-                //Console.WriteLine("-------- state invariant is inviolated");
-                return false;
-            }
-
-            
-            for (int i = 0; i < queueOfClient.Count - 1; ++i)
-            {
-                var curr = queueOfClient[i    ].ev.ToString();
-                var next = queueOfClient[i + 1].ev.ToString();
-
-                // PING cannot be followed by WAIT
-                if (curr == "PING" && next == "WAIT")
-                {
-                    //Console.WriteLine("-------- queue invariant is inviolated");
-                    return false;
-                }
-                    
-            }
-            
-#endif
-
-#if false
-            PrtImplMachine  Main  = implMachines[0]; Debug.Assert( Main .eventQueue.is_abstract()); List<PrtEventNode>  Main_q  =  Main .eventQueue.events;
-            PrtImplMachine Client = implMachines[1]; Debug.Assert(Client.eventQueue.is_abstract()); List<PrtEventNode> Client_q = Client.eventQueue.events;
-
-            Event_is_and_queue_contains event_is_and_queue_contains = delegate(PrtImplMachine m, string s)
-            {
-                List<PrtEventNode> q = m.eventQueue.events;
-                return m.get_eventValue().ToString() == s && q.Find(ev => ev.ev.ToString() == s) != null;
-            };
-
-            // these lemmas state that none of the events in question occur more than once in the queue
-            if (event_is_and_queue_contains(Main,   "req_share")      ||
-                event_is_and_queue_contains(Main,   "req_excl")       ||
-                event_is_and_queue_contains(Main,   "invalidate_ack") ||
-
-                event_is_and_queue_contains(Client, "grant_share")    ||
-                event_is_and_queue_contains(Client, "grant_excl")     ||
-                event_is_and_queue_contains(Client, "ask_share")      ||
-                event_is_and_queue_contains(Client, "ask_excl")       ||
-                event_is_and_queue_contains(Client, "invalidate"))
-                return false;
-#endif
-            return true;
+            return QuTLChecker.Check(client.GetEventValue().ToString(), queueOfClient);
         }
 
         public bool CheckTransInvariant(int currIndex, StateImpl pred)
@@ -499,7 +449,7 @@ namespace P.Runtime
         /// <returns></returns>
         public override string ToString()
         {
-            // the debugger seems to use the following code to print
+            // the debugger seems to use the following code to Print
 #if !DEBUG
             Console.WriteLine("StateImpl.ToString: error: should not reach this function");
             throw new NotImplementedException();
@@ -550,7 +500,7 @@ namespace P.Runtime
             else
             {
                 ushort i = 0;
-                // for each specMachine, why do we print only the key?
+                // for each specMachine, why do we Print only the key?
                 foreach (KeyValuePair<string, PrtSpecMachine> pair in specMachinesMap)
                 {
                     result += indent + "SpecMachine " + (i++).ToString() + ": " + pair.Key + "\n";
@@ -703,7 +653,7 @@ namespace P.Runtime
             }
             else
             {
-                //throw new NotImplementedException();
+                // throw new NotImplementedException();
                 return (new Random(DateTime.Now.Millisecond)).Next(10) > 5;
             }
         }

@@ -966,7 +966,7 @@ namespace P.Runtime
         }
 
         /// <summary>
-        /// print all contents (aka all PrtFunStackFrames) as a string
+        /// Print all contents (aka all PrtFunStackFrames) as a string
         /// </summary>
         /// <returns></returns>
         public override string ToString()
@@ -1026,7 +1026,7 @@ namespace P.Runtime
             return Hashing.Hash(nondet.GetHashCode(), reason.GetHashCode(), retVal.GetHashCode(), retLocals.Select(v => v.GetHashCode()).Hash());
         }
 
-        // I print the Boolean nondet before the List retLocals (easier since list length varies)
+        // I Print the Boolean nondet before the List retLocals (easier since list length varies)
         public override string ToString()
         {
             return reason.ToString() + "," + retVal.ToString() + "," + nondet.ToString() + "," + (retLocals.Count == 0 ? "null" : retLocals.Select(v => v.ToString()).Aggregate((s1, s2) => s1 + s2));
