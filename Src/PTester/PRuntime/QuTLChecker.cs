@@ -73,11 +73,11 @@ namespace P.Runtime
         /// <summary>
         /// Current processin event
         /// </summary>
-        PROCESS_EVENT,
+        PROCESS_EVENT = 0,
         /// <summary>
         ///  temporal operators
         /// </summary>
-        TMP_F = 0,
+        TMP_F,
         TMP_X,
         TMP_G,
         /// <summary>
@@ -168,7 +168,7 @@ namespace P.Runtime
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder("");
-            switch(type)
+            switch (type)
             {
                 case AstNodeType.EVENT:
                     sb.Append(ev);
@@ -199,7 +199,7 @@ namespace P.Runtime
         public ExprNode enode;
         public AstNode left;
         public AstNode right;
-       #endregion
+        #endregion
     }
 
     /// <summary>
@@ -217,6 +217,7 @@ namespace P.Runtime
 
         #region fields
         private readonly List<ExprNode> phi;
+        public static AstNode root;
         #endregion
 
         public AstNode BuildAst()
@@ -229,7 +230,7 @@ namespace P.Runtime
             Stack<AstNode> worklist = new Stack<AstNode>();
             foreach (var node in phi)
             {
-                switch(node.Type)
+                switch (node.Type)
                 {
                     case AstNodeType.EVENT:
                         worklist.Push(new AstNode(node));
@@ -275,7 +276,7 @@ namespace P.Runtime
                     break;
                 case QuTLOperator.SIZE:
                     {
-                        worklist.Push(curr);  
+                        worklist.Push(curr);
                     }
                     break;
                 case QuTLOperator.NEGATION:
@@ -418,6 +419,37 @@ namespace P.Runtime
             Console.WriteLine();
             return phi;
         }
+
+        /// <summary>
+        ///  For testing only: print the qutl formula which is organized 
+        ///  as an AST. 
+        /// </summary>
+        /// <param name="root"></param>
+        public static void Print(AstNode root)
+        {
+            if (root == null)
+                return;
+            var node = root.enode;
+            bool isPar = node.Type == AstNodeType.OPERATOR
+                        && node.Operator == QuTLOperator.PARENTHSIS;
+            if (isPar)
+                Console.Write("(");
+
+            if (root.right != null)
+            {
+                Print(root.left);
+                Console.Write(" " + node.ToString() + " ");
+                Print(root.right);
+            }
+            else
+            {
+                Console.Write(node.ToString() + " ");
+                Print(root.left);
+            }
+            if (isPar)
+                Console.Write(")");
+        }
+
     }
 
     /// <summary>
@@ -425,12 +457,11 @@ namespace P.Runtime
     /// </summary>
     class State
     {
-
         #region Constructors
         public State(int id, string label)
         {
             this.id = id;
-            this.labels = new HashSet<string>{ label };
+            this.labels = new HashSet<string> { label };
         }
 
         public State(int id, HashSet<string> labels)
@@ -499,7 +530,7 @@ namespace P.Runtime
             }
             #endregion
 
-            #region Handle the non-kleene star parts
+            #region Handle non-kleene star parts
             int stateID = 0; /// state stateID, increment
             this.initial = stateID;
             for (int i = 0; i <= Q.Count; ++i)
@@ -512,7 +543,7 @@ namespace P.Runtime
             this.accepting = stateID; /// set up accepting state
             #endregion
 
-            #region Handle the kleene star parts
+            #region Handle kleene star parts
             for (int i = p; i < Q.Count; ++i)
             {
                 HashSet<string> labels = new HashSet<string>();
@@ -542,7 +573,7 @@ namespace P.Runtime
             {
                 sb.Append(states[i].ToString());
                 if (transitions[i] != null)
-                    transitions[i].ForEach(s => sb.Append(" " + s));                
+                    transitions[i].ForEach(s => sb.Append(" " + s));
                 sb.Append("\n");
             }
             return sb.ToString();
@@ -560,8 +591,6 @@ namespace P.Runtime
 
         }
         #endregion
-
-        public static AstNode root;
 
         #region Out-of-date code
         public static bool Check(string last, List<PrtEventNode> Q)
@@ -621,7 +650,7 @@ namespace P.Runtime
         #endregion
 
         /// <summary>
-        /// Check abstract queue
+        /// Eval abstract queue
         /// </summary>
         /// <param name="p"></param>
         /// <param name="Q"></param>
@@ -632,42 +661,12 @@ namespace P.Runtime
             Console.WriteLine(lts.ToString());
             return false;
         }
-
-        /// <summary>
-        ///  For testing only: print the qutl formula which is organized 
-        ///  as an AST. 
-        /// </summary>
-        /// <param name="root"></param>
-        public static void Print(AstNode root)
-        {
-            if (root == null)
-                return;
-            var node = root.enode;
-            bool isPar = node.Type == AstNodeType.OPERATOR
-                        && node.Operator == QuTLOperator.PARENTHSIS;
-            if (isPar)
-                Console.Write("(");
-
-            if (root.right != null)
-            {
-                Print(root.left);
-                Console.Write(" " + node.ToString() + " ");
-                Print(root.right);
-            }
-            else
-            {
-                Console.Write(node.ToString() + " ");
-                Print(root.left);
-            }
-            if (isPar)
-                Console.Write(")");
-        }
     }
 
     /// <summary>
     /// Concrete QuTL model checker
     /// </summary>
-    public class ConcreteChecker 
+    public class ConcreteChecker
     {
         #region Constructors
         public ConcreteChecker()
@@ -676,11 +675,184 @@ namespace P.Runtime
         }
         #endregion
 
-        public static AstNode root;
-
-        bool Check(string processingEvent, List<string> Q)
+        /// <summary>
+        /// Implement the concrete QuTL model checker
+        /// </summary>
+        /// <param name="ev">the processing event: it has just been dequeued</param>
+        /// <param name="Q"> the current queue</param>
+        /// <returns></returns>
+        public static bool Eval(string ev, List<string> Q)
         {
-            return true;
+            return Eval(ev, Q, 0, QuTLParser.root) == 1;
+        }
+
+        /// <summary>
+        /// Recursive version of QuTL model checker
+        /// </summary>
+        /// <param name="ev">the processing event</param>
+        /// <param name="Q">current queue</param>
+        /// <param name="i">current index of queue: mark the current progress of evaluation</param>
+        /// <param name="phi">the whole fomula of phi</param>
+        /// <returns></returns>
+        private static int Eval(string ev, List<string> Q, int i, AstNode phi)
+        {
+            if (i == Q.Count || phi == null)
+                return 0;
+            var root = phi.enode;
+            switch (root.Type)
+            {
+                case AstNodeType.EVENT:
+                    return root.Event == Q[i] ? 1 : 0;
+                case AstNodeType.VALUE:
+                    return root.Value;
+                default:
+                    return EvalOp(ev, Q, i, phi);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="Q"></param>
+        /// <param name="start"></param>
+        /// <param name="phi"></param>
+        /// <returns></returns>
+        private static int EvalOp(string ev, List<string> Q, int start, AstNode phi)
+        {
+            switch (phi.enode.Operator)
+            {
+                case QuTLOperator.TMP_F:
+                    {
+                        for (int i = start; i < Q.Count; ++i)
+                        {
+                            if (Eval(ev, Q, i, phi.left) == 1)
+                                return 1;
+                        }
+                        return 0;
+                    }
+                case QuTLOperator.TMP_G:
+                    {
+                        for (int i = start; i < Q.Count; ++i)
+                        {
+                            if (Eval(ev, Q, i, phi.left) == 0)
+                                return 0;
+                        }
+                        return 1;
+                    }
+                case QuTLOperator.TMP_X:
+                    {
+                        return Eval(ev, Q, start + 1, phi.left);
+                    }
+                case QuTLOperator.COUNT:
+                    {
+                        if (phi.left == null || phi.left.enode.Type != AstNodeType.EVENT)
+                            throw new Exception("Illegal formula: countin");
+                        return EvalCount(phi.left.enode.Event, Q, start);
+                    }
+                case QuTLOperator.SIZE:
+                    {
+                        return Q.Count;
+                    }
+                case QuTLOperator.NEGATION:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        return lch ^ 1;
+                    }
+                case QuTLOperator.AND:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch & rch;
+                    }
+                case QuTLOperator.OR:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch | rch;
+                    }
+                case QuTLOperator.IMPLICATION:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return (lch ^ 1) | rch;
+                    }
+                case QuTLOperator.EQUAL:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch == rch ? 1 : 0;
+                    }
+                case QuTLOperator.NOT_EQUAL:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch != rch ? 1 : 0;
+                    }
+                case QuTLOperator.LESS_THAN:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch < rch ? 1 : 0;
+                    }
+                case QuTLOperator.LESS_THAN_EQ:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch <= rch ? 1 : 0;
+                    }
+                case QuTLOperator.GREATER_THAN:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch > rch ? 1 : 0;
+                    }
+                case QuTLOperator.GREATER_THAN_EQ:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch >= rch ? 1 : 0;
+                    }
+                case QuTLOperator.ADDITION:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch + rch;
+                    }
+                case QuTLOperator.SUBTRACTION:
+                    {
+                        var lch = Eval(ev, Q, start, phi.left);
+                        var rch = Eval(ev, Q, start, phi.right);
+                        return lch - rch;
+                    }
+                case QuTLOperator.PARENTHSIS:
+                    {
+                        return Eval(ev, Q, start, phi.left);
+                    }
+                case QuTLOperator.PROCESS_EVENT:
+                    {
+                        return phi.left.enode.Event == ev ? 1 : 0;
+                    }
+                default:
+                    throw new Exception("Illegal operator");
+            }
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="Q"></param>
+        /// <param name="start"></param>
+        /// <returns></returns>
+        private static int EvalCount(string ev, List<string> Q, int start)
+        {
+            int cnt = 0;
+            for (int i = start; i < Q.Count; ++i)
+            {
+                if (Q[i] == ev)
+                    ++cnt;
+            }
+            return cnt;
         }
     }
 }

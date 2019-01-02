@@ -210,19 +210,21 @@ namespace P.Tester
                             case "invar":
                                 StateImpl.invariant = true;
                                 if (param.Length == 0)
-                                    throw new ArgumentException("invar argument: must supply qutl formula in string");
+                                    throw new ArgumentException("invar argument: must supply QuTL formula in string");
                                 string qutl = param;
                                 Console.WriteLine(qutl);
                                 QuTLParser parser = new Runtime.QuTLParser(qutl);
-                                ConcreteChecker.root = parser.BuildAst();
-                                ConcreteChecker.Print(ConcreteChecker.root);
-                                var Q = new List<string>();
-                                Q.Add("b");
-                                Q.Add("b");
-                                Q.Add("a");
-                                Q.Add("b");
-                                Q.Add("c");
-                                ConcreteChecker.AbstractCheck(2, Q);
+                                QuTLParser.root = parser.BuildAst();
+                                QuTLParser.Print(QuTLParser.root);
+                                var Q = new List<string>
+                                {
+                                    "b",
+                                    "b",
+                                    "a",
+                                    "b",
+                                    "c"
+                                };
+                                AbstractChecker.Check(2, Q);
                                 break;
 
                             case "interactive":
