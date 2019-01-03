@@ -215,16 +215,25 @@ namespace P.Tester
                                 Console.WriteLine(qutl);
                                 QuTLParser parser = new Runtime.QuTLParser(qutl);
                                 QuTLParser.root = parser.BuildAst();
+                                Console.Write("Phi: ");
                                 QuTLParser.Print(QuTLParser.root);
                                 var Q = new List<string>
                                 {
                                     "b",
                                     "b",
-                                    "a",
                                     "b",
-                                    "c"
+                                    "a"
                                 };
-                                AbstractChecker.Check(2, Q);
+                                if (AbstractChecker.Check("", 2, Q))
+                                    Console.WriteLine(qutl + " holds");
+                                else
+                                    Console.WriteLine(qutl + " does not hold");
+                                break;
+
+                            case "Q":
+                                if (param.Length == 0)
+                                    throw new ArgumentException("For testing only: please specify queue content");
+
                                 break;
 
                             case "interactive":

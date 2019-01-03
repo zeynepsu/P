@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 
 namespace P.Runtime
 {
-
+    /// <summary>
+    /// 
+    /// </summary>
     static class Symbol
     {
         /// <summary>
@@ -53,6 +55,8 @@ namespace P.Runtime
         /// </summary>
         public static readonly string CONST_T = "T";
         public static readonly string CONST_F = "F";
+
+        public static readonly int NON_DET_INT = int.MaxValue;
     }
 
     /// <summary>
@@ -177,7 +181,70 @@ namespace P.Runtime
                     sb.Append(vl);
                     break;
                 default:
-                    sb.Append("op");
+                    {
+                        switch(op)
+                        {
+                            case QuTLOperator.PROCESS_EVENT:
+                                sb.Append(Symbol.PROCESS_EVENT);
+                                break;
+                            case QuTLOperator.TMP_F:
+                                sb.Append(Symbol.TMP_F);
+                                break;
+                            case QuTLOperator.TMP_G:
+                                sb.Append(Symbol.TMP_G);
+                                break;
+                            case QuTLOperator.TMP_X:
+                                sb.Append(Symbol.TMP_X);
+                                break;
+                            case QuTLOperator.COUNT:
+                                sb.Append(Symbol.COUNT);
+                                break;
+                            case QuTLOperator.SIZE:
+                                sb.Append(Symbol.SIZE);
+                                break;
+                            case QuTLOperator.NEGATION:
+                                sb.Append(Symbol.NEGATION);
+                                break;
+                            case QuTLOperator.AND:
+                                sb.Append(Symbol.AND);
+                                break;
+                            case QuTLOperator.OR:
+                                sb.Append(Symbol.OR);
+                                break;
+                            case QuTLOperator.IMPLICATION:
+                                sb.Append(Symbol.IMPLICATION);
+                                break;
+                            case QuTLOperator.EQUAL:
+                                sb.Append(Symbol.EQUAL);
+                                break;
+                            case QuTLOperator.NOT_EQUAL:
+                                sb.Append(Symbol.NOT_EQUAL);
+                                break;
+                            case QuTLOperator.LESS_THAN:
+                                sb.Append(Symbol.LESS_THAN);
+                                break;
+                            case QuTLOperator.LESS_THAN_EQ:
+                                sb.Append(Symbol.LESS_THAN_EQ);
+                                break;
+                            case QuTLOperator.GREATER_THAN:
+                                sb.Append(Symbol.GREATER_THAN);
+                                break;
+                            case QuTLOperator.GREATER_THAN_EQ:
+                                sb.Append(Symbol.GREATER_THAN_EQ);
+                                break;
+                            case QuTLOperator.ADDITION:
+                                sb.Append(Symbol.ADDITION);
+                                break;
+                            case QuTLOperator.SUBTRACTION:
+                                sb.Append(Symbol.SUBTRACTION);
+                                break;
+                            case QuTLOperator.PARENTHSIS:
+                                break;
+                            default:
+                                sb.Append("op");
+                                break;
+                        }
+                    }
                     break;
             }
             return sb.ToString();
@@ -254,10 +321,16 @@ namespace P.Runtime
         /// <returns></returns>
         private AstNode BuildAst(ExprNode node, ref Stack<AstNode> worklist)
         {
-
             var curr = new AstNode(node);
             switch (node.Operator)
             {
+                case QuTLOperator.PROCESS_EVENT:
+                    {
+                        var lch = worklist.Pop();
+                        curr.left = lch;
+                        worklist.Push(curr);
+                    }
+                    break;
                 case QuTLOperator.TMP_F:
                 case QuTLOperator.TMP_G:
                 case QuTLOperator.TMP_X:
@@ -307,6 +380,13 @@ namespace P.Runtime
                         worklist.Push(curr);
                     }
                     break;
+                case QuTLOperator.PARENTHSIS:
+                    {
+                        var lch = worklist.Pop();
+                        curr.left = lch;
+                        worklist.Push(curr);
+                    }
+                    break;
                 default:
                     throw new Exception("Unknow QuTL operator!");
 
@@ -325,10 +405,12 @@ namespace P.Runtime
             List<ExprNode> phi = new List<ExprNode>();
             foreach (var op in eArray)
             {
-                Console.WriteLine(op);
-
                 ExprNode node = null;
-                if (op == Symbol.TMP_F)
+                if (op  == Symbol.PROCESS_EVENT)
+                {
+                    node = new ExprNode(QuTLOperator.PROCESS_EVENT);
+                }
+                else if (op == Symbol.TMP_F)
                 {
                     node = new ExprNode(QuTLOperator.TMP_F);
                 }
@@ -380,6 +462,10 @@ namespace P.Runtime
                 {
                     node = new ExprNode(QuTLOperator.LESS_THAN_EQ);
                 }
+                else if (op == Symbol.GREATER_THAN)
+                {
+                    node = new ExprNode(QuTLOperator.GREATER_THAN);
+                }
                 else if (op == Symbol.GREATER_THAN_EQ)
                 {
                     node = new ExprNode(QuTLOperator.GREATER_THAN_EQ);
@@ -415,8 +501,10 @@ namespace P.Runtime
                 phi.Add(node);
             }
 
+            Console.WriteLine("OUTPUT Node:");
             phi.ForEach(node => Console.Write(node.ToString() + " "));
             Console.WriteLine();
+
             return phi;
         }
 
@@ -458,23 +546,27 @@ namespace P.Runtime
     class State
     {
         #region Constructors
-        public State(int id, string label)
+        public State(int id, string label, bool selfloop = false)
         {
             this.id = id;
             this.labels = new HashSet<string> { label };
+            this.selfLoop = selfloop;
         }
 
-        public State(int id, HashSet<string> labels)
+        public State(int id, HashSet<string> labels, bool selfloop = false)
         {
             this.id = id;
             this.labels = labels;
-            Console.WriteLine("s" + id + string.Join(" ", labels));
+            this.selfLoop = selfloop;
         }
         #endregion
 
         #region Fileds
         public int id;
         public HashSet<string> labels;
+
+        private readonly bool selfLoop;
+        public bool SelfLoop => selfLoop;
         #endregion
 
         public override string ToString()
@@ -487,7 +579,7 @@ namespace P.Runtime
     }
 
     /// <summary>
-    /// Labeled transition systems (LTS). We constructed it from a queue
+    /// Labeled transition systems (LTS). We constructed it from lhs queue
     /// </summary>
     class LTS
     {
@@ -500,6 +592,7 @@ namespace P.Runtime
         public LTS(int p, List<string> Q)
         {
             this.BuilLTS(p, Q);
+            this.size = p == Q.Count ? Q.Count : int.MaxValue;
         }
         #endregion
 
@@ -508,6 +601,9 @@ namespace P.Runtime
         public List<int>[] transitions;
         public int initial;
         public int accepting;
+        private readonly int size;
+
+        public int SizeQ => size;
         #endregion
 
         /// <summary>
@@ -531,19 +627,21 @@ namespace P.Runtime
             #endregion
 
             #region Handle non-kleene star parts
-            int stateID = 0; /// state stateID, increment
+            int stateID = 0, predID = 0; /// state stateID, increment
             this.initial = stateID;
             for (int i = 0; i <= Q.Count; ++i)
             {
                 states[stateID] = new State(stateID, i < Q.Count ? Q[i] : "");
                 if (i > 0)
-                    transitions[stateID - 1].Add(stateID);
-                ++stateID;
+                    transitions[predID].Add(stateID);
+                predID = stateID;
+                stateID += i < p ? 1 : 2;
             }
-            this.accepting = stateID; /// set up accepting state
+            this.accepting = numOfStates - 1; /// set up the accepting state
             #endregion
 
             #region Handle kleene star parts
+            stateID = p + 1; /// 
             for (int i = p; i < Q.Count; ++i)
             {
                 HashSet<string> labels = new HashSet<string>();
@@ -552,12 +650,12 @@ namespace P.Runtime
                     labels.Add(Q[j]);
                 }
 
-                states[stateID] = new State(stateID, labels);
-                transitions[i].Add(stateID);
+                states[stateID] = new State(stateID, labels, true);
+                transitions[stateID - 1].Add(stateID);
                 transitions[stateID].Add(stateID); // self loop
-                transitions[stateID].Add(i + 1);
+                transitions[stateID].Add(stateID + 1);
 
-                ++stateID;
+                stateID += 2;
             }
             #endregion
         }
@@ -598,7 +696,7 @@ namespace P.Runtime
 #if true
             Console.WriteLine("---------- I am in QuTL model checker");
             // can't have just dequeued DONE and then there are still DONE's in the queue
-            // This is not queue invariant but a transition invariant
+            // This is not queue invariant but lhs transition invariant
             if (last == "DONE" && Q.Find(e => e.ev.ToString() == "DONE") != null)
             {
                 Console.WriteLine("-------- state invariant is inviolated");
@@ -649,17 +747,278 @@ namespace P.Runtime
         }
         #endregion
 
+        public static bool Check(int p, List<string> Q)
+        {
+            return Check(null, p, Q);
+        }
+
         /// <summary>
         /// Eval abstract queue
         /// </summary>
         /// <param name="p"></param>
         /// <param name="Q"></param>
         /// <returns></returns>
-        public static bool Check(int p, List<string> Q)
+        public static bool Check(string ev, int p, List<string> Q)
         {
+            if (ev != null && !EvalProcessEvent(ev, QuTLParser.root.left))
+                return false;
             LTS lts = new LTS(p, Q);
             Console.WriteLine(lts.ToString());
-            return false;
+            return Eval(ev, lts, 0, ev != null ? 
+                QuTLParser.root.right : QuTLParser.root) == 1;
+        }
+
+        private static bool EvalProcessEvent(string ev, AstNode phi)
+        {
+            switch (phi.enode.Operator)
+            {
+                case QuTLOperator.EQUAL:
+                    {
+                        return ev == phi.left.enode.Event;
+                    }
+                case QuTLOperator.NOT_EQUAL:
+                    {
+                        return ev != phi.left.enode.Event;
+                    }
+                default:
+                    throw new Exception("Unsupported opertator for invariant with processing event");
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="lts"></param>
+        /// <param name="i"></param>
+        /// <param name="phi"></param>
+        /// <returns></returns>
+        private static int Eval(string ev, LTS lts, int i, AstNode phi)
+        {
+            if (i == lts.accepting || phi == null)
+                return 1;
+            var root = phi.enode;
+            switch (root.Type)
+            {
+                case AstNodeType.EVENT:
+                    return lts.states[i].labels.Contains(root.Event) ? 1 : 0;
+                case AstNodeType.VALUE:
+                    return root.Value;
+                default:
+                    return EvalOp(ev, lts, i, phi);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="Q"></param>
+        /// <param name="i"></param>
+        /// <param name="phi"></param>
+        /// <returns></returns>
+        private static int EvalOp(string ev, LTS lts, int start, AstNode phi)
+        {
+            switch (phi.enode.Operator)
+            {
+                case QuTLOperator.TMP_F:
+                    {
+                        for (int i = start; i < lts.accepting - 1; ++i)
+                        {
+                            if (Eval(ev, lts, i, phi.left) == 1)
+                                return 1;
+                        }
+                        return 0;
+                    }
+                case QuTLOperator.TMP_G:
+                    {
+                        return EvalG(ev, lts, start, phi.left);
+                    }
+                case QuTLOperator.TMP_X:
+                    {
+                        foreach (var next in lts.transitions[start])
+                        {
+                            if (Eval(ev, lts, next, phi.left) == 1)
+                                return 1;
+                        }
+                        return 0;
+                    }
+                case QuTLOperator.COUNT:
+                    {
+                        if (phi.left == null || phi.left.enode.Type != AstNodeType.EVENT)
+                            throw new Exception("Illegal formula: countin");
+                        return EvalCount(phi.left.enode.Event, lts, start).Item1;
+                    }
+                case QuTLOperator.SIZE:
+                    {
+                        return lts.SizeQ;
+                    }
+                case QuTLOperator.NEGATION:
+                    {
+                        var res = EvalNegation(ev, lts, start, phi);
+                        Console.WriteLine("Evaluate negation" + start + "::" + res);
+                        return res;
+                    }
+                case QuTLOperator.AND:
+                    {
+                        var lch = Eval(ev, lts, start, phi.left);
+                        var rch = Eval(ev, lts, start, phi.right);
+                        return lch & rch;
+                    }
+                case QuTLOperator.OR:
+                    {
+                        var lch = Eval(ev, lts, start, phi.left);
+                        var rch = Eval(ev, lts, start, phi.right);
+                        return lch | rch;
+                    }
+                case QuTLOperator.IMPLICATION:
+                    {
+                        var lch = Eval(ev, lts, start, phi.left);
+                        var rch = Eval(ev, lts, start, phi.right);
+                        Console.WriteLine(lch + "=>" + rch);
+                        return (lch ^ 1) | rch;
+                    }
+                case QuTLOperator.EQUAL:
+                case QuTLOperator.NOT_EQUAL:
+                case QuTLOperator.LESS_THAN:
+                case QuTLOperator.LESS_THAN_EQ:
+                case QuTLOperator.GREATER_THAN:
+                case QuTLOperator.GREATER_THAN_EQ:
+                    {
+                        if (phi.left == null || phi.right == null)
+                            throw new Exception("Illegal QuTL formula!");
+
+                        if (phi.left.enode.Type != AstNodeType.OPERATOR 
+                            || phi.right.enode.Type != AstNodeType.VALUE)
+                            throw new Exception("Illegal QuTL formula!");
+
+                        if (phi.left.enode.Operator != QuTLOperator.COUNT)
+                            throw new Exception("Illegal QuTL formula!");
+
+                        var lch = phi.left.left.enode.Event;
+                        var rch = Eval(ev, lts, start, phi.right);
+
+                        return EvalComp(lch, rch, phi.enode.Operator, lts, start);
+                    }
+                case QuTLOperator.ADDITION:
+                    {
+                        var lch = Eval(ev, lts, start, phi.left);
+                        var rch = Eval(ev, lts, start, phi.right);
+                        return lch + rch;
+                    }
+                case QuTLOperator.SUBTRACTION:
+                    {
+                        var lch = Eval(ev, lts, start, phi.left);
+                        var rch = Eval(ev, lts, start, phi.right);
+                        return lch - rch;
+                    }
+                case QuTLOperator.PARENTHSIS:
+                    {
+                        return Eval(ev, lts, start, phi.left);
+                    }
+                case QuTLOperator.PROCESS_EVENT:
+                    {
+                        return phi.left.enode.Event == ev ? 1 : 0;
+                    }
+                default:
+                    throw new Exception("Illegal operator");
+            }
+        }
+
+        private static int EvalG(string ev, LTS lts, int start, AstNode phi)
+        {
+            if (Eval(ev, lts, start, phi) == 0)
+               return 0;
+            foreach (var next in lts.transitions[start])
+            {
+                Console.WriteLine(next);
+                if (next == start)
+                    continue;
+                if (next == lts.accepting || EvalG(ev, lts, next, phi) == 1)
+                    return 1;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="lts"></param>
+        /// <param name="start"></param>
+        /// <param name="phi"></param>
+        /// <returns></returns>
+        private static int EvalNegation(string ev, LTS lts, int start, AstNode phi)
+        {
+            if (phi.enode.Type != AstNodeType.EVENT)
+            {
+                return Eval(ev, lts, start, phi.left) ^ 1;
+            } 
+            else
+            {
+                return lts.states[start].labels.Contains(phi.enode.Event) ? 0 : 1;
+            }
+        }
+
+
+        /// <summary>
+        /// Not lhs good design, need to revisit
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="c"></param>
+        /// <param name="op"></param>
+        /// <returns></returns>
+        private static int EvalComp(string ev, int c, QuTLOperator op, LTS lts, int start)
+        {
+            var pair = EvalCount(ev, lts, start);
+            var cnt = pair.Item1;
+            var loop = pair.Item2;
+            switch (op)
+            {
+                case QuTLOperator.EQUAL:
+                    return (cnt == c || (cnt < c && loop)) ? 1 : 0; 
+                case QuTLOperator.NOT_EQUAL:
+                    return (cnt > c || (cnt < c && !loop)) ? 1 : 0;
+                case QuTLOperator.LESS_THAN:
+                    return (cnt < c) ? 1 : 0;
+                case QuTLOperator.LESS_THAN_EQ:
+                    return (cnt <= c) ? 1 : 0;
+                case QuTLOperator.GREATER_THAN:
+                    return (loop || cnt > c) ? 1 : 0;
+                case QuTLOperator.GREATER_THAN_EQ:
+                    return (loop || cnt >= c) ? 1 : 0;
+                default:
+                    throw new Exception("Illegal binary relation operation");
+            }
+        }
+
+        /// <summary>
+        /// Evaluate the counting operation
+        /// </summary>
+        /// <param name="ev">the event need to count</param>
+        /// <param name="lts">the labeled transition system</param>
+        /// <param name="stateID">the starting point to do the counting operation</param>
+        /// <returns></returns>
+        private static Tuple<int, bool> EvalCount(string ev, LTS lts, int stateID)
+        {
+            int cnt = 0;
+            bool inf = false;
+            for (int i = stateID; i < lts.accepting; ++i)
+            {
+                if (lts.states[i].labels.Contains(ev))
+                {
+                    if (lts.states[i].SelfLoop)
+                    {
+                        if (!inf)
+                            inf = true;
+                    }
+                    else
+                    {
+                        ++cnt;
+                    }
+                }
+            }
+            return System.Tuple.Create(cnt, inf);
         }
     }
 
