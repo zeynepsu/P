@@ -225,6 +225,12 @@ namespace P.Tester
                                 options.testMCer = true;
                                 break;
 
+                            case "processing":
+                                if (param.Length == 0)
+                                    throw new ArgumentException("For testing only: please specify queue content");
+                                P.Runtime.TestMCer.processEvent = param;
+                                break;
+
                             case "interactive":
                                 options.interactive = true;
                                 break;
@@ -344,7 +350,8 @@ namespace P.Tester
             Console.WriteLine();
             Console.WriteLine("Flags related to QuTL model checker:");
             Console.WriteLine("/qutl:fomula            Use QuTL formula to specify the properties which states should satisfy");
-            Console.WriteLine("/queue:event            Model checking queue; using '|' to specify abstract queue, e.g. bb|abc");
+            Console.WriteLine("/queue:events           Model checking queue; using '|' to specify abstract queue, e.g. bb|abc");
+            Console.WriteLine("/processing:event       Specify the processing event");
             // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os-... are specified: perform random testing");

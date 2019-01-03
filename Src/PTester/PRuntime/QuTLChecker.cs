@@ -933,7 +933,7 @@ namespace P.Runtime
         }
 
         /// <summary>
-        /// 
+        /// Assume $ always in the left child
         /// </summary>
         /// <param name="ev"></param>
         /// <param name="phi"></param>
@@ -1173,15 +1173,29 @@ namespace P.Runtime
                     }
                 case QuTLOperator.EQUAL:
                     {
-                        var lch = Eval(ev, Q, start, phi.left);
-                        var rch = Eval(ev, Q, start, phi.right);
-                        return lch == rch ? 1 : 0;
+                        if (phi.left.enode.Operator == QuTLOperator.PROCESS_EVENT)
+                        {
+                            return EvalProcessEvent(ev, phi) ? 1 : 0;
+                        }
+                        else
+                        {
+                            var lch = Eval(ev, Q, start, phi.left);
+                            var rch = Eval(ev, Q, start, phi.right);
+                            return lch == rch ? 1 : 0;
+                        }
                     }
                 case QuTLOperator.NOT_EQUAL:
                     {
-                        var lch = Eval(ev, Q, start, phi.left);
-                        var rch = Eval(ev, Q, start, phi.right);
-                        return lch != rch ? 1 : 0;
+                        if (phi.left.enode.Operator == QuTLOperator.PROCESS_EVENT)
+                        {
+                            return EvalProcessEvent(ev, phi) ? 1 : 0;
+                        }
+                        else
+                        {
+                            var lch = Eval(ev, Q, start, phi.left);
+                            var rch = Eval(ev, Q, start, phi.right);
+                            return lch != rch ? 1 : 0;
+                        }
                     }
                 case QuTLOperator.LESS_THAN:
                     {
@@ -1231,6 +1245,37 @@ namespace P.Runtime
                     throw new QuTLException("Illegal operator");
             }
         }
+
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="phi"></param>
+        /// <returns></returns>
+        private static bool EvalProcessEvent(string ev, AstNode phi)
+        {
+            //Console.Write("Processing event: " + ev);
+            if (ev == null)
+                return false;
+            switch (phi.enode.Operator)
+            {
+                case QuTLOperator.EQUAL:
+                    {
+                        //Console.WriteLine(" = " + phi.right.enode.Event);
+                        return ev == phi.right.enode.Event;
+                    }
+                case QuTLOperator.NOT_EQUAL:
+                    {
+                        //Console.WriteLine(" != " + phi.right.enode.Event);
+                        return ev != phi.right.enode.Event;
+                    }
+                default:
+                    throw new QuTLException("Unsupported opertator");
+            }
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -1255,17 +1300,16 @@ namespace P.Runtime
     /// </summary>
     public class TestMCer
     {
-        public static string queueContent;
+        public static string queueContent = null;
+        public static string processEvent = null;
 
         public TestMCer()
         {
-            this.ev = "a";
             this.p = 0;
             this.Q = null;
             this.isAbstract = false;
         }
 
-        private string ev;
         private int p;
         private List<string> Q;
         private bool isAbstract;
@@ -1291,12 +1335,12 @@ namespace P.Runtime
             if (isAbstract)
             {
                 Console.WriteLine("Abstract model checking...");
-                checkResult = AbstractChecker.Check(null, p, this.Q);
+                checkResult = AbstractChecker.Check(processEvent, p, this.Q);
             }
             else
             {
                 Console.WriteLine("Concrete model checking...");
-                checkResult = ConcreteChecker.Check(null, this.Q);
+                checkResult = ConcreteChecker.Check(processEvent, this.Q);
             }
 
             QuTLParser.Print(QuTLParser.root);
