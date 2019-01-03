@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -53,8 +54,8 @@ namespace P.Runtime
         /// -- true
         /// -- false
         /// </summary>
-        public static readonly string CONST_T = "T";
-        public static readonly string CONST_F = "F";
+        public static readonly string CONST_T = "true";
+        public static readonly string CONST_F = "false";
 
         public static readonly int NON_DET_INT = int.MaxValue;
     }
@@ -326,8 +327,6 @@ namespace P.Runtime
             {
                 case QuTLOperator.PROCESS_EVENT:
                     {
-                        var lch = worklist.Pop();
-                        curr.left = lch;
                         worklist.Push(curr);
                     }
                     break;
@@ -501,9 +500,9 @@ namespace P.Runtime
                 phi.Add(node);
             }
 
-            Console.WriteLine("OUTPUT Node:");
-            phi.ForEach(node => Console.Write(node.ToString() + " "));
-            Console.WriteLine();
+            //Console.WriteLine("OUTPUT Node:");
+            //phi.ForEach(node => Console.Write(node.ToString() + " "));
+            //Console.WriteLine();
 
             return phi;
         }
@@ -694,9 +693,17 @@ namespace P.Runtime
         public static bool Check(string last, List<PrtEventNode> Q)
         {
 #if true
+            List<string> sQ = new List<string>();
+            foreach (var e in Q)
+            {
+                sQ.Add(e.ev.ToString());
+            }
+            return Check(last, P.Runtime.PrtEventBuffer.p, sQ);
+#endif
+
+#if true
             Console.WriteLine("---------- I am in QuTL model checker");
             // can't have just dequeued DONE and then there are still DONE's in the queue
-            // This is not queue invariant but lhs transition invariant
             if (last == "DONE" && Q.Find(e => e.ev.ToString() == "DONE") != null)
             {
                 Console.WriteLine("-------- state invariant is inviolated");
@@ -711,7 +718,6 @@ namespace P.Runtime
                 // PING cannot be followed by WAIT
                 if (curr == "PING" && next == "WAIT")
                 {
-                    Console.WriteLine("-------- queue invariant is inviolated");
                     return false;
                 }
             }
@@ -749,7 +755,15 @@ namespace P.Runtime
 
         public static bool Check(int p, List<string> Q)
         {
-            return Check(null, p, Q);
+            try
+            {
+                return Check(null, p, Q);
+            }
+            catch (QuTLException e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            return false;
         }
 
         /// <summary>
@@ -760,29 +774,23 @@ namespace P.Runtime
         /// <returns></returns>
         public static bool Check(string ev, int p, List<string> Q)
         {
-            if (ev != null && !EvalProcessEvent(ev, QuTLParser.root.left))
-                return false;
-            LTS lts = new LTS(p, Q);
-            Console.WriteLine(lts.ToString());
-            return Eval(ev, lts, 0, ev != null ? 
-                QuTLParser.root.right : QuTLParser.root) == 1;
-        }
-
-        private static bool EvalProcessEvent(string ev, AstNode phi)
-        {
-            switch (phi.enode.Operator)
+            try
             {
-                case QuTLOperator.EQUAL:
-                    {
-                        return ev == phi.left.enode.Event;
-                    }
-                case QuTLOperator.NOT_EQUAL:
-                    {
-                        return ev != phi.left.enode.Event;
-                    }
-                default:
-                    throw new Exception("Unsupported opertator for invariant with processing event");
+                LTS lts = new LTS(p, Q);
+#if false
+            Console.WriteLine(lts.ToString());
+#endif
+                return Eval(ev, lts, 0, QuTLParser.root) == 1;
             }
+            catch (QuTLException qe)
+            {
+                Console.WriteLine(qe.Message);
+            }
+            catch (InvalidOperationException ioe)
+            {
+                Console.WriteLine(ioe.Message);
+            }
+            return false;
         }
 
         /// <summary>
@@ -846,7 +854,7 @@ namespace P.Runtime
                 case QuTLOperator.COUNT:
                     {
                         if (phi.left == null || phi.left.enode.Type != AstNodeType.EVENT)
-                            throw new Exception("Illegal formula: countin");
+                            throw new QuTLException("Illegal formula: counting");
                         return EvalCount(phi.left.enode.Event, lts, start).Item1;
                     }
                 case QuTLOperator.SIZE:
@@ -856,7 +864,6 @@ namespace P.Runtime
                 case QuTLOperator.NEGATION:
                     {
                         var res = EvalNegation(ev, lts, start, phi);
-                        Console.WriteLine("Evaluate negation" + start + "::" + res);
                         return res;
                     }
                 case QuTLOperator.AND:
@@ -875,7 +882,6 @@ namespace P.Runtime
                     {
                         var lch = Eval(ev, lts, start, phi.left);
                         var rch = Eval(ev, lts, start, phi.right);
-                        Console.WriteLine(lch + "=>" + rch);
                         return (lch ^ 1) | rch;
                     }
                 case QuTLOperator.EQUAL:
@@ -886,19 +892,20 @@ namespace P.Runtime
                 case QuTLOperator.GREATER_THAN_EQ:
                     {
                         if (phi.left == null || phi.right == null)
-                            throw new Exception("Illegal QuTL formula!");
-
-                        if (phi.left.enode.Type != AstNodeType.OPERATOR 
-                            || phi.right.enode.Type != AstNodeType.VALUE)
-                            throw new Exception("Illegal QuTL formula!");
-
-                        if (phi.left.enode.Operator != QuTLOperator.COUNT)
-                            throw new Exception("Illegal QuTL formula!");
-
-                        var lch = phi.left.left.enode.Event;
-                        var rch = Eval(ev, lts, start, phi.right);
-
-                        return EvalComp(lch, rch, phi.enode.Operator, lts, start);
+                            throw new QuTLException("Illegal QuTL formula 1!");
+                        if (phi.left.enode.Operator != QuTLOperator.COUNT
+                            && phi.left.enode.Operator != QuTLOperator.PROCESS_EVENT)
+                            throw new QuTLException("Illegal QuTL formula!");
+                        if (phi.left.enode.Operator == QuTLOperator.PROCESS_EVENT)
+                        {
+                            return EvalProcessEvent(ev, phi) ? 1 : 0;
+                        }
+                        else
+                        {
+                            var lch = phi.left.left.enode.Event;
+                            var rch = Eval(ev, lts, start, phi.right);
+                            return EvalComp(lch, rch, phi.enode.Operator, lts, start);
+                        }
                     }
                 case QuTLOperator.ADDITION:
                     {
@@ -921,7 +928,35 @@ namespace P.Runtime
                         return phi.left.enode.Event == ev ? 1 : 0;
                     }
                 default:
-                    throw new Exception("Illegal operator");
+                    throw new QuTLException("Illegal operator");
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ev"></param>
+        /// <param name="phi"></param>
+        /// <returns></returns>
+        private static bool EvalProcessEvent(string ev, AstNode phi)
+        {
+            //Console.Write("Processing event: " + ev);
+            if (ev == null)
+                return false;
+            switch (phi.enode.Operator)
+            {
+                case QuTLOperator.EQUAL:
+                    {
+                        //Console.WriteLine(" = " + phi.right.enode.Event);
+                        return ev == phi.right.enode.Event;
+                    }
+                case QuTLOperator.NOT_EQUAL:
+                    {
+                        //Console.WriteLine(" != " + phi.right.enode.Event);
+                        return ev != phi.right.enode.Event;
+                    }
+                default:
+                    throw new QuTLException("Unsupported opertator");
             }
         }
 
@@ -931,7 +966,7 @@ namespace P.Runtime
                return 0;
             foreach (var next in lts.transitions[start])
             {
-                Console.WriteLine(next);
+                //Console.WriteLine(next);
                 if (next == start)
                     continue;
                 if (next == lts.accepting || EvalG(ev, lts, next, phi) == 1)
@@ -988,7 +1023,7 @@ namespace P.Runtime
                 case QuTLOperator.GREATER_THAN_EQ:
                     return (loop || cnt >= c) ? 1 : 0;
                 default:
-                    throw new Exception("Illegal binary relation operation");
+                    throw new QuTLException("Illegal binary relation operation");
             }
         }
 
@@ -1040,7 +1075,7 @@ namespace P.Runtime
         /// <param name="ev">the processing event: it has just been dequeued</param>
         /// <param name="Q"> the current queue</param>
         /// <returns></returns>
-        public static bool Eval(string ev, List<string> Q)
+        public static bool Check(string ev, List<string> Q)
         {
             return Eval(ev, Q, 0, QuTLParser.root) == 1;
         }
@@ -1106,7 +1141,7 @@ namespace P.Runtime
                 case QuTLOperator.COUNT:
                     {
                         if (phi.left == null || phi.left.enode.Type != AstNodeType.EVENT)
-                            throw new Exception("Illegal formula: countin");
+                            throw new QuTLException("Illegal formula: counting");
                         return EvalCount(phi.left.enode.Event, Q, start);
                     }
                 case QuTLOperator.SIZE:
@@ -1193,7 +1228,7 @@ namespace P.Runtime
                         return phi.left.enode.Event == ev ? 1 : 0;
                     }
                 default:
-                    throw new Exception("Illegal operator");
+                    throw new QuTLException("Illegal operator");
             }
         }
         /// <summary>
@@ -1212,6 +1247,83 @@ namespace P.Runtime
                     ++cnt;
             }
             return cnt;
+        }
+    }
+
+    /// <summary>
+    /// Test Model checker
+    /// </summary>
+    public class TestMCer
+    {
+        public static string queueContent;
+
+        public TestMCer()
+        {
+            this.ev = "a";
+            this.p = 0;
+            this.Q = null;
+            this.isAbstract = false;
+        }
+
+        private string ev;
+        private int p;
+        private List<string> Q;
+        private bool isAbstract;
+
+        public void Parse(string sQ)
+        {
+            if (sQ == null)
+                throw new QuTLException("Please specify the queue that are about to check");
+            var A = sQ.Split('|');
+            this.Q = A[0].Split('.').ToList();
+            if (A.Length == 2)
+            {
+                this.p = A[0].Count();
+                isAbstract = true;
+                foreach (var e in A[1].Split('.'))
+                    this.Q.Add(e);
+            }
+        }
+
+        public void Testing()
+        {
+            bool checkResult = false;
+            if (isAbstract)
+            {
+                Console.WriteLine("Abstract model checking...");
+                checkResult = AbstractChecker.Check(null, p, this.Q);
+            }
+            else
+            {
+                Console.WriteLine("Concrete model checking...");
+                checkResult = ConcreteChecker.Check(null, this.Q);
+            }
+
+            QuTLParser.Print(QuTLParser.root);
+            Console.WriteLine(checkResult ? " holds" : " does not hold");
+        }
+    }
+
+    /// <summary>
+    /// QuTL exception
+    /// </summary>
+    public class QuTLException : Exception
+    {
+        public QuTLException()
+        {
+
+        }
+
+        public QuTLException(string message) : base(message)
+        {
+        }
+
+        public QuTLException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+
+        protected QuTLException(SerializationInfo info, StreamingContext context) : base(info, context)
+        {
         }
     }
 }

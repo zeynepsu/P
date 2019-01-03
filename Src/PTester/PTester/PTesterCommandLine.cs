@@ -73,6 +73,7 @@ namespace P.Tester
         public bool OSList; // OS exploration: abstract with list
         public bool OSSet;  // OS exploration: abstract with set
         public bool interactive; // interactive mode, need users press button to continue
+        public bool testMCer; // interactive mode, need users press button to continue
         public int k;
 
         public bool UseStateHashing;
@@ -207,7 +208,7 @@ namespace P.Tester
                                     throw new ArgumentException("queue-prefix argument: must supply NON-NEGATIVE parameter");
                                 break;
 
-                            case "invar":
+                            case "qutl":
                                 StateImpl.invariant = true;
                                 if (param.Length == 0)
                                     throw new ArgumentException("invar argument: must supply QuTL formula in string");
@@ -215,25 +216,13 @@ namespace P.Tester
                                 Console.WriteLine(qutl);
                                 QuTLParser parser = new Runtime.QuTLParser(qutl);
                                 QuTLParser.root = parser.BuildAst();
-                                Console.Write("Phi: ");
-                                QuTLParser.Print(QuTLParser.root);
-                                var Q = new List<string>
-                                {
-                                    "b",
-                                    "b",
-                                    "b",
-                                    "a"
-                                };
-                                if (AbstractChecker.Check("", 2, Q))
-                                    Console.WriteLine(qutl + " holds");
-                                else
-                                    Console.WriteLine(qutl + " does not hold");
                                 break;
 
-                            case "Q":
+                            case "queue":
                                 if (param.Length == 0)
                                     throw new ArgumentException("For testing only: please specify queue content");
-
+                                P.Runtime.TestMCer.queueContent = param;
+                                options.testMCer = true;
                                 break;
 
                             case "interactive":
@@ -315,7 +304,7 @@ namespace P.Tester
                 }
             }
 
-            if (!options.isRefinement && options.inputFileName == null)
+            if (!options.testMCer && !options.isRefinement && options.inputFileName == null)
             {
                 PrintHelp(null, "No input file specified");
                 return null;
@@ -350,10 +339,12 @@ namespace P.Tester
             Console.WriteLine("/queue-bound:k           Bound queue size to k (i.e. a machine's send is disabled when its current buffer is size k) (default: 0=unbounded for DFS, 1 for OS).");
             Console.WriteLine("                         In case of /os search, this bound applies to the first-round queue and is incremented subsequently.");
             Console.WriteLine("/queue-prefix:p          Keep prefix of queue of length p(>=0) /exact/ (abstraction applies to suffix starting at position p) (default: 0)");
-            Console.WriteLine("/invar:qutl              Use state/transition invariants implemented for your scenario");
             Console.WriteLine("/interactive             Interactive mode: need users to press button to increase queue bound and continue exploration");
             Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
             Console.WriteLine();
+            Console.WriteLine("Flags related to QuTL model checker:");
+            Console.WriteLine("/qutl:fomula            Use QuTL formula to specify the properties which states should satisfy");
+            Console.WriteLine("/queue:event            Model checking queue; using '|' to specify abstract queue, e.g. bb|abc");
             // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os-... are specified: perform random testing");
@@ -377,6 +368,15 @@ namespace P.Tester
             {
                 Console.WriteLine("Error: Refinement checking isn't yet supported with /psharp flag");
                 Environment.Exit((int)TestResult.InvalidParameters);
+            }
+
+
+            if (options.testMCer)
+            {
+                P.Runtime.TestMCer tester = new TestMCer();
+                tester.Parse(P.Runtime.TestMCer.queueContent);
+                tester.Testing();
+                return;
             }
 
             if (options.isRefinement)
