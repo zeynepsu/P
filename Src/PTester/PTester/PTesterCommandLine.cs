@@ -220,7 +220,7 @@ namespace P.Tester
 
                             case "queue":
                                 if (param.Length == 0)
-                                    throw new ArgumentException("For testing only: please specify queue content");
+                                    Console.WriteLine("Model checking empty queue...");
                                 P.Runtime.TestMCer.queueContent = param;
                                 options.testMCer = true;
                                 break;
@@ -381,7 +381,6 @@ namespace P.Tester
             if (options.testMCer)
             {
                 P.Runtime.TestMCer tester = new TestMCer();
-                tester.Parse(P.Runtime.TestMCer.queueContent);
                 tester.Testing();
                 return;
             }

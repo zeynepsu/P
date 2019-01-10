@@ -210,7 +210,9 @@ namespace P.Runtime
         public void AbstractMe()
         {
             foreach (var m in ImplMachines)
+            {
                 m.AbstractMe();
+            }                
         }
         /// <summary>
         /// -- PL: compute all abstract successors of current state. Note: the computation is done by
@@ -223,26 +225,25 @@ namespace P.Runtime
             for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
             {
                 PrtImplMachine machine = ImplMachines[currIndex];
-                PrtEventBuffer queue = machine.eventQueue; /// --PL: the queue of current machine
 
-                // reject disabled machines
+                /// reject disabled machines
                 if (!(machine.currentStatus == PrtMachineStatus.Enabled))
                     continue;
 
-                // reject machines not dequeing or receiving. I assume these are the only two that can lead to a call to PrtDequeueEvent
+                /// reject machines not dequeing or receiving. I assume these are the only two 
+                /// that can lead to a call to PrtDequeueEvent
                 if (!(machine.nextSMOperation == PrtNextStatemachineOperation.DequeueOperation ||
                       machine.nextSMOperation == PrtNextStatemachineOperation.ReceiveOperation))
                     continue;
 
                 /// reject machines with empty queues. Apparently enabled machines whose 
                 /// nextSMOperation is dequeue or receive may have still an empty queue.
-                /// ---?Peizun?: Why skip empty queue when nextSMOPeration is empty?  
                 if (machine.eventQueue.Empty())
                     continue;
 
-                // reject "non-abstract" queues: those with empty suffix. In this case the abstraction is precise,
-                // so the successor function cannot generate anything new
-                if (queue.Size() <= PrtEventBuffer.p) // prefix
+                /// reject "non-abstract" queues: those with empty suffix. In this case the abstraction is precise,
+                /// so the successor function cannot generate anything new
+                if (machine.eventQueue.Size() <= PrtEventBuffer.p) // prefix
                     continue;
 
                 CollectAbstractSuccessorsFromList(currIndex, abstract_succs, abstract_succs_SW);
@@ -260,20 +261,20 @@ namespace P.Runtime
         {
             List<PrtEventNode> preDequeEvents = ImplMachines[currIndex].eventQueue.events; // pre-dequeue events list
 
-            var ChoiceVector = new List<bool>();
+            var choiceVector = new List<bool>();
             bool more;
             do
             {
                 StateImpl          succ     = (StateImpl)Clone();
-                PrtImplMachine     succ_m   = succ.ImplMachines[currIndex];
-                PrtEventBuffer     succ_m_q = succ_m.eventQueue;
-                List<PrtEventNode> succ_m_l = succ_m_q.events; // events list
+                PrtImplMachine     machineOfSucc  = succ.ImplMachines[currIndex]; // the machine of successor indexing in currIndex
+                PrtEventBuffer     queueOfMachine = machineOfSucc.eventQueue; // the message queue of successor machine
+                List<PrtEventNode> queueEvents = queueOfMachine.events;   // the events list of successor machine
 
-                more = succ_m.PrtRunStateMachineNextChoice(ChoiceVector);
-                Debug.Assert(preDequeEvents.Count - succ_m_q.Size() <= 1); // we have dequeued at most one event
+                more = machineOfSucc.PrtRunStateMachineNextChoice(choiceVector);
+                Debug.Assert(preDequeEvents.Count - queueOfMachine.Size() <= 1); // we have dequeued at most one event
                 /// If dequeing was unsuccessful, then there is nothing left to do. 
-                /// No more nondet choices to try
-                if (preDequeEvents.Count == succ_m_q.Size() || succ.CheckFailure(0)) // 
+                /// No more nondeterministic choices to try
+                if (preDequeEvents.Count == queueOfMachine.Size() || succ.CheckFailure(0)) // 
                     return;                                               // 
 
                 int idxOfEventDequeuedFromSuffix = Math.Max(PrtEventBuffer.idxOfLastDequeuedEvent, PrtEventBuffer.p);
@@ -288,14 +289,14 @@ namespace P.Runtime
                 ///  >= twice in concrete suffix. 
                 ///  We need to find all positions where to re-introduce it in the abstract queue, and try them all 
                 ///  non-deterministically.
-                for (int pos = idxOfEventDequeuedFromSuffix; pos < succ_m_q.Size(); ++pos)
+                for (int pos = idxOfEventDequeuedFromSuffix; pos < queueOfMachine.Size(); ++pos)
                 {
                     // insert eventDequeuedFromSuffix at position pos (push the rest to the right)
-                    succ_m_l.Insert(pos, eventDequeuedFromSuffix);
+                    queueEvents.Insert(pos, eventDequeuedFromSuffix);
                     succ.AddToAbstractSuccessorsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
-                    succ_m_l.RemoveAt(pos); // restore previous state
+                    queueEvents.RemoveAt(pos); // restore previous state
                 }
-                succ_m_l.Add(eventDequeuedFromSuffix); // finally, insert eventDequeuedFromSuffix at end
+                queueEvents.Add(eventDequeuedFromSuffix); // finally, insert eventDequeuedFromSuffix at end
                 succ.AddToAbstractSuccessorsIfInvSat(currIndex, this, abstract_succs, abstract_succs_SW);
             } while (more);
         }
@@ -364,8 +365,6 @@ namespace P.Runtime
             {
                 return false;
             }
-
-
             if (Exception is PrtAssumeFailureException)
             {
                 return true;
@@ -406,12 +405,10 @@ namespace P.Runtime
         ///</summary>
         public bool CheckStateInvariant(int currIndex)  
         {
-           // PrtImplMachine server = implMachines[0];
-           // Debug.Assert(server.eventQueue.IsAbstract());
-            PrtImplMachine client = implMachines[currIndex];
+            var client = implMachines[currIndex];
             Debug.Assert(client.eventQueue.IsAbstract());
 
-            List<PrtEventNode> queueOfClient = client.eventQueue.events;
+            var queueOfClient = client.eventQueue.events;
             return AbstractChecker.Check(client.GetEventValue().ToString(), queueOfClient);
         }
 

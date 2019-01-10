@@ -614,8 +614,11 @@ namespace P.Runtime
         {
             #region Initialization
             /// the number of events in the queue
+            Console.WriteLine(p + "<" + Q.Count);
             int k = Q.Count;
             int numOfStates = p + 2 * (k - p) + 1;
+            if (numOfStates < 0)
+                throw new QuTLException("LTS construction failed: the umber of states can never be negative!");
             this.transitions = new List<int>[numOfStates];
             this.states = new State[numOfStates];
             for (int i = 0; i < numOfStates; ++i)
@@ -1286,14 +1289,38 @@ namespace P.Runtime
         private static int EvalCount(string ev, List<string> Q, int start)
         {
             int cnt = 0;
-            for (int i = start; i < Q.Count; ++i)
+            foreach (var e in Q)
             {
-                if (Q[i] == ev)
+                if (e == ev)
                     ++cnt;
             }
             return cnt;
         }
     }
+
+    /// <summary>
+    /// QuTL exception
+    /// </summary>
+    public class QuTLException : Exception
+    {
+        public QuTLException()
+        {
+        }
+
+        public QuTLException(string message) : base(message)
+        {
+        }
+
+        public QuTLException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+
+        protected QuTLException(SerializationInfo info, StreamingContext context) : base(info, context)
+        {
+        }
+    }
+
+
 
     /// <summary>
     /// Test Model checker
@@ -1316,21 +1343,24 @@ namespace P.Runtime
 
         public void Parse(string sQ)
         {
-            if (sQ == null)
-                throw new QuTLException("Please specify the queue that are about to check");
+            if (sQ == null || sQ.Length == 0)
+                this.Q = new List<string>();
             var A = sQ.Split('|');
             this.Q = A[0].Split('.').ToList();
             if (A.Length == 2)
             {
-                this.p = A[0].Count();
+                this.p = Q.Count();
                 isAbstract = true;
                 foreach (var e in A[1].Split('.'))
+                {
                     this.Q.Add(e);
+                }
             }
         }
 
         public void Testing()
         {
+            this.Parse(queueContent);
             bool checkResult = false;
             if (isAbstract)
             {
@@ -1345,29 +1375,6 @@ namespace P.Runtime
 
             QuTLParser.Print(QuTLParser.root);
             Console.WriteLine(checkResult ? " holds" : " does not hold");
-        }
-    }
-
-    /// <summary>
-    /// QuTL exception
-    /// </summary>
-    public class QuTLException : Exception
-    {
-        public QuTLException()
-        {
-
-        }
-
-        public QuTLException(string message) : base(message)
-        {
-        }
-
-        public QuTLException(string message, Exception innerException) : base(message, innerException)
-        {
-        }
-
-        protected QuTLException(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
         }
     }
 }
