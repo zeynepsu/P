@@ -2,7 +2,7 @@
   "profiles": {
     "CommandLine": {
       "commandName": "Project",
-      "commandLineArgs": "E:\\source\\repos\\vsc\\SmartContracts\\PContracts\\SimpleDAO.p -outputDir:E:\\source\\repos\\vsc\\SmartContracts\\PContracts\\c_out\\ -generate:Solidity"
+      "commandLineArgs": "C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\simpledao\\SimpleDAO.p C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\simpledao\\Events.p -outputDir:C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\simpledao\\out\\ -generate:Solidity"
     }
   }
 }
