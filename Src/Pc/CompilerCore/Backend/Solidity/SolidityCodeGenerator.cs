@@ -350,7 +350,7 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, $"// Scheduler");
             context.WriteLine(output, $"function scheduler (" + EventTypeName + " memory ev)  public payable");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"State memory prevContractState = ContractCurrentState;");
+            context.WriteLine(output, $"State prevContractState = ContractCurrentState;");
             context.WriteLine(output, $"if(!IsRunning)");
             context.WriteLine(output, "{");
             context.WriteLine(output, $"IsRunning = true;");
@@ -408,7 +408,7 @@ namespace Plang.Compiler.Backend.Solidity
                             string callString = actions[prevState] + "(";
                             foreach(string var in varsForId.Keys)
                             {
-                                callString += "e." + var + ",";
+                                callString += "ev." + var + ",";
                             }
                             callString = callString.Remove(callString.Length - 1);
                             context.WriteLine(output, $"" + callString + ");");
@@ -938,9 +938,9 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void AddGetType(CompilationContext context, StringWriter output, Machine machine)
         {
-            context.WriteLine(output, $"function getType () pure public (returns " + LibraryName + ".ContractTypes)");
+            context.WriteLine(output, $"function getType () pure public returns (" + LibraryName + ".ContractTypes)");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"return " + LibraryName + ".ContractTypes." + machine.Name);
+            context.WriteLine(output, $"return " + LibraryName + ".ContractTypes." + machine.Name + ";");
             context.WriteLine(output, "}");
         }
 
