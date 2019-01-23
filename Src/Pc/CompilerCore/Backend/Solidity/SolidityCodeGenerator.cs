@@ -33,11 +33,6 @@ namespace Plang.Compiler.Backend.Solidity
         // Map each event type id to the types it carries as payload
         Dictionary<int, Dictionary<string, string>> IdVarsMap = new Dictionary<int, Dictionary<string, string>>();
 
-        // For each machine, stores the types of events it receives
-        Dictionary<string, HashSet<int>> MachineToReceivedEventsMap = new Dictionary<string, HashSet<int>>();
-
-        // Stores the names of each machine type
-        HashSet<string> KnownMachineTypes = new HashSet<string>();
 
         Dictionary<int, Dictionary<string, string>> NextStateMap = new Dictionary<int, Dictionary<string, string>>();
         Dictionary<int, Dictionary<string, string>> ActionMap = new Dictionary<int, Dictionary<string, string>>();
@@ -73,6 +68,7 @@ namespace Plang.Compiler.Backend.Solidity
         private void WriteSourcePrologue(CompilationContext context, StringWriter output)
         {
             context.WriteLine(output, "pragma solidity ^0.4.24;");
+            context.WriteLine(output, "pragma experimental ABIEncoderV2;");
         }
         
         private void WriteDecl(CompilationContext context, StringWriter output, IPDecl decl)
@@ -84,7 +80,7 @@ namespace Plang.Compiler.Backend.Solidity
                 case Machine machine:
                     // Write the rest of the machine
                     ContractName = machine.Name;
-                    EventTypeName = LibraryName + ".Event_" + ContractName;
+                    EventTypeName = LibraryName + ".Event";
                     context.WriteLine(output, $"contract {ContractName}");
                     context.WriteLine(output, "{");
                     WriteMachine(context, output, machine);
@@ -124,75 +120,38 @@ namespace Plang.Compiler.Backend.Solidity
                 }                
             }
 
-            // For each machine, record the type of events it can receive
-            foreach(IPDecl decl in globalScope.AllDecls)
-            {
-                switch(decl)
-                {
-                    case Machine machine:
-                        string machineName = machine.Name;
-                        KnownMachineTypes.Add(machineName);
-                        HashSet<int> receivedEventsForMachine = MachineToReceivedEventsMap.ContainsKey(machineName) ? MachineToReceivedEventsMap[machineName] : new HashSet<int>();
-
-                        foreach (PEvent pEvent in machine.Receives.Events)
-                        {
-                            if (!pEvent.IsBuiltIn)
-                            {
-                                int typeId = TypeIdMap[pEvent.Name];
-                                receivedEventsForMachine.Add(typeId);
-                            }
-                        }
-                        MachineToReceivedEventsMap[machineName] = receivedEventsForMachine;
-                        break;
-
-                    default:
-                        break;
-                }
-            }
-
             // Write the library
             context.WriteLine(output, $"// Adding library");
             context.WriteLine(output, $"library " + LibraryName);
             context.WriteLine(output, "{");
 
-            // Add Enum to allow typeof operations 
-            context.Write(output, $"enum ContractTypes ");
-            context.Write(output, "{");
-
-            string machineNames = "";
-            foreach (var machineName in KnownMachineTypes)
+            // Write the consolidated event
+            context.WriteLine(output, $"struct Event");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, $"int TypeId;");
+            // Add all the possible payloads
+            foreach (var typeId in IdVarsMap.Keys)
             {
-                machineNames += machineName + ",";
-            }
-            machineNames = machineNames.Remove(machineNames.Length - 1);
-            context.Write(output, machineNames);
-            context.Write(output, "}");
-            context.WriteLine(output, "");
+                Dictionary<string, string> varsForId = IdVarsMap[typeId];
 
-            // For each machine, write the event it can receive
-            foreach (var machineName in MachineToReceivedEventsMap.Keys)
-            {
-                context.WriteLine(output, $"struct Event_" + machineName);
-                context.WriteLine(output, "{");
-                context.WriteLine(output, $"int TypeId;");
-
-                foreach (int typeId in MachineToReceivedEventsMap[machineName])
+                if (varsForId.Count > 0)
                 {
-                    Dictionary<string, string> varsForId = IdVarsMap[typeId];
-
-                    if (varsForId.Count > 0)
+                    foreach (string var in varsForId.Keys)
                     {
-                        foreach (string var in varsForId.Keys)
-                        {
-                            context.WriteLine(output, $"" + varsForId[var] + " " + var + ";");
-                        }
+                        context.WriteLine(output, $"" + varsForId[var] + " " + var + ";");
                     }
                 }
-                context.WriteLine(output, "}");
             }
+            context.WriteLine(output, "}");
+            
             context.WriteLine(output, "}");
         }
 
+        /// <summary>
+        /// For an event, record the payloads and their types.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="pEvent"></param>
         private void AddEventType(CompilationContext context, PEvent pEvent)
         {
             // Assign a new id to the event type
@@ -227,7 +186,7 @@ namespace Plang.Compiler.Backend.Solidity
         }
 
         private void WriteMachine(CompilationContext context, StringWriter output, Machine machine)
-        {
+        { 
             BuildNextStateMap(context, machine);
             BuildActionMap(context, machine);
 
@@ -257,13 +216,9 @@ namespace Plang.Compiler.Backend.Solidity
 
             // Add the scheduler
             AddScheduler(context, output, machine);
-
-            // Get library address
-            AddGetType(context, output, machine);
-            #endregion
+    
         }
-
-       
+        #endregion
 
         #region internal data structures
 
@@ -359,7 +314,7 @@ namespace Plang.Compiler.Backend.Solidity
             {
                 context.WriteLine(output, $"// Perform state change for type with id " + i);
 
-                context.WriteLine(output, $"if(ev.typeId == " + i + ")");
+                context.WriteLine(output, $"if(ev.TypeId == " + i + ")");
                 context.WriteLine(output, "{");
 
                 Dictionary<string, string> stateChanges = null;
@@ -580,22 +535,16 @@ namespace Plang.Compiler.Backend.Solidity
         /// <param name="sendStmt"></param>
         private void WriteSendStmt(CompilationContext context, StringWriter output, SendStmt sendStmt)
         {
-
             EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
             string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
             // store the arguments
             IReadOnlyList<IPExpr> argsList = sendStmt.Arguments;
 
-            foreach (var machineName in KnownMachineTypes)
+            // Setup the event to be dispatched
+            if (!eventName.Contains("payable_eTransfer"))
             {
-                context.Write(output, "if (");
-                WriteExpr(context, output, sendStmt.MachineExpr);
-                context.Write(output, ".getType() == " + LibraryName + ".ContractTypes." + machineName + ")");
-                context.WriteLine(output, "{");
+                context.WriteLine(output, EventTypeName + " memory ev;");
 
-                // Setup the event to be dispatched
-                context.WriteLine(output, LibraryName + ".Event_" + machineName + " memory ev = " + LibraryName + ".Event_" + machineName + "();");
-               
                 int tid = TypeIdMap[eventName];
                 context.WriteLine(output, "ev.TypeId = " + tid + ";");
 
@@ -608,20 +557,25 @@ namespace Plang.Compiler.Backend.Solidity
                     context.WriteLine(output, "");
                     argIndex++;
                 }
+            }
 
-                // Write the call statement
-                WriteExpr(context, output, sendStmt.MachineExpr);
-                context.Write(output, ".call");
-                // for a payable event, send the amount of ether
-                if (eventName.Contains("payable_"))
-                {
-                    VariableAccessExpr vExpr = (argsList[1] as VariableAccessExpr);
-                    context.Write(output, ".value(" + context.Names.GetNameForDecl(vExpr.Variable) + ")");
-                }
+            // Write the call statement
+            WriteExpr(context, output, sendStmt.MachineExpr);
+            context.Write(output, ".call");
+            // for a payable event, send the amount of ether
+            if (eventName.Contains("payable_"))
+            {
+                VariableAccessExpr vExpr = (argsList[1] as VariableAccessExpr);
+                context.Write(output, ".value(uint256(" + context.Names.GetNameForDecl(vExpr.Variable) + "))");
+            }
 
-                context.WriteLine(output, "(bytes4(sha256(\"scheduler\")), ev);");
-
-                context.WriteLine(output, "}");
+            if (eventName.Contains("payable_eTransfer"))
+            {
+                context.WriteLine(output, "();");
+            }
+            else
+            {
+                context.WriteLine(output, "(bytes4(keccak256(\"scheduler( " + EventTypeName + ")\")), ev);");
             }
         }
 
@@ -685,6 +639,7 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, ")");
                     break;
                 case CtorExpr ctorExpr:
+                    context.Write(output, $"new " + context.Names.GetNameForDecl(ctorExpr.Interface) + "()");
                     break;
                 case DefaultExpr defaultExpr:
                     context.Write(output, GetDefaultValue(context, defaultExpr.Type));
@@ -730,7 +685,7 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, ").Count");
                     break;
                 case ThisRefExpr _:
-                    context.Write(output, "this");
+                    context.Write(output, "address(this)");
                     break;
                 case UnaryOpExpr unaryOpExpr:
                     context.Write(output, $"{UnOpToStr(unaryOpExpr.Operation)}(");
@@ -936,14 +891,6 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, "}");
         }
 
-        private void AddGetType(CompilationContext context, StringWriter output, Machine machine)
-        {
-            context.WriteLine(output, $"function getType () pure public returns (" + LibraryName + ".ContractTypes)");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, $"return " + LibraryName + ".ContractTypes." + machine.Name + ";");
-            context.WriteLine(output, "}");
-        }
-
         /// <summary>
         /// Adds a function which can compare two strings in Solidity
         /// </summary>
@@ -963,7 +910,9 @@ namespace Plang.Compiler.Backend.Solidity
         /// <param name="machine"></param>
         private void BuildNextStateMap(CompilationContext context, Machine machine)
         {
-            foreach(State state in machine.States)
+            NextStateMap = new Dictionary<int, Dictionary<string, string>>();
+            
+            foreach (State state in machine.States)
             {
                 foreach (var eventHandler in state.AllEventHandlers)
                 {
@@ -1013,6 +962,8 @@ namespace Plang.Compiler.Backend.Solidity
         /// <param name="machine"></param>
         private void BuildActionMap(CompilationContext context, Machine machine)
         {
+            ActionMap = new Dictionary<int, Dictionary<string, string>>();
+
             foreach (State state in machine.States)
             {
                 foreach (var eventHandler in state.AllEventHandlers)
