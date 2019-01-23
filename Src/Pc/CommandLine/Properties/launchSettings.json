@@ -2,7 +2,7 @@
   "profiles": {
     "CommandLine": {
       "commandName": "Project",
-      "commandLineArgs": "C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\simpledao\\SimpleDAO.p C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\simpledao\\Events.p -outputDir:C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\simpledao\\out\\ -generate:Solidity"
+      "commandLineArgs": " C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\pingpong\\PingMachine.p  C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\pingpong\\PongMachine.p C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\pingpong\\Events.p -outputDir:C:\\Users\\t-sumukh\\source\\repos\\vsc\\SmartContracts\\PContracts\\pingpong\\out\\ -generate:Solidity"
     }
   }
 }
