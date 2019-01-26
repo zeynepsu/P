@@ -67,7 +67,7 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void WriteSourcePrologue(CompilationContext context, StringWriter output)
         {
-            context.WriteLine(output, "pragma solidity ^0.4.24;");
+            context.WriteLine(output, "pragma solidity 0.5.3;");
             context.WriteLine(output, "pragma experimental ABIEncoderV2;");
         }
         
@@ -128,7 +128,7 @@ namespace Plang.Compiler.Backend.Solidity
             // Write the consolidated event
             context.WriteLine(output, $"struct Event");
             context.WriteLine(output, "{");
-            context.WriteLine(output, $"int TypeId;");
+            context.WriteLine(output, $"int256 TypeId;");
             // Add all the possible payloads
             foreach (var typeId in IdVarsMap.Keys)
             {
@@ -215,7 +215,7 @@ namespace Plang.Compiler.Backend.Solidity
             AddInboxEnqDeq(context, output);
 
             // Add the scheduler
-            AddScheduler(context, output, machine);
+            WriteScheduler(context, output, machine);
     
         }
         #endregion
@@ -300,7 +300,7 @@ namespace Plang.Compiler.Backend.Solidity
         #endregion
 
         #region scheduler
-        private void AddScheduler(CompilationContext context, StringWriter output, Machine machine)
+        private void WriteScheduler(CompilationContext context, StringWriter output, Machine machine)
         {
             context.WriteLine(output, $"// Scheduler");
             context.WriteLine(output, $"function scheduler (" + EventTypeName + " memory ev)  public payable");
@@ -467,6 +467,8 @@ namespace Plang.Compiler.Backend.Solidity
                 case FunCallStmt funCallStmt:
                     break;
                 case GotoStmt gotoStmt:
+                    context.WriteLine(output, "");
+                    context.WriteLine(output, "ContractCurrentState = State." + GetQualifiedStateName(gotoStmt.State) + ";");
                     break;
                 case IfStmt ifStmt:
                     context.Write(output, "if (");
@@ -571,11 +573,40 @@ namespace Plang.Compiler.Backend.Solidity
 
             if (eventName.Contains("payable_eTransfer"))
             {
-                context.WriteLine(output, "();");
+                context.Write(output, "();");
             }
             else
             {
-                context.WriteLine(output, "(bytes4(keccak256(\"scheduler( " + EventTypeName + ")\")), ev);");
+                context.Write(output, "(");
+                context.Write(output, "abi.encodeWithSelector");
+                context.Write(output, "(");
+                context.Write(output, "bytes4");
+                context.Write(output, "(");
+                context.Write(output, "keccak256");
+                context.Write(output, "(");
+                context.Write(output, "\"scheduler(( ");
+                string parameterList = "";
+                parameterList += "int256,";
+                foreach (var typeId in IdVarsMap.Keys)
+                {
+                    Dictionary<string, string> varsForId = IdVarsMap[typeId];
+
+                    if (varsForId.Count > 0)
+                    {
+                        foreach (string var in varsForId.Keys)
+                        {
+                            parameterList += varsForId[var] + ",";
+                        }
+                    }
+                }
+                parameterList = parameterList.Remove(parameterList.Length-1);
+                context.Write(output, parameterList + "))\"");
+                context.Write(output, ")"); // close keccak256 bracket
+                context.Write(output, ")"); // close bytes4 bracket
+                context.Write(output, ", ev"); // add the event
+                context.Write(output, ")"); // close abi.encode bracket
+                context.Write(output, ");"); // close call bracket
+                context.WriteLine(output, "");
             }
         }
 
@@ -639,7 +670,7 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, ")");
                     break;
                 case CtorExpr ctorExpr:
-                    context.Write(output, $"new " + context.Names.GetNameForDecl(ctorExpr.Interface) + "()");
+                    context.Write(output, $"address(new " + context.Names.GetNameForDecl(ctorExpr.Interface) + "())");
                     break;
                 case DefaultExpr defaultExpr:
                     context.Write(output, GetDefaultValue(context, defaultExpr.Type));
@@ -850,7 +881,7 @@ namespace Plang.Compiler.Backend.Solidity
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Bool):
                     return "bool";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Int):
-                    return "int";
+                    return "int256";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Float):
                     return "double";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Event):
