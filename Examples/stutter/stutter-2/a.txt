@@ -1,0 +1,75 @@
+Hash: 1934016764
+ImplMachine 0 Hash: -1983631656:
+  Base:
+    renamedName:      Main
+    isSafe:           False
+    instanceNumber:   1
+    fields:           Client(3),<Client(1),Client(2),Client(3),>
+    eventValue:       null
+    stateStack:       Main_Flood
+    invertedFunStack: 1,(null),AnonFun3
+    continuation:     Send,null,False,null
+    currentStatus:    Enabled
+    nextSMOperation:  ExecuteFunctionOperation
+    stateExitReason:  NotExit
+    currentTrigger:   null
+    currentPayload:   null
+    destOfGoto:       Main_Flood
+  Queue:
+    events:           null
+ImplMachine 1 Hash: 206774698:
+  Base:
+    renamedName:      Client
+    isSafe:           False
+    instanceNumber:   1
+    fields:           null
+    eventValue:       DONE
+    stateStack:       Client_Consume
+    invertedFunStack: null
+    continuation:     Return,null,False,null
+    currentStatus:    Blocked
+    nextSMOperation:  DequeueOperation
+    stateExitReason:  NotExit
+    currentTrigger:   null
+    currentPayload:   null
+    destOfGoto:       null
+  Queue:
+    events:           (WAIT,null),(WAIT,null),(WAIT,null),(PING,null),(PING,null),(PING,null)|(PING,null)
+ImplMachine 2 Hash: 206774698:
+  Base:
+    renamedName:      Client
+    isSafe:           False
+    instanceNumber:   2
+    fields:           null
+    eventValue:       DONE
+    stateStack:       Client_Consume
+    invertedFunStack: null
+    continuation:     Return,null,False,null
+    currentStatus:    Blocked
+    nextSMOperation:  DequeueOperation
+    stateExitReason:  NotExit
+    currentTrigger:   null
+    currentPayload:   null
+    destOfGoto:       null
+  Queue:
+    events:           (WAIT,null),(WAIT,null),(WAIT,null),(PING,null),(PING,null),(PING,null)|(PING,null)
+ImplMachine 3 Hash: -1796997656:
+  Base:
+    renamedName:      Client
+    isSafe:           False
+    instanceNumber:   3
+    fields:           null
+    eventValue:       null
+    stateStack:       Client_Init
+    invertedFunStack: null
+    continuation:     Return,null,False,null
+    currentStatus:    Enabled
+    nextSMOperation:  DequeueOperation
+    stateExitReason:  NotExit
+    currentTrigger:   null
+    currentPayload:   null
+    destOfGoto:       null
+  Queue:
+    events:           (WAIT,null),(WAIT,null),(WAIT,null),(DONE,null),(PING,null),(PING,null)|(PING,null)
+SpecMachines: (none)
+

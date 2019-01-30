@@ -1,7 +1,7 @@
-enum Global { ZERO=0, X=6 } // for some reason, at least one enum element must be numbered 0
+//enum Global { ZERO=0, X=3 } // for some reason, at least one enum element must be numbered 0
 
 event WAIT;
-event DONE;
+event DONE assert 1;
 event PING;
 
 machine Main {
@@ -10,28 +10,40 @@ machine Main {
   start state Init {
     entry {
       client = new Client();
-      goto SendPrefix; }}
+      goto SendPrefix; 
+    }
+  }
 
   state SendPrefix {
     entry {
       var i:int;
       i = 0;
-      while (i < X) {
+      while (i < 3) {
         send client, WAIT;
-        i = i + 1; }
+        i = i + 1; 
+      }
       send client, DONE;
-      goto Flood; }}
+      goto Flood;
+    }
+  }
 
   state Flood {
     entry {
       send client, PING;
-      goto Flood; }}}
+      goto Flood; 
+    }
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////
 
 machine Client {
   start state Init {
     defer WAIT, PING;
-    on DONE goto Consume; }
+    on DONE goto Consume; 
+  }
 
-  state Consume { ignore WAIT, PING; }}
+  state Consume { 
+  ignore WAIT, PING; 
+  }
+}

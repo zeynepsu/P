@@ -1,0 +1,13 @@
+Number of concrete states visited     = 46515
+Number of abstract states encountered = 46515
+Number of abstract successors found   = 91059
+Maximum queue size  encountered       = 1
+Maximum stack size  encountered       = 195
+
+Using queue bound of 2
+<DequeueLog> Dequeued Event <Sending,Node(4)> at Machine Node-1
+<StateLog> Machine Node-1 exiting State Node_Wait_Main_Node
+<StateLog> Machine Node-1 entering State Node_KeepSending_Main_Node
+<EnqueueLog> Enqueued Event <Sending,Node(4)> in machine Node-2 by machine Node-1
+
+ERROR: < Exception > Attempting to enqueue event Sending more than 1 many times\n

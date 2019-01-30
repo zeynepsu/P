@@ -200,31 +200,6 @@ namespace P.Tester
                                     throw new ArgumentException("queue-bound argument: must supply NON-NEGATIVE parameter");
                                 break;
 
-                            case "queue-prefix":
-                                if (param.Length == 0)
-                                    throw new ArgumentException("queue-prefix argument: must supply non-negative parameter");
-                                PrtEventBuffer.p = int.Parse(param);
-                                if (PrtEventBuffer.p < 0)
-                                    throw new ArgumentException("queue-prefix argument: must supply NON-NEGATIVE parameter");
-                                break;
-
-                            case "qutl":
-                                StateImpl.invariant = true;
-                                if (param.Length == 0)
-                                    throw new ArgumentException("invar argument: must supply QuTL formula in string");
-                                string qutl = param;
-                                Console.WriteLine(qutl);
-                                QuTLParser parser = new Runtime.QuTLParser(qutl);
-                                QuTLParser.root = parser.BuildAst();
-                                break;
-
-                            case "queue":
-                                if (param.Length == 0)
-                                    Console.WriteLine("Model checking empty queue...");
-                                P.Runtime.TestMCer.queueContent = param;
-                                options.testMCer = true;
-                                break;
-
                             case "processing":
                                 if (param.Length == 0)
                                     throw new ArgumentException("For testing only: please specify queue content");
@@ -238,6 +213,43 @@ namespace P.Tester
                             case "file-dump":
                                 DfsExploration.fileDump = true;
                                 StateImpl.FileDump = true;
+                                break;
+
+                                /// QuTL model checker related options
+                            case "queue-prefix":
+                                if (param.Length == 0)
+                                    throw new ArgumentException("queue-prefix argument: must supply non-negative parameter");
+                                PrtEventBuffer.p = int.Parse(param);
+                                if (PrtEventBuffer.p < 0)
+                                    throw new ArgumentException("queue-prefix argument: must supply NON-NEGATIVE parameter");
+                                break;
+
+                            case "qutl":
+                                StateImpl.invariant = true;
+                                if (param.Length == 0)
+                                    throw new ArgumentException("invar argument: must supply QuTL formula in string");
+                                string qutl = param;
+                                Console.WriteLine("testing..."+qutl);
+                                QuTLParser parser = new Runtime.QuTLParser(qutl);
+                                P.Runtime.QuTLParser.Print();
+                                //Console.WriteLine(QuTLParser.formulae.ToString());
+                                Console.WriteLine();
+                                break;
+
+                            case "queue":
+                                if (param.Length == 0)
+                                    Console.WriteLine("Model checking empty queue...");
+                                P.Runtime.TestMCer.queueContent = param;
+                                options.testMCer = true;
+                                break;
+
+                            case "concrete":
+                                StateImpl.concrete = true;
+                                break;
+
+                            /// using symmetry reduction
+                            case "symmetry":
+                                StateImpl.symmetryReduction = true;
                                 break;
 
                             case "hash":
@@ -349,9 +361,13 @@ namespace P.Tester
             Console.WriteLine("/file-dump               Pretty-print accumulated states into files. For debugging only; this may create LARGE files!");
             Console.WriteLine();
             Console.WriteLine("Flags related to QuTL model checker:");
-            Console.WriteLine("/qutl:fomula            Use QuTL formula to specify the properties which states should satisfy");
-            Console.WriteLine("/queue:events           Model checking queue; using '|' to specify abstract queue, e.g. bb|abc");
-            Console.WriteLine("/processing:event       Specify the processing event");
+            Console.WriteLine("/qutl:fomula             Use QuTL formula to specify the properties which states should satisfy");
+            Console.WriteLine("/queue:events            Model checking queue; using '|' to specify abstract queue, e.g. bb|abc");
+            Console.WriteLine("/processing:event        Specify the processing event");
+            Console.WriteLine("/concrete                Invoke concrete model checker to test the correctness of QuTL formula!");
+            Console.WriteLine();
+            Console.WriteLine("Flags related to efficiency:");
+            Console.WriteLine("/symmetry                Apply symmetry reduction to exclude redundant reachable states!");
             // Console.WriteLine("/hash                    Use State Hashing. (DFS without State Hashing is currently not implemented (and probably not meaningful), hence /dfs and /os-... all imply /hash.)");
             Console.WriteLine();
             Console.WriteLine("If none of /psharp, /dfs, /os-... are specified: perform random testing");
@@ -420,7 +436,6 @@ namespace P.Tester
             ///-- PL: stopwatch: to measure the elapsed time
             var sw = new System.Diagnostics.Stopwatch();
             sw.Start();
-
             if (options.interactive)
             {
                 DfsExploration.interativeMode = true;
@@ -436,7 +451,11 @@ namespace P.Tester
             }
             else if (options.OSList || options.OSSet)
             {
-                DfsExploration.OSIterate();                    // OS exploration from s, using queue list or set abstraction
+                var ret = DfsExploration.OSIterate();                    // OS exploration from s, using queue list or set abstraction
+                if (ret == 0)
+                {
+                    Console.WriteLine("Exiting...");
+                }
             }
             else
             {

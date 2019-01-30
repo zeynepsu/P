@@ -77,8 +77,7 @@ namespace P.Runtime
         /// </summary>
         private Exception exception;
 
-        public static bool invariant = false;
-
+        #region The fields for list abstraction
         public enum ExploreMode
         {
             Normal,
@@ -88,15 +87,22 @@ namespace P.Runtime
 
         public static ExploreMode mode = ExploreMode.Normal;
         /// <summary>
-        /// Store the hashcode of the successor -- PL 
+        /// Store the hashcode of the successor
         /// </summary>
         public static int succHash;
         /// <summary>
-        /// Store the hashcode of the predecessor -- PL
+        /// Store the hashcode of the predecessor
         /// </summary>
         public static int predHash;
-
         public static bool FileDump = false;
+
+        /// <summary>
+        /// use invariants to eliminate abstrac successors
+        /// </summary>
+        public static bool invariant = false;
+        public static bool concrete = false;
+        public static bool symmetryReduction = false;
+        #endregion
 
         public VisibleTrace currentVisibleTrace;
         public StringBuilder errorTrace;
@@ -325,8 +331,8 @@ namespace P.Runtime
         /// <param name="abstract_succs_SW"></param>
         void AddToAbstractSuccessorsIfInvSat(int currIndex, StateImpl pred, HashSet<int> abstract_succs, StreamWriter abstract_succs_SW)
         {
-            int p_hash = pred.GetHashCode();
-            int   hash =      GetHashCode();
+            int p_hash = symmetryReduction ? pred.GetHashCode(true) : pred.GetHashCode();
+            int   hash = symmetryReduction ?      GetHashCode(true) :      GetHashCode();
 
             if (mode == ExploreMode.Find_A_AP) // if we are locating a and ap
                 if (succHash == hash)
@@ -335,7 +341,7 @@ namespace P.Runtime
                     throw new SuccessorFound(pred, this);
                 }
 
-            if ( invariant ? CheckStateInvariant(currIndex) && CheckTransInvariant(currIndex, pred) : true )
+            if ( invariant ? CheckAbstractStateInvariant(currIndex) && CheckTransInvariant(currIndex, pred) : true )
             {
                 if (abstract_succs.Add(hash))
                     if (FileDump)
@@ -385,6 +391,43 @@ namespace P.Runtime
             return false;
         }
 
+        /// <summary>
+        /// Call concrete model checker to test invariants
+        /// If invariant does not satisfy, then throw an exception.
+        /// </summary>
+        /// <returns></returns>
+        public bool CheckConcreteStateInvariant()
+        {
+            if (!invariant || !concrete)
+                return true;
+            for (int currIndex = 0; currIndex < ImplMachines.Count; ++currIndex)
+            {
+                if (!CheckConcreteStateInvariant(currIndex))
+                    return false;
+            }
+#if false // for debugging
+            Console.WriteLine("conctete model checking passed........");
+#endif 
+            return true;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="currIndex"></param>
+        /// <returns></returns>
+        public bool CheckConcreteStateInvariant(int currIndex)
+        {
+#region 
+            // TODO ad-hoc code, need to remove later ...
+            //if (currIndex == 0)
+            //    return true;
+#endregion
+            var client = implMachines[currIndex];
+            Debug.Assert(!client.eventQueue.IsAbstract());
+            var queueOfClient = client.eventQueue.events;
+            return ConcreteChecker.Check(currIndex, client.GetEventValue().ToString(), queueOfClient);
+        }
 
         ///<summary>
         /// This is like a typedef and must, unfortunately, pollute the global scope. 
@@ -403,15 +446,25 @@ namespace P.Runtime
         /// machines have not changed, so their invariants need not be checked)
         /// 
         ///</summary>
-        public bool CheckStateInvariant(int currIndex)  
+        public bool CheckAbstractStateInvariant(int currIndex)  
         {
+#region ad-hoc code, need to removed later
+            //if (currIndex == 0 || currIndex == 3)
+            //    return true;
+#endregion
             var client = implMachines[currIndex];
             Debug.Assert(client.eventQueue.IsAbstract());
 
             var queueOfClient = client.eventQueue.events;
-            return AbstractChecker.Check(client.GetEventValue().ToString(), queueOfClient);
+            return AbstractChecker.Check(currIndex, client.GetEventValue().ToString(), queueOfClient);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="currIndex"></param>
+        /// <param name="pred"></param>
+        /// <returns></returns>
         public bool CheckTransInvariant(int currIndex, StateImpl pred)
         {
             return true;
@@ -433,6 +486,22 @@ namespace P.Runtime
         public override int GetHashCode()
         {
             var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash();
+            var hash2 = specMachinesMap.Select(pair => pair.Value.GetHashCode()).Hash();
+            return Hashing.Hash(hash1, hash2);
+        }
+
+        /// <summary>
+        /// A GetHashCode function with symmetry reduction
+        /// </summary>
+        /// <param name="symmetryReduction"></param>
+        /// <returns></returns>
+        public int GetHashCode(bool symmetryReduction)
+        {
+            Console.WriteLine("With symmetry reduction");
+            if (symmetryReduction == false)
+                return GetHashCode();
+
+            var hash1 = implMachines.Select(impl => impl.GetHashCode()).Hash(true);
             var hash2 = specMachinesMap.Select(pair => pair.Value.GetHashCode()).Hash();
             return Hashing.Hash(hash1, hash2);
         }

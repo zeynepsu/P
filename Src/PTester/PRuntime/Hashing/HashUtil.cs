@@ -62,17 +62,17 @@ namespace P.Runtime
             var ret = Hash();
             if (!isSymmetryReduction)
             {
-                Console.Write("N: " + collection.Count() + ": ");
+                Console.Write("N," + collection.Count() + ",");
                 foreach (var v in collection)
                 {
                     ret = Hash(ret, v);
-                    Console.Write(v + " ");
+                    Console.Write(v + ",");
                 }
             }
             else
             {
                 var list = collection.ToList();
-                if (list.Count() == 4)
+                if (list.Count() >= 3)
                 {
                     var hash1 = list[1];
                     var hash2 = list[2];
@@ -83,11 +83,11 @@ namespace P.Runtime
                     }
 
                 }
-                //Console.Write("Y: " + list.Count() + ": ");
+                Console.Write("Y," + list.Count() + ",");
                 foreach (var v in list)
                 {
                     ret = Hash(ret, v);
-                   // Console.Write(v + " ");
+                    Console.Write(v + ",");
                 }
             }
             ret = Hash(ret, collection.Count());

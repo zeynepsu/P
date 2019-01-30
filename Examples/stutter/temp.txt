@@ -1,0 +1,36 @@
+Number of concrete states visited     = 50
+Number of abstract states encountered = 34
+Number of abstract successors found   = 16 (only those satisfying all static invariants)
+Maximum queue size  encountered       = 6
+Maximum stack size  encountered       = 24
+
+Number of concrete states visited     = 50
+Number of abstract states encountered = 34
+Number of abstract successors found   = 15 (only those satisfying all static invariants)
+Maximum queue size  encountered       = 6
+Maximum stack size  encountered       = 24
+
+Number of concrete states visited     = 50
+Number of abstract states encountered = 27
+Number of abstract successors found   = 8 (only those satisfying all static invariants)
+Maximum queue size  encountered       = 6
+Maximum stack size  encountered       = 24
+
+Number of concrete states visited     = 50
+Number of abstract states encountered = 27
+Number of abstract successors found   = 8 (only those satisfying all static invariants)
+Maximum queue size  encountered       = 6
+Maximum stack size  encountered       = 24
+
+C:\Users\peizu\GitRoot\P\Examples\stutter>pt /queue:"WAIT.WAIT.WAIT|DONE.PING" /qutl:"$ DONE = DONE # 0 = =>" /processing:DONE
+$ DONE = DONE # 0 = =>
+Abstract model checking...
+
+Unhandled Exception: System.OverflowException: Array dimensions exceeded supported range.
+   at P.Runtime.LTS.BuilLTS(Int32 p, List`1 Q) in C:\Users\peizu\GitRoot\P\Src\PTester\PRuntime\QuTLChecker.cs:line 619
+   at P.Runtime.LTS..ctor(Int32 p, List`1 Q) in C:\Users\peizu\GitRoot\P\Src\PTester\PRuntime\QuTLChecker.cs:line 593
+   at P.Runtime.AbstractChecker.Check(String ev, Int32 p, List`1 Q) in C:\Users\peizu\GitRoot\P\Src\PTester\PRuntime\QuTLChecker.cs:line 779
+   at P.Runtime.TestMCer.Testing() in C:\Users\peizu\GitRoot\P\Src\PTester\PRuntime\QuTLChecker.cs:line 1338
+   at P.Tester.PTesterCommandLine.Main(String[] args) in C:\Users\peizu\GitRoot\P\Src\PTester\PTester\PTesterCommandLine.cs:line 385
+
+pt /os-list stutter.dll /interactive /invar:"$ DONE = DONE ~ G => () PING WAIT ~ G => () G &"

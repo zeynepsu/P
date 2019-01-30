@@ -183,7 +183,7 @@ namespace P.Runtime
                     break;
                 default:
                     {
-                        switch(op)
+                        switch (op)
                         {
                             case QuTLOperator.PROCESS_EVENT:
                                 sb.Append(Symbol.PROCESS_EVENT);
@@ -279,18 +279,27 @@ namespace P.Runtime
         #region
         public QuTLParser(string expr)
         {
-            phi = BuildExprNode(expr);
+            var sformulae = expr.Split(':');
+            if (sformulae.Length != 0)
+            {
+                formulae = new AstNode[sformulae.Length];
+                for (int i = 0; i < sformulae.Length; ++i)
+                {
+                    formulae[i] = BuildAst(sformulae[i]);
+                }
+                
+            }
         }
         #endregion
 
         #region fields
-        private readonly List<ExprNode> phi;
-        public static AstNode root;
+        //private readonly List<ExprNode> phi;
+        public static AstNode[] formulae;
         #endregion
 
-        public AstNode BuildAst()
+        public AstNode BuildAst(string expr)
         {
-            return BuildAst(this.phi);
+            return BuildAst(BuildExprNode(expr));
         }
 
         private AstNode BuildAst(List<ExprNode> phi)
@@ -405,7 +414,7 @@ namespace P.Runtime
             foreach (var op in eArray)
             {
                 ExprNode node = null;
-                if (op  == Symbol.PROCESS_EVENT)
+                if (op == Symbol.PROCESS_EVENT)
                 {
                     node = new ExprNode(QuTLOperator.PROCESS_EVENT);
                 }
@@ -507,6 +516,14 @@ namespace P.Runtime
             return phi;
         }
 
+        public static void Print()
+        {
+            for (int i = 0; i < formulae.Length; i++)
+            {
+                Console.Write(i +": ");
+                Print(formulae[i]);
+            }
+        }
         /// <summary>
         ///  For testing only: print the qutl formula which is organized 
         ///  as an AST. 
@@ -614,7 +631,7 @@ namespace P.Runtime
         {
             #region Initialization
             /// the number of events in the queue
-            Console.WriteLine(p + "<" + Q.Count);
+            /// Console.WriteLine(p + "<" + Q.Count);
             int k = Q.Count;
             int numOfStates = p + 2 * (k - p) + 1;
             if (numOfStates < 0)
@@ -693,7 +710,7 @@ namespace P.Runtime
         #endregion
 
         #region Out-of-date code
-        public static bool Check(string last, List<PrtEventNode> Q)
+        public static bool Check(int currIndex, string last, List<PrtEventNode> Q)
         {
 #if true
             List<string> sQ = new List<string>();
@@ -701,7 +718,7 @@ namespace P.Runtime
             {
                 sQ.Add(e.ev.ToString());
             }
-            return Check(last, P.Runtime.PrtEventBuffer.p, sQ);
+            return Check(currIndex, last, P.Runtime.PrtEventBuffer.p, sQ);
 #endif
 
 #if true
@@ -756,11 +773,11 @@ namespace P.Runtime
         }
         #endregion
 
-        public static bool Check(int p, List<string> Q)
+        public static bool Check(int currIndex, int p, List<string> Q)
         {
             try
             {
-                return Check(null, p, Q);
+                return Check(currIndex, null, p, Q);
             }
             catch (QuTLException e)
             {
@@ -775,7 +792,7 @@ namespace P.Runtime
         /// <param name="p"></param>
         /// <param name="Q"></param>
         /// <returns></returns>
-        public static bool Check(string ev, int p, List<string> Q)
+        public static bool Check(int currIndex, string ev, int p, List<string> Q)
         {
             try
             {
@@ -783,7 +800,7 @@ namespace P.Runtime
 #if false
             Console.WriteLine(lts.ToString());
 #endif
-                return Eval(ev, lts, 0, QuTLParser.root) == 1;
+                return Eval(ev, lts, 0, QuTLParser.formulae[currIndex]) == 1;
             }
             catch (QuTLException qe)
             {
@@ -966,7 +983,7 @@ namespace P.Runtime
         private static int EvalG(string ev, LTS lts, int start, AstNode phi)
         {
             if (Eval(ev, lts, start, phi) == 0)
-               return 0;
+                return 0;
             foreach (var next in lts.transitions[start])
             {
                 //Console.WriteLine(next);
@@ -991,7 +1008,7 @@ namespace P.Runtime
             if (phi.enode.Type != AstNodeType.EVENT)
             {
                 return Eval(ev, lts, start, phi.left) ^ 1;
-            } 
+            }
             else
             {
                 return lts.states[start].labels.Contains(phi.enode.Event) ? 0 : 1;
@@ -1014,7 +1031,7 @@ namespace P.Runtime
             switch (op)
             {
                 case QuTLOperator.EQUAL:
-                    return (cnt == c || (cnt < c && loop)) ? 1 : 0; 
+                    return (cnt == c || (cnt < c && loop)) ? 1 : 0;
                 case QuTLOperator.NOT_EQUAL:
                     return (cnt > c || (cnt < c && !loop)) ? 1 : 0;
                 case QuTLOperator.LESS_THAN:
@@ -1071,16 +1088,31 @@ namespace P.Runtime
 
         }
         #endregion
-
+        public static bool Check(int currIndex, string last, List<PrtEventNode> Q)
+        {
+            List<string> sQ = new List<string>();
+            foreach (var e in Q)
+            {
+                sQ.Add(e.ev.ToString());
+            }
+            return Check(currIndex, last, sQ);
+        }
         /// <summary>
         /// Implement the concrete QuTL model checker
         /// </summary>
         /// <param name="ev">the processing event: it has just been dequeued</param>
         /// <param name="Q"> the current queue</param>
         /// <returns></returns>
-        public static bool Check(string ev, List<string> Q)
+        public static bool Check(int currIndex, string ev, List<string> Q)
         {
-            return Eval(ev, Q, 0, QuTLParser.root) == 1;
+#if false // for debugging
+            foreach (var e in Q)
+                Console.Write("===" + e);
+            Console.WriteLine("Q is empty...");
+#endif
+            if (currIndex >= QuTLParser.formulae.Length)
+                throw new QuTLException("Formulae is out of bound!");
+            return Eval(ev, Q, 0, QuTLParser.formulae[currIndex]) == 1;
         }
 
         /// <summary>
@@ -1093,8 +1125,9 @@ namespace P.Runtime
         /// <returns></returns>
         private static int Eval(string ev, List<string> Q, int i, AstNode phi)
         {
+            /// empty queue
             if (i == Q.Count || phi == null)
-                return 0;
+                return StateImpl.concrete ? 1 : 0;
             var root = phi.enode;
             switch (root.Type)
             {
@@ -1365,15 +1398,15 @@ namespace P.Runtime
             if (isAbstract)
             {
                 Console.WriteLine("Abstract model checking...");
-                checkResult = AbstractChecker.Check(processEvent, p, this.Q);
+                checkResult = AbstractChecker.Check(0, processEvent, p, this.Q);
             }
             else
             {
                 Console.WriteLine("Concrete model checking...");
-                checkResult = ConcreteChecker.Check(processEvent, this.Q);
+                checkResult = ConcreteChecker.Check(0, processEvent, this.Q);
             }
 
-            QuTLParser.Print(QuTLParser.root);
+            QuTLParser.Print();
             Console.WriteLine(checkResult ? " holds" : " does not hold");
         }
     }

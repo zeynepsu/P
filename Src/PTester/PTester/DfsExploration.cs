@@ -9,6 +9,14 @@ using System.Diagnostics;
 
 namespace P.Tester
 {
+    enum OSResult
+    {
+
+        AnormalTerm = -1,
+        NormalTerm = 0,
+        Converged = 1
+    }
+
     static class Constants
     {
         public const string dumpFileConcretePrefix = "concretes-";
@@ -84,7 +92,7 @@ namespace P.Tester
         /// -- OS3: the observation sequences of states with queue abstraction
         /// 
         /// </summary>
-        public static void OSIterate()
+        public static int OSIterate()
         {
             /// The main while-true loop, it may never terminate.
             /// If it termiantes, then it terminates either when 
@@ -106,8 +114,9 @@ namespace P.Tester
                     Console.WriteLine();
                     if (stop)
                     {
-                        Console.WriteLine("Exiting.");
-                        Environment.Exit(0);
+                        //Console.WriteLine("Exiting.");
+                        //Environment.Exit(0);
+                        return (int)OSResult.NormalTerm;
                     }
                 }
                 try
@@ -155,16 +164,18 @@ namespace P.Tester
                         catch (System.Exception e)
                         {
                             Console.WriteLine("External command: something went wrong: {0}", e.Message);
-                            Environment.Exit(-1);
+                            //Environment.Exit(-1);
+                            return (int)OSResult.AnormalTerm;
                         }
                     }
-                    Console.WriteLine("Exiting.");
-                    Environment.Exit(0);
+                    //Console.WriteLine("Exiting.");
+                    //Environment.Exit(0);
+                    return (int)OSResult.NormalTerm;
                 }
 
                 if (countConcretesPrevious == concretesInHash.Count) /// OS1 converges
                 {
-                    Console.WriteLine("Global state sequence converged!");
+                    Console.WriteLine("Concrete state sequence converged!");
                     if (interativeMode)
                     {
                         Console.Write("For fun, do you want to run the abstract convergence test as well? " +
@@ -173,14 +184,16 @@ namespace P.Tester
                         Console.WriteLine();
                         if (stop)
                         {
-                            Console.WriteLine("Exiting.");
-                            Environment.Exit(0);
+                            //Console.WriteLine("Exiting.");
+                            //Environment.Exit(0);
+                            return (int)OSResult.NormalTerm;
                         }
                     }
                     else
                     {
-                        Console.WriteLine("Exiting.");
-                        Environment.Exit(0);
+                        //Console.WriteLine("Exiting.");
+                        //Environment.Exit(0);
+                        return (int)OSResult.Converged;
                     }
                 }
 
@@ -192,8 +205,10 @@ namespace P.Tester
 
                     if (HasAbstractConverged()) /// convergence detection
                     {
-                        Console.WriteLine("converged!");
-                        Environment.Exit(0);
+                        Console.WriteLine("Abstract state sequence converged!");
+                        //Environment.Exit(0);
+
+                        return (int)OSResult.Converged;
                     }
                 }
 
@@ -327,8 +342,13 @@ namespace P.Tester
                 if (StateImpl.mode == StateImpl.ExploreMode.Competitor)
                     CheckPredHash(curr.State, succ.State);
 
-                if (!succ.State.CheckFailure(succ.depth))   // check for failure before adding new state: may fail due to failed assume, in which case we don't want to add
+                /// check for failure before adding new state: may fail due 
+                /// to failed assume, in which case we don't want to add
+                if (!succ.State.CheckFailure(succ.depth))   
                 {
+                    if (!succ.State.CheckConcreteStateInvariant())
+                        throw new QuTLException("QuTL formula fails in concete model checking!");
+
                     // update concrete state hashset
                     var succHash = succ.State.GetHashCode();
                     if (!concretesInHash.Add(succHash)) // -- PL: if successor has been explored
@@ -359,7 +379,7 @@ namespace P.Tester
                             }
                         }
                     }
-
+#if DEBUG
                     // status and diagnostics
                     if (concretesInHash.Count % 1000 == 0)
                     {
@@ -369,14 +389,11 @@ namespace P.Tester
                             Console.WriteLine("-------------- Number of abstract states found so far     = {0}", abstractsInHash.Count);
                             Console.WriteLine("-------------- Number of abstract successors found so far = {0}{1}", abstractSuccsInHash.Count, StateImpl.invariant ? " (only those satisfying all static invariants)" : "");
                         }
-#if DEBUG
                         Console.WriteLine("-------------- Maximum queue size encountered so far      = {0}", max_queue_size);
                         Console.WriteLine("-------------- Maximum stack size encountered so far      = {0}", max_stack_size);
-#endif
                         Console.WriteLine();
                     }
 
-#if DEBUG
                     // update maximum encountered queue size
                     foreach (PrtImplMachine m in succ.State.ImplMachines)
                         max_queue_size = Math.Max(max_queue_size, m.eventQueue.Size());
@@ -385,7 +402,6 @@ namespace P.Tester
             } // end of while loop
 
             Console.WriteLine("");
-
             Console.WriteLine("Number of concrete states visited     = {0}", concretesInHash.Count);
             if (queueAbstraction)
             {
@@ -470,15 +486,17 @@ namespace P.Tester
                     } while (answer != "c" && answer != "i");
 
                     if (answer == "c")
+                    {
                         return false;
+                    }
 
                     // for the re-run, queue abstraction type remains, k bound remains; file dumping is turned off
                     StateImpl.mode = StateImpl.ExploreMode.Find_A_AP;
                     StateImpl.succHash = hash;
                     StateImpl.FileDump = false;
                     fileDump = false;
-                    OSIterate();
-                    Debug.Assert(false, "DfsExploration.HasAbstractConverged: internal error: can't get here");
+                    var ret = OSIterate();
+                    Environment.Exit(ret); // process exits after OSIterate()
                 }
             }
             return true;
