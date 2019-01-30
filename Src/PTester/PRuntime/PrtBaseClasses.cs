@@ -56,7 +56,7 @@ namespace P.Runtime
                 renamedName.GetHashCode(),
                 isSafe.GetHashCode(),
                 //instanceNumber.GetHashCode(),
-                //fields.Select(v => v.GetHashCode()).Hash(),
+                fields.Select(v => v.GetHashCode()).Hash(),
                 eventValue.GetHashCode(),
                 stateStack.GetHashCode(),
                 invertedFunStack.GetHashCode(),

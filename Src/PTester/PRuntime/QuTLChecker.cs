@@ -287,7 +287,6 @@ namespace P.Runtime
                 {
                     formulae[i] = BuildAst(sformulae[i]);
                 }
-                
             }
         }
         #endregion
@@ -522,6 +521,7 @@ namespace P.Runtime
             {
                 Console.Write(i +": ");
                 Print(formulae[i]);
+                Console.WriteLine();
             }
         }
         /// <summary>

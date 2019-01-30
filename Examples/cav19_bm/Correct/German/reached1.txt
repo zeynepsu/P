@@ -1,0 +1,57 @@
+Hash: -451456974
+ImplMachine 0 Hash: -367833713:
+  Base:
+    renamedName:      Main
+    isSafe:           False
+    instanceNumber:   1
+    fields:           Client(1),0,0,True,True,(Client(1), ),CPU(1),<Client(1),>,Client(1)
+    eventValue:       req_excl
+    stateStack:       Main_receiveState
+    invertedFunStack: null
+    continuation:     Return,null,False,null
+    currentStatus:    Blocked
+    nextSMOperation:  DequeueOperation
+    stateExitReason:  NotExit
+    currentTrigger:   null
+    currentPayload:   null
+    destOfGoto:       Main_receiveState
+  Queue:
+    events:           null
+ImplMachine 1 Hash: 782191319:
+  Base:
+    renamedName:      Client
+    isSafe:           False
+    instanceNumber:   1
+    fields:           True,Main(1)
+    eventValue:       ask_excl
+    stateStack:       Client_invalid_wait
+    invertedFunStack: null
+    continuation:     Return,null,False,null
+    currentStatus:    Enabled
+    nextSMOperation:  DequeueOperation
+    stateExitReason:  NotExit
+    currentTrigger:   null
+    currentPayload:   null
+    destOfGoto:       Client_invalid_wait
+  Queue:
+    events:           (grant_excl,null),(ask_excl,null)
+ImplMachine 2 Hash: -636522157:
+  Base:
+    renamedName:      CPU
+    isSafe:           False
+    instanceNumber:   1
+    fields:           <Client(1),>
+    eventValue:       null
+    stateStack:       CPU_makeReq
+    invertedFunStack: 2,(null),AnonFun5
+    continuation:     Send,null,False,null
+    currentStatus:    Enabled
+    nextSMOperation:  ExecuteFunctionOperation
+    stateExitReason:  NotExit
+    currentTrigger:   null
+    currentPayload:   null
+    destOfGoto:       CPU_makeReq
+  Queue:
+    events:           null
+SpecMachines: (none)
+

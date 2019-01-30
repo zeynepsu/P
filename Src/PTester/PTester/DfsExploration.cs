@@ -346,13 +346,12 @@ namespace P.Tester
                 /// to failed assume, in which case we don't want to add
                 if (!succ.State.CheckFailure(succ.depth))   
                 {
-                    if (!succ.State.CheckConcreteStateInvariant())
-                        throw new QuTLException("QuTL formula fails in concete model checking!");
-
                     // update concrete state hashset
                     var succHash = succ.State.GetHashCode();
                     if (!concretesInHash.Add(succHash)) // -- PL: if successor has been explored
                         continue;
+                    if (!succ.State.CheckConcreteStateInvariant())
+                        throw new QuTLException("QuTL formula fails in concete model checking!");
                     worklist.Push(succ);
 #if DEBUG
                     max_stack_size = Math.Max(max_stack_size, worklist.Count);

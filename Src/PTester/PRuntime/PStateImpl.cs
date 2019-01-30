@@ -418,11 +418,6 @@ namespace P.Runtime
         /// <returns></returns>
         public bool CheckConcreteStateInvariant(int currIndex)
         {
-#region 
-            // TODO ad-hoc code, need to remove later ...
-            //if (currIndex == 0)
-            //    return true;
-#endregion
             var client = implMachines[currIndex];
             Debug.Assert(!client.eventQueue.IsAbstract());
             var queueOfClient = client.eventQueue.events;
@@ -448,10 +443,6 @@ namespace P.Runtime
         ///</summary>
         public bool CheckAbstractStateInvariant(int currIndex)  
         {
-#region ad-hoc code, need to removed later
-            //if (currIndex == 0 || currIndex == 3)
-            //    return true;
-#endregion
             var client = implMachines[currIndex];
             Debug.Assert(client.eventQueue.IsAbstract());
 
