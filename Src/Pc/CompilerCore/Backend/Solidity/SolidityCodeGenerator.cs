@@ -421,6 +421,8 @@ namespace Plang.Compiler.Backend.Solidity
         private void WriteFunctionBody(CompilationContext context, StringWriter output, Function function)
         {
             context.WriteLine(output, "{");
+            context.WriteLine(output, "bool callReturnValue;");     // stores the return value of each call statement
+            context.WriteLine(output, EventTypeName + " memory ev;");
 
             foreach (var bodyStatement in function.Body.Statements) WriteStmt(context, output, bodyStatement);
 
@@ -545,8 +547,6 @@ namespace Plang.Compiler.Backend.Solidity
             // Setup the event to be dispatched
             if (!eventName.Contains("payable_eTransfer"))
             {
-                context.WriteLine(output, EventTypeName + " memory ev;");
-
                 int tid = TypeIdMap[eventName];
                 context.WriteLine(output, "ev.TypeId = " + tid + ";");
 
@@ -562,6 +562,7 @@ namespace Plang.Compiler.Backend.Solidity
             }
 
             // Write the call statement
+            context.Write(output, "(callReturnValue, ) = ");
             WriteExpr(context, output, sendStmt.MachineExpr);
             context.Write(output, ".call");
             // for a payable event, send the amount of ether
@@ -608,6 +609,11 @@ namespace Plang.Compiler.Backend.Solidity
                 context.Write(output, ");"); // close call bracket
                 context.WriteLine(output, "");
             }
+
+            context.WriteLine(output, "if ( callReturnValue == false )");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "revert(\"Call failed. Reverting transaction\");");
+            context.WriteLine(output, "}");
         }
 
         private void WriteLValue(CompilationContext context, StringWriter output, IPExpr lvalue)
