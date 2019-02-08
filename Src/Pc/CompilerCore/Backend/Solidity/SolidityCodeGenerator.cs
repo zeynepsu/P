@@ -210,15 +210,17 @@ namespace Plang.Compiler.Backend.Solidity
 
             // Add helper functions for the queue
             WriteInboxEnqDeq(context, output);
+            WriteIsInboxEmpty(context, output);
 
             // Add the scheduler
             WriteScheduler(context, output, machine);
 
+
             // Write the default fallback function
             WriteFallbackFunction(context, output);
-    
+            #endregion
         }
-        #endregion
+
 
         #region internal data structures
 
@@ -291,9 +293,33 @@ namespace Plang.Compiler.Backend.Solidity
             // TODO: fix the type of the inbox
             context.WriteLine(output, $"function dequeue () private returns (" + EventTypeName + " memory ev)");
             context.WriteLine(output, "{");
+            context.WriteLine(output, "if(first <= last)");
+            context.WriteLine(output, "{");
             context.WriteLine(output, $"ev = inbox[first];");
             context.WriteLine(output, $"delete inbox[first];");
             context.WriteLine(output, $"first += 1;");
+            context.WriteLine(output, "}");
+            context.WriteLine(output, "else");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "revert(\"Attempting to dequeue from an empty queue\");");
+            context.WriteLine(output, "}");
+
+            context.WriteLine(output, "}");
+        }
+
+        private void WriteIsInboxEmpty(CompilationContext context, StringWriter output)
+        {
+            context.WriteLine(output, "// Test to check if the inbox is empty");
+            context.WriteLine(output, "function IsInboxEmpty () private returns (bool) ");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "if(first > last)");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "return true;");
+            context.WriteLine(output, "}");
+            context.WriteLine(output, "else");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "return false;");
+            context.WriteLine(output, "}");
             context.WriteLine(output, "}");
         }
 
@@ -384,7 +410,7 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void WriteFallbackFunction(CompilationContext context, StringWriter output)
         {
-            context.WriteLine(output, "function () public ");
+            context.WriteLine(output, "function () external ");
             context.WriteLine(output, "{");
             context.WriteLine(output, "}");
         }
@@ -429,10 +455,20 @@ namespace Plang.Compiler.Backend.Solidity
         {
             context.WriteLine(output, "{");
             context.WriteLine(output, "bool callReturnValue;");     // stores the return value of each call statement
-            context.WriteLine(output, "bytes memory data");         // holds the encoded string for call
+            context.WriteLine(output, "bytes memory data;");         // holds the encoded string for call
             context.WriteLine(output, EventTypeName + " memory ev;");   // holds the struct to pass as argument
 
             foreach (var bodyStatement in function.Body.Statements) WriteStmt(context, output, bodyStatement);
+
+            // Reset IsRunning flag, and process next event from inbox, if there exists one
+            context.WriteLine(output, "");
+            context.WriteLine(output, "// handle next event if any");
+            context.WriteLine(output, "IsRunning = false;");
+            context.WriteLine(output, "if(!IsInboxEmpty())");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "ev = dequeue();");
+            context.WriteLine(output, "scheduler(ev);");
+            context.WriteLine(output, "}");
 
             context.WriteLine(output, "}");
         }
