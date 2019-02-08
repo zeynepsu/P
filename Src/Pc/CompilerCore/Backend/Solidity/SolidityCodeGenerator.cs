@@ -310,7 +310,7 @@ namespace Plang.Compiler.Backend.Solidity
         private void WriteIsInboxEmpty(CompilationContext context, StringWriter output)
         {
             context.WriteLine(output, "// Test to check if the inbox is empty");
-            context.WriteLine(output, "function IsInboxEmpty () private returns (bool) ");
+            context.WriteLine(output, "function IsInboxEmpty () view private returns (bool) ");
             context.WriteLine(output, "{");
             context.WriteLine(output, "if(first > last)");
             context.WriteLine(output, "{");
