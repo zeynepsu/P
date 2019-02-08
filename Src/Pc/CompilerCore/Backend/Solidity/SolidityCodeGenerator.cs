@@ -208,14 +208,14 @@ namespace Plang.Compiler.Backend.Solidity
                 WriteFunction(context, output, method);
             }
 
-            // Add basic fallback function
-            AddTransferFunction(context, output);
-
             // Add helper functions for the queue
-            AddInboxEnqDeq(context, output);
+            WriteInboxEnqDeq(context, output);
 
             // Add the scheduler
             WriteScheduler(context, output, machine);
+
+            // Write the default fallback function
+            WriteFallbackFunction(context, output);
     
         }
         #endregion
@@ -275,7 +275,7 @@ namespace Plang.Compiler.Backend.Solidity
         #endregion
 
         #region queue helper functions
-        private void AddInboxEnqDeq(CompilationContext context, StringWriter output)
+        private void WriteInboxEnqDeq(CompilationContext context, StringWriter output)
         {
             // Enqueue to inbox
             context.WriteLine(output, $"// Enqueue in the inbox");
@@ -382,6 +382,13 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, "}");
         }
 
+        private void WriteFallbackFunction(CompilationContext context, StringWriter output)
+        {
+            context.WriteLine(output, "function () public ");
+            context.WriteLine(output, "{");
+            context.WriteLine(output, "}");
+        }
+
         #endregion
 
         
@@ -422,7 +429,8 @@ namespace Plang.Compiler.Backend.Solidity
         {
             context.WriteLine(output, "{");
             context.WriteLine(output, "bool callReturnValue;");     // stores the return value of each call statement
-            context.WriteLine(output, EventTypeName + " memory ev;");
+            context.WriteLine(output, "bytes memory data");         // holds the encoded string for call
+            context.WriteLine(output, EventTypeName + " memory ev;");   // holds the struct to pass as argument
 
             foreach (var bodyStatement in function.Body.Statements) WriteStmt(context, output, bodyStatement);
 
@@ -559,6 +567,26 @@ namespace Plang.Compiler.Backend.Solidity
                     context.WriteLine(output, "");
                     argIndex++;
                 }
+
+                string callEncodedString = "\"scheduler((";
+                callEncodedString += "int256,";
+                foreach (var typeId in IdVarsMap.Keys)
+                {
+                    Dictionary<string, string> varsForId = IdVarsMap[typeId];
+
+                    if (varsForId.Count > 0)
+                    {
+                        foreach (string var in varsForId.Keys)
+                        {
+                            callEncodedString += varsForId[var] + ",";
+                        }
+                    }
+                }
+                callEncodedString = callEncodedString.Remove(callEncodedString.Length - 1);
+                callEncodedString += "))\"";
+
+                context.WriteLine(output, "data = abi.encodeWithSignature(" + callEncodedString + " , ev);");
+
             }
 
             // Write the call statement
@@ -579,34 +607,8 @@ namespace Plang.Compiler.Backend.Solidity
             else
             {
                 context.Write(output, "(");
-                context.Write(output, "abi.encodeWithSelector");
-                context.Write(output, "(");
-                context.Write(output, "bytes4");
-                context.Write(output, "(");
-                context.Write(output, "keccak256");
-                context.Write(output, "(");
-                context.Write(output, "\"scheduler(( ");
-                string parameterList = "";
-                parameterList += "int256,";
-                foreach (var typeId in IdVarsMap.Keys)
-                {
-                    Dictionary<string, string> varsForId = IdVarsMap[typeId];
-
-                    if (varsForId.Count > 0)
-                    {
-                        foreach (string var in varsForId.Keys)
-                        {
-                            parameterList += varsForId[var] + ",";
-                        }
-                    }
-                }
-                parameterList = parameterList.Remove(parameterList.Length-1);
-                context.Write(output, parameterList + "))\"");
-                context.Write(output, ")"); // close keccak256 bracket
-                context.Write(output, ")"); // close bytes4 bracket
-                context.Write(output, ", ev"); // add the event
-                context.Write(output, ")"); // close abi.encode bracket
-                context.Write(output, ");"); // close call bracket
+        
+                context.Write(output, " data );");
                 context.WriteLine(output, "");
             }
 
@@ -914,18 +916,6 @@ namespace Plang.Compiler.Backend.Solidity
         private string GetQualifiedStateName(State state)
         {
             return state.QualifiedName.Replace(".", "_");
-        }
-
-        /// <summary>
-        /// Adds the default handler for the eTransfer event, which accepts ether.
-        /// </summary>
-        /// <param name="context"></param>
-        /// <param name="output"></param>
-        private void AddTransferFunction(CompilationContext context, StringWriter output)
-        {
-            context.WriteLine(output, $"function Transfer () public payable");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, "}");
         }
 
         /// <summary>
