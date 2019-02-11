@@ -197,7 +197,7 @@ namespace Plang.Compiler.Backend.Solidity
             }
 
             // Add the queue data structure
-            AddInternalDataStructures(context, output, machine);
+            WriteInternalDataStructures(context, output, machine);
 
             #endregion
 
@@ -230,13 +230,14 @@ namespace Plang.Compiler.Backend.Solidity
         /// <param name="context"></param>
         /// <param name="output"></param>
         /// <param name="machine"></param>
-        private void AddInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
+        private void WriteInternalDataStructures(CompilationContext context, StringWriter output, Machine machine)
         {
             context.WriteLine(output, $"// Adding inbox for the contract");
             context.WriteLine(output, $"mapping (uint => " + EventTypeName + ") private inbox;");
             context.WriteLine(output, $"uint private first = 1;");
             context.WriteLine(output, $"uint private last = 0;");
             context.WriteLine(output, $"bool private IsRunning = false;");
+            context.WriteLine(output, $"event Printer(string s);");
 
             // Add all the states as an enumerated data type
             EnumerateStates(context, output, machine);
@@ -538,14 +539,7 @@ namespace Plang.Compiler.Backend.Solidity
                 case PopStmt popStmt:
                     break;
                 case PrintStmt printStmt:
-                    context.Write(output, $"runtime.WriteLine(\"{printStmt.Message}\"");
-                    foreach (IPExpr printArg in printStmt.Args)
-                    {
-                        context.Write(output, ", ");
-                        WriteExpr(context, output, printArg);
-                    }
-
-                    context.WriteLine(output, ");");
+                    context.WriteLine(output, "emit Printer(\"" + printStmt.Message + "\");");
                     break;
                 case RaiseStmt raiseStmt:
                     break;
