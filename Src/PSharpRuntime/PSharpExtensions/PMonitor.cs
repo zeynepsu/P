@@ -7,7 +7,7 @@ namespace Plang.PrtSharp
 {
     public class PMonitor : Monitor
     {
-        public static List<string> observes;
+        public static List<string> observes = new List<string>();
 
         public object gotoPayload;
 
@@ -20,9 +20,8 @@ namespace Plang.PrtSharp
             throw new PNonStandardReturnException {ReturnKind = NonStandardReturn.Raise};
         }
 
-        public void GotoState<T>(object payload) where T : MonitorState
+        public void GotoState<T>(object payload = null) where T : MonitorState
         {
-            //todo: goto parameter has to be initialized correctly
             gotoPayload = payload;
             Goto<T>();
             throw new PNonStandardReturnException {ReturnKind = NonStandardReturn.Goto};
