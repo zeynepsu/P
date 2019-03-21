@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using Plang.Compiler.Backend.Prt;
 using Plang.Compiler.Backend.PSharp;
+using Plang.Compiler.Backend.Solidity;
 
 namespace Plang.Compiler.Backend
 {
@@ -11,6 +12,7 @@ namespace Plang.Compiler.Backend
 
         static TargetLanguage()
         {
+            RegisterCodeGenerator(CompilerOutput.Solidity, new SolidityCodeGenerator());
             RegisterCodeGenerator(CompilerOutput.PSharp, new PSharpCodeGenerator());
             RegisterCodeGenerator(CompilerOutput.C, new PrtCodeGenerator());
         }

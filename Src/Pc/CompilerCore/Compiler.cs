@@ -24,7 +24,10 @@ namespace Plang.Compiler
             var scope = Analyzer.AnalyzeCompilationUnit(job.Handler, trees);
 
             // Convert functions to lowered SSA form with explicit cloning
-            foreach (var fun in scope.GetAllMethods()) IRTransformer.SimplifyMethod(fun);
+            if (!(job.Backend is Plang.Compiler.Backend.Solidity.SolidityCodeGenerator))
+            {
+                foreach (var fun in scope.GetAllMethods()) IRTransformer.SimplifyMethod(fun);
+            }
 
             // Run the selected backend on the project and write the files.
             var compiledFiles = job.Backend.GenerateCode(job, scope);
