@@ -411,7 +411,7 @@ namespace Plang.Compiler.Backend.Solidity
 
         private void WriteFallbackFunction(CompilationContext context, StringWriter output)
         {
-            context.WriteLine(output, "function () external ");
+            context.WriteLine(output, "function () external payable ");
             context.WriteLine(output, "{");
             context.WriteLine(output, "}");
         }
@@ -577,75 +577,87 @@ namespace Plang.Compiler.Backend.Solidity
         /// <param name="sendStmt"></param>
         private void WriteSendStmt(CompilationContext context, StringWriter output, SendStmt sendStmt)
         {
-            EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
-            string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
-            // store the arguments
-            IReadOnlyList<IPExpr> argsList = sendStmt.Arguments;
-
-            // Setup the event to be dispatched
-            if (!eventName.Contains("payable_eTransfer"))
+            try
             {
-                int tid = TypeIdMap[eventName];
-                context.WriteLine(output, "ev.TypeId = " + tid + ";");
+                EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
+                string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
+                // store the arguments
+                IReadOnlyList<IPExpr> argsList = sendStmt.Arguments;
 
-                int argIndex = 0;
-                foreach (var varName in IdVarsMap[tid])
+                // Setup the event to be dispatched
+                if (!eventName.Contains("payable_eTransfer"))
                 {
-                    context.Write(output, "ev." + varName.Key + " = ");
-                    WriteExpr(context, output, argsList[argIndex]);
-                    context.Write(output, ";");
-                    context.WriteLine(output, "");
-                    argIndex++;
-                }
+                    int tid = TypeIdMap[eventName];
+                    context.WriteLine(output, "ev.TypeId = " + tid + ";");
 
-                string callEncodedString = "\"scheduler((";
-                callEncodedString += "int256,";
-                foreach (var typeId in IdVarsMap.Keys)
-                {
-                    Dictionary<string, string> varsForId = IdVarsMap[typeId];
-
-                    if (varsForId.Count > 0)
+                    int argIndex = 0;
+                    foreach (var varName in IdVarsMap[tid])
                     {
-                        foreach (string var in varsForId.Keys)
+                        context.Write(output, "ev." + varName.Key + " = ");
+                        WriteExpr(context, output, argsList[argIndex]);
+                        context.Write(output, ";");
+                        context.WriteLine(output, "");
+                        argIndex++;
+                    }
+
+                    string callEncodedString = "\"scheduler((";
+                    callEncodedString += "int256,";
+                    foreach (var typeId in IdVarsMap.Keys)
+                    {
+                        Dictionary<string, string> varsForId = IdVarsMap[typeId];
+
+                        if (varsForId.Count > 0)
                         {
-                            callEncodedString += varsForId[var] + ",";
+                            foreach (string var in varsForId.Keys)
+                            {
+                                callEncodedString += varsForId[var] + ",";
+                            }
                         }
                     }
+                    callEncodedString = callEncodedString.Remove(callEncodedString.Length - 1);
+                    callEncodedString += "))\"";
+
+                    context.WriteLine(output, "data = abi.encodeWithSignature(" + callEncodedString + " , ev);");
+
                 }
-                callEncodedString = callEncodedString.Remove(callEncodedString.Length - 1);
-                callEncodedString += "))\"";
 
-                context.WriteLine(output, "data = abi.encodeWithSignature(" + callEncodedString + " , ev);");
+                // Write the call statement
+                context.Write(output, "(callReturnValue, ) = ");
+                WriteExpr(context, output, sendStmt.MachineExpr);
+                context.Write(output, ".call");
+                // for a payable event, send the amount of ether
+                if (eventName.Contains("payable_") && !eventName.Contains("payable_eTransfer"))
+                {
+                    VariableAccessExpr vExpr = (argsList[0] as VariableAccessExpr);
+                    context.Write(output, ".value(uint256(" + context.Names.GetNameForDecl(vExpr.Variable) + "))");
+                }
+                if (eventName.Contains("payable_eTransfer"))
+                {
+                    VariableAccessExpr vExpr = (argsList[0] as VariableAccessExpr);
+                    context.Write(output, ".value(uint256(" + context.Names.GetNameForDecl(vExpr.Variable) + "))(\"\");");
+                }
 
+                // add the data payload (only if event is not a eTransfer
+                if(!eventName.Contains("payable_eTransfer"))
+                {
+                    context.Write(output, "(");
+
+                    context.Write(output, " data );");
+                    context.WriteLine(output, "");
+                }
+
+                context.WriteLine(output, "if ( callReturnValue == false )");
+                context.WriteLine(output, "{");
+                context.WriteLine(output, "revert(\"Call failed. Reverting transaction\");");
+                context.WriteLine(output, "}");
             }
-
-            // Write the call statement
-            context.Write(output, "(callReturnValue, ) = ");
-            WriteExpr(context, output, sendStmt.MachineExpr);
-            context.Write(output, ".call");
-            // for a payable event, send the amount of ether
-            if (eventName.Contains("payable_"))
+            catch (Exception e)
             {
-                VariableAccessExpr vExpr = (argsList[1] as VariableAccessExpr);
-                context.Write(output, ".value(uint256(" + context.Names.GetNameForDecl(vExpr.Variable) + "))");
-            }
 
-            if (eventName.Contains("payable_eTransfer"))
-            {
-                context.Write(output, "();");
+                EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
+                string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
+                Console.WriteLine("<ExceptionLog> Processing event: " + eventName);
             }
-            else
-            {
-                context.Write(output, "(");
-
-                context.Write(output, " data );");
-                context.WriteLine(output, "");
-            }
-
-            context.WriteLine(output, "if ( callReturnValue == false )");
-            context.WriteLine(output, "{");
-            context.WriteLine(output, "revert(\"Call failed. Reverting transaction\");");
-            context.WriteLine(output, "}");
         }
 
         private void WriteLValue(CompilationContext context, StringWriter output, IPExpr lvalue)
