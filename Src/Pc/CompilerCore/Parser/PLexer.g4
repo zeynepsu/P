@@ -48,6 +48,7 @@ PUSH      : 'push' ;
 RAISE     : 'raise' ;
 RECEIVE   : 'receive' ;
 RETURN    : 'return' ;
+REVERT	  : 'revert' ;
 SEND      : 'send' ;
 SIZEOF    : 'sizeof' ;
 SPEC      : 'spec' ;

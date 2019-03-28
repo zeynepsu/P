@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CommandLine": {
+      "commandName": "Project",
+      "commandLineArgs": ".\\SmartContracts\\PContracts\\pingpong\\PingMachine.p .\\SmartContracts\\PContracts\\pingpong\\PongMachine.p .\\SmartContracts\\PContracts\\pingpong\\Events.p -outputDir:.\\SmartContracts\\PContracts\\pingpong\\out\\ -generate:Solidity"
+    }
+  }
+}

@@ -62,6 +62,7 @@ namespace Plang.Compiler.TypeChecker
         private ISet<Variable> ProcessStatement(ISet<Variable> unavailable, IPStmt statement)
         {
             Contract.Requires(statement != null);
+       
             switch (statement)
             {
                 case CompoundStmt compoundStmt:
@@ -184,13 +185,16 @@ namespace Plang.Compiler.TypeChecker
                     unavailable = postUnavailable;
                     unavailable.ExceptWith(caseVariables);
                     break;
+                case RevertStmt revertStmt:
+                    unavailable = ProcessArgList(revertStmt.Args, unavailable, ArgOptions.SwapNotAllowed);
+                    break;
                 case PopStmt _:
                 case NoStmt _:
                     // nothing to check
                     break;
                 default:
                     throw handler.InternalError(statement.SourceLocation,
-                        new ArgumentOutOfRangeException(nameof(statement)));
+                    new ArgumentOutOfRangeException(nameof(statement)));
             }
 
             return unavailable;

@@ -91,6 +91,23 @@ namespace Plang.Compiler.TypeChecker
             return new ReturnStmt(context, returnValue);
         }
 
+        public override IPStmt VisitRevertStmt(PParser.RevertStmtContext context)
+        {
+            var message = context.StringLiteral().GetText();
+            message = message.Substring(1, message.Length - 2); // strip beginning / end double quote
+            var numNecessaryArgs = TypeCheckingUtils.PrintStmtNumArgs(message);
+            if (numNecessaryArgs == -1) throw handler.InvalidRevertFormat(context, context.StringLiteral().Symbol);
+
+            var args = TypeCheckingUtils.VisitRvalueList(context.rvalueList(), exprVisitor).ToList();
+            foreach (var arg in args)
+                if (arg is LinearAccessRefExpr)
+                    throw handler.PrintStmtLinearArgument(arg.SourceLocation);
+            if (args.Count != numNecessaryArgs)
+                throw handler.IncorrectArgumentCount(context, args.Count, numNecessaryArgs);
+
+            return new RevertStmt(context, message, args);
+        }
+
         public override IPStmt VisitAssignStmt(PParser.AssignStmtContext context)
         {
             var variable = exprVisitor.Visit(context.lvalue());

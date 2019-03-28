@@ -366,6 +366,17 @@ namespace Plang.Compiler.Backend
                             new ReturnStmt(location, new CloneExpr(returnValue))
                         })
                         .ToList();
+                case RevertStmt revertStmt:
+                    var revertDeps = new List<IPStmt>();
+                    var revertNewArgs = new List<IPExpr>();
+                    foreach (var revertStmtArg in revertStmt.Args)
+                    {
+                        var (arg, argDeps) = SimplifyExpression(revertStmtArg);
+                        revertNewArgs.Add(arg);
+                        revertDeps.AddRange(argDeps);
+                    }
+
+                    return revertDeps.Concat(new[] { new RevertStmt(location, revertStmt.Message, revertNewArgs) }).ToList();
                 case SendStmt sendStmt:
                     var (sendMachine, sendMachineDeps) = SimplifyExpression(sendStmt.MachineExpr);
                     var (sendMachineAccessExpr, sendMachineAssn) = SaveInTemporary(new CloneExpr(sendMachine));

@@ -44,6 +44,7 @@ namespace Plang.Compiler
         Exception MovedField(MoveAssignStmt moveAssignStmt);
         Exception SwapAssignUnavailable(SwapAssignStmt swapAssignStmt, Variable variable);
         Exception InvalidPrintFormat(PParser.PrintStmtContext context, IToken symbol);
+        Exception InvalidRevertFormat(PParser.RevertStmtContext context, IToken symbol);
 
         // module system related
         Exception InvalidBindExpr(ParserRuleContext location, string message);

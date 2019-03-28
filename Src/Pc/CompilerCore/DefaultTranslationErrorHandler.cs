@@ -204,6 +204,13 @@ namespace Plang.Compiler
                 "Print format placeholders must contain only digits. Escape braces by doubling them.");
         }
 
+        public Exception InvalidRevertFormat(PParser.RevertStmtContext context, IToken symbol)
+        {
+            return IssueError(context,
+                symbol,
+                "Revert format placeholders must contain only digits. Escape braces by doubling them.");
+        }
+
         public Exception InvalidBindExpr(ParserRuleContext location, string message)
         {
             return IssueError(location, $"invalid bind operation. {message}");
@@ -275,7 +282,7 @@ namespace Plang.Compiler
         public Exception IllegalMonitorOperation(ParserRuleContext location, IToken operation, Machine monitor)
         {
             return IssueError(location, operation,
-                $"{monitor.Name}: $, $$, this, new, send, announce, receive, and pop are not allowed in monitors");
+                $"{monitor.Name}: $, $$, this, new, send, announce, receive, revert and pop are not allowed in monitors");
         }
 
         public Exception DeferredEventInMonitor(ParserRuleContext location, Machine monitor)

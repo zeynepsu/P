@@ -552,6 +552,9 @@ namespace Plang.Compiler.Backend.Solidity
                     WriteExpr(context, output, returnStmt.ReturnValue);
                     context.WriteLine(output, ";");
                     break;
+                case RevertStmt revertStmt:
+                    context.WriteLine(output, "revert(\"" + revertStmt.Message + "\");");
+                    break;
                 case SendStmt sendStmt:
                     WriteSendStmt(context, output, sendStmt);
                     break;
