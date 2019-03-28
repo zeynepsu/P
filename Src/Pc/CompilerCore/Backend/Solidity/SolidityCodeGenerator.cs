@@ -676,7 +676,10 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, "]");
                     break;
                 case NamedTupleAccessExpr namedTupleAccessExpr:
-                    throw new NotImplementedException();
+                    context.Write(output, "struct {");
+                    WriteExpr(context, output, namedTupleAccessExpr.SubExpr);
+                    context.Write(output, $")[\"{namedTupleAccessExpr.FieldName}\"]");
+                    break;
                 case SeqAccessExpr seqAccessExpr:
                     context.Write(output, "(");
                     WriteLValue(context, output, seqAccessExpr.SeqExpr);
