@@ -193,7 +193,16 @@ namespace Plang.Compiler.Backend.Solidity
             #region variables and data structures
             foreach (Variable field in machine.Fields)
             {
-                context.WriteLine(output, $"{GetSolidityType(context, field.Type)} private {context.Names.GetNameForDecl(field)};");
+                if (field.Type.Canonicalize() is NamedTupleType)
+                {
+                    // structs are defined differently compared to other types
+                    context.WriteLine(output, $"{GetSolidityType(context, field)}");
+                    context.WriteLine(output, "struct_" + field.Name + " private " + field.Name + ";");
+                }
+                else
+                {
+                    context.WriteLine(output, $"{GetSolidityType(context, field.Type)} private {context.Names.GetNameForDecl(field)};");
+                }
             }
 
             // Add the queue data structure
@@ -418,9 +427,6 @@ namespace Plang.Compiler.Backend.Solidity
 
         #endregion
 
-
-
-
         #region WriteFunction
 
         /// <summary>
@@ -455,9 +461,23 @@ namespace Plang.Compiler.Backend.Solidity
         private void WriteFunctionBody(CompilationContext context, StringWriter output, Function function)
         {
             context.WriteLine(output, "{");
-            context.WriteLine(output, "bool callReturnValue;");     // stores the return value of each call statement
+            context.WriteLine(output, "bool memory callReturnValue;");     // stores the return value of each call statement
             context.WriteLine(output, "bytes memory data;");         // holds the encoded string for call
             context.WriteLine(output, EventTypeName + " memory ev;");   // holds the struct to pass as argument
+
+            // add the local variables
+            foreach (var local in function.LocalVariables)
+            {
+                var type = local.Type;
+                if (type.Canonicalize() is NamedTupleType)
+                {
+                    throw new Exception("<ExceptioLog, WriteFunctionBody> Declaring a named tuple within a function body not allowed")
+                }
+                else
+                {
+                    context.WriteLine(output, $"{GetSolidityType(context, type)} memory {context.Names.GetNameForDecl(local)};");
+                }
+            }
 
             foreach (var bodyStatement in function.Body.Statements) WriteStmt(context, output, bodyStatement);
 
@@ -659,7 +679,8 @@ namespace Plang.Compiler.Backend.Solidity
 
                 EventRefExpr eventRefExpr = sendStmt.Evt as EventRefExpr;
                 string eventName = context.Names.GetNameForDecl(eventRefExpr.Value);
-                Console.WriteLine("<ExceptionLog> Processing event: " + eventName);
+                Console.WriteLine("<ExceptionLog, WriteSendStmt> Processing event: " + eventName);
+                Console.WriteLine("<ExceptionLog, WriteSendStmt> Encountered exception: " + e);
             }
         }
 
@@ -917,6 +938,26 @@ namespace Plang.Compiler.Backend.Solidity
 
         #region misc helper functions
 
+        private string GetSolidityType(CompilationContext context, Variable field)
+        {
+            if (field.Type.Canonicalize() is NamedTupleType)
+            {
+                NamedTupleType namedTupleType = (NamedTupleType)field.Type;
+                string struct_def = "struct struct_" + field.Name;
+                struct_def += " { ";
+                foreach (var f in namedTupleType.Fields)
+                {
+                    struct_def += GetSolidityType(context, f.Type) + " " + f.Name + "; ";
+                }
+                struct_def += " } ";
+                return struct_def;
+            }
+            else
+            {
+                return GetSolidityType(context, field.Type);
+            }
+        }
+
         private string GetSolidityType(CompilationContext context, PLanguageType returnType)
         {
             switch (returnType.Canonicalize())
@@ -927,9 +968,6 @@ namespace Plang.Compiler.Backend.Solidity
                     throw new NotImplementedException();
                 case MapType mapType:
                     return $"mapping ({GetSolidityType(context, mapType.KeyType)} => {GetSolidityType(context, mapType.ValueType)})";
-                case NamedTupleType namedTupleType:
-                    // throw new NotImplementedException();
-                    return namedTupleType.CanonicalRepresentation;
                 case PermissionType _:
                     return "Machine";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Any):
