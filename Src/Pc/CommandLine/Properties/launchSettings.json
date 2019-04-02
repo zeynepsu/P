@@ -2,7 +2,7 @@
   "profiles": {
     "CommandLine": {
       "commandName": "Project",
-      "commandLineArgs": ".\\SmartContracts\\PContracts\\pingpong\\PingMachine.p .\\SmartContracts\\PContracts\\pingpong\\PongMachine.p .\\SmartContracts\\PContracts\\pingpong\\Events.p -outputDir:.\\SmartContracts\\PContracts\\pingpong\\out\\ -generate:Solidity"
+      "commandLineArgs": ".\\SmartContracts\\CelestialContracts\\celestial-dev-contracts\\TestMachine.p .\\SmartContracts\\CelestialContracts\\celestial-dev-contracts\\Events.p -outputDir:.\\SmartContracts\\CelestialContracts\\celestial-dev-contracts\\out\\ -generate:Solidity"
     }
   }
 }

@@ -251,7 +251,7 @@ namespace Plang.Compiler.TypeChecker
             return null;
         }
 
-        public override object VisitSeqAccessExpr(PParser.SeqAccessExprContext context)
+        public override object VisitArrayAccessExpr(PParser.ArrayAccessExprContext context)
         {
             return null;
         }
@@ -394,7 +394,7 @@ namespace Plang.Compiler.TypeChecker
 
         #region Tree clipping types
 
-        public override object VisitSeqType(PParser.SeqTypeContext context)
+        public override object VisitArrayType(PParser.ArrayTypeContext context)
         {
             return null;
         }

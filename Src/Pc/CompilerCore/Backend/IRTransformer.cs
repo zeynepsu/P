@@ -61,11 +61,11 @@ namespace Plang.Compiler.Backend
                 case NamedTupleAccessExpr namedTupleAccessExpr:
                     var (ntExpr, ntExprDeps) = SimplifyLvalue(namedTupleAccessExpr.SubExpr);
                     return (new NamedTupleAccessExpr(location, ntExpr, namedTupleAccessExpr.Entry), ntExprDeps);
-                case SeqAccessExpr seqAccessExpr:
-                    var (seqExpr, seqExprDeps) = SimplifyLvalue(seqAccessExpr.SeqExpr);
-                    var (seqIndex, seqIndexDeps) = SimplifyExpression(seqAccessExpr.IndexExpr);
-                    return (new SeqAccessExpr(location, seqExpr, seqIndex, type),
-                        seqExprDeps.Concat(seqIndexDeps).ToList());
+                case ArrayAccessExpr arrayAccessExpr:
+                    var (arrayExpr, arrayExprDeps) = SimplifyLvalue(arrayAccessExpr.ArrayExpr);
+                    var (arrayIndex, arrayIndexDeps) = SimplifyExpression(arrayAccessExpr.IndexExpr);
+                    return (new ArrayAccessExpr(location, arrayExpr, arrayIndex, type),
+                        arrayExprDeps.Concat(arrayIndexDeps).ToList());
                 case TupleAccessExpr tupleAccessExpr:
                     var (tupExpr, tupExprDeps) = SimplifyLvalue(tupleAccessExpr.SubExpr);
                     return (new TupleAccessExpr(location, tupExpr, tupleAccessExpr.FieldNo, type), tupExprDeps);
@@ -166,14 +166,14 @@ namespace Plang.Compiler.Backend
                     var (ndTemp, ndStore) = SaveInTemporary(nondetExpr);
                     deps.Add(ndStore);
                     return (ndTemp, deps);
-                case SeqAccessExpr seqAccessExpr:
-                    var (seqExpr, seqDeps) = SimplifyExpression(seqAccessExpr.SeqExpr);
-                    var (seqIdx, seqIdxDeps) = SimplifyExpression(seqAccessExpr.IndexExpr);
-                    var (seqElem, seqElemStore) =
-                        SaveInTemporary(new SeqAccessExpr(location, seqExpr, seqIdx, seqAccessExpr.Type));
-                    deps.AddRange(seqDeps.Concat(seqIdxDeps));
-                    deps.Add(seqElemStore);
-                    return (seqElem, deps);
+                case ArrayAccessExpr arrayAccessExpr:
+                    var (arrayExpr, arrayDeps) = SimplifyExpression(arrayAccessExpr.ArrayExpr);
+                    var (arrayIdx, arrayIdxDeps) = SimplifyExpression(arrayAccessExpr.IndexExpr);
+                    var (arrayElem, arrayElemStore) =
+                        SaveInTemporary(new ArrayAccessExpr(location, arrayExpr, arrayIdx, arrayAccessExpr.Type));
+                    deps.AddRange(arrayDeps.Concat(arrayIdxDeps));
+                    deps.Add(arrayElemStore);
+                    return (arrayElem, deps);
                 case SizeofExpr sizeofExpr:
                     var (sizeExpr, sizeDeps) = SimplifyExpression(sizeofExpr.Expr);
                     var (sizeTemp, sizeStore) = SaveInTemporary(new SizeofExpr(location, sizeExpr));
@@ -232,6 +232,9 @@ namespace Plang.Compiler.Backend
                             new AnnounceStmt(location, annEvt, annPayload)
                         })
                         .ToList();
+                case AppendStmt appendStmt:
+                    var (valueExpr, valueDeps) = SimplifyExpression(appendStmt.Value);
+                    return valueDeps.Concat(new[] { new AppendStmt(location, appendStmt.Array, valueExpr) } ).ToList();
                 case AssertStmt assertStmt:
                     var (assertExpr, assertDeps) = SimplifyExpression(assertStmt.Assertion);
                     return assertDeps.Concat(new[]

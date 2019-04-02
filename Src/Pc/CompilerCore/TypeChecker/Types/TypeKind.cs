@@ -4,6 +4,7 @@ namespace Plang.Compiler.TypeChecker.Types
     {
         public static readonly TypeKind Base = new TypeKind("base");
         public static readonly TypeKind Sequence = new TypeKind("sequence");
+        public static readonly TypeKind Array = new TypeKind("array");
         public static readonly TypeKind Map = new TypeKind("map");
         public static readonly TypeKind Tuple = new TypeKind("tuple");
         public static readonly TypeKind NamedTuple = new TypeKind("namedtuple");

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Antlr4.Runtime;
+using Antlr4.Runtime.Misc;
 using Plang.Compiler.TypeChecker.AST;
 using Plang.Compiler.TypeChecker.AST.Declarations;
 using Plang.Compiler.TypeChecker.AST.Expressions;
@@ -62,6 +63,16 @@ namespace Plang.Compiler.TypeChecker
             var message = context.StringLiteral()?.GetText() ?? "";
             if (message.StartsWith("\"")) message = message.Substring(1, message.Length - 2);
             return new AssertStmt(context, assertion, message);
+        }
+
+        public override IPStmt VisitAppendStmt([NotNull] PParser.AppendStmtContext context)
+        {
+            var arrayExpr = exprVisitor.Visit(context.rvalue(0));
+            var valueExpr = exprVisitor.Visit(context.expr(0));
+            if (!arrayExpr.Type.TypeKind.Equals(TypeKind.Array))
+                throw handler.TypeMismatch(context.expr(0), arrayExpr.Type);
+
+            return new AppendStmt(context, arrayExpr, valueExpr);
         }
 
         public override IPStmt VisitPrintStmt(PParser.PrintStmtContext context)
@@ -170,12 +181,16 @@ namespace Plang.Compiler.TypeChecker
                     expectedKeyType = PrimitiveType.Int;
                     expectedValueType = sequenceType.ElementType;
                     break;
+                case ArrayType arrayType:
+                    expectedKeyType = PrimitiveType.Int;
+                    expectedValueType = arrayType.ElementType;
+                    break;
                 case MapType mapType:
                     expectedKeyType = mapType.KeyType;
                     expectedValueType = mapType.ValueType;
                     break;
                 default:
-                    throw handler.TypeMismatch(variable, TypeKind.Sequence, TypeKind.Map);
+                    throw handler.TypeMismatch(variable, TypeKind.Sequence, TypeKind.Array, TypeKind.Map);
             }
 
             if (!expectedKeyType.IsAssignableFrom(keyType))

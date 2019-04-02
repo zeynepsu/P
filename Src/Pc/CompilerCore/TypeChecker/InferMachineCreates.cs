@@ -29,6 +29,8 @@ namespace Plang.Compiler.TypeChecker
                 case AnnounceStmt announce:
                     return InferCreatesForExpr(announce.PEvent, handler)
                         .Union(InferCreatesForExpr(announce.Payload, handler));
+                case AppendStmt _:
+                    return Enumerable.Empty<Interface>();
                 case AssertStmt assertStmt:
                     return InferCreatesForExpr(assertStmt.Assertion, handler);
                 case AssignStmt assignStmt:
@@ -117,9 +119,9 @@ namespace Plang.Compiler.TypeChecker
                     return InferCreatesForExpr(namedTupleAccessExpr.SubExpr, handler);
                 case NamedTupleExpr namedTupleExpr:
                     return namedTupleExpr.TupleFields.SelectMany(expr1 => InferCreatesForExpr(expr1, handler));
-                case SeqAccessExpr seqAccessExpr:
-                    return InferCreatesForExpr(seqAccessExpr.SeqExpr, handler)
-                        .Union(InferCreatesForExpr(seqAccessExpr.IndexExpr, handler));
+                case ArrayAccessExpr arrayAccessExpr:
+                    return InferCreatesForExpr(arrayAccessExpr.ArrayExpr, handler)
+                        .Union(InferCreatesForExpr(arrayAccessExpr.IndexExpr, handler));
                 case SizeofExpr sizeofExpr:
                     return InferCreatesForExpr(sizeofExpr.Expr, handler);
                 case TupleAccessExpr tupleAccessExpr:

@@ -68,6 +68,10 @@ namespace Plang.Compiler.TypeChecker
                 case CompoundStmt compoundStmt:
                     unavailable = compoundStmt.Statements.Aggregate(unavailable, ProcessStatement);
                     break;
+                case AppendStmt appendStmt:
+                    unavailable.Add(appendStmt.Array);
+                    unavailable = ProcessExpr(unavailable, appendStmt.Value);
+                    break;
                 case AssertStmt assertStmt:
                     unavailable = ProcessExpr(unavailable, assertStmt.Assertion);
                     break;
@@ -275,9 +279,9 @@ namespace Plang.Compiler.TypeChecker
                 case NamedTupleExpr namedTupleExpr:
                     unavailable = ProcessArgList(namedTupleExpr.TupleFields, unavailable, ArgOptions.SwapNotAllowed);
                     break;
-                case SeqAccessExpr seqAccessExpr:
-                    unavailable = ProcessExpr(unavailable, seqAccessExpr.SeqExpr);
-                    unavailable = ProcessExpr(unavailable, seqAccessExpr.IndexExpr);
+                case ArrayAccessExpr arrayAccessExpr:
+                    unavailable = ProcessExpr(unavailable, arrayAccessExpr.ArrayExpr);
+                    unavailable = ProcessExpr(unavailable, arrayAccessExpr.IndexExpr);
                     break;
                 case SizeofExpr sizeofExpr:
                     unavailable = ProcessExpr(unavailable, sizeofExpr.Expr);

@@ -63,23 +63,23 @@ namespace Plang.Compiler.TypeChecker
             return new TupleAccessExpr(context, subExpr, fieldNo, tuple.Types[fieldNo]);
         }
 
-        public override IPExpr VisitSeqAccessExpr(PParser.SeqAccessExprContext context)
+        public override IPExpr VisitArrayAccessExpr(PParser.ArrayAccessExprContext context)
         {
-            var seqOrMap = Visit(context.seq);
+            var arrayOrMap = Visit(context.array);
             var indexExpr = Visit(context.index);
-            switch (seqOrMap.Type.Canonicalize())
+            switch (arrayOrMap.Type.Canonicalize())
             {
-                case SequenceType seqType:
+                case ArrayType arrayType:
                     if (!PrimitiveType.Int.IsAssignableFrom(indexExpr.Type))
                         throw handler.TypeMismatch(context.index, indexExpr.Type, PrimitiveType.Int);
-                    return new SeqAccessExpr(context, seqOrMap, indexExpr, seqType.ElementType);
+                    return new ArrayAccessExpr(context, arrayOrMap, indexExpr, arrayType.ElementType);
                 case MapType mapType:
                     if (!mapType.KeyType.IsAssignableFrom(indexExpr.Type))
                         throw handler.TypeMismatch(context.index, indexExpr.Type, mapType.KeyType);
-                    return new MapAccessExpr(context, seqOrMap, indexExpr, mapType.ValueType);
+                    return new MapAccessExpr(context, arrayOrMap, indexExpr, mapType.ValueType);
             }
 
-            throw handler.TypeMismatch(seqOrMap, TypeKind.Sequence, TypeKind.Map);
+            throw handler.TypeMismatch(arrayOrMap, TypeKind.Array, TypeKind.Map);
         }
 
         public override IPExpr VisitKeywordExpr(PParser.KeywordExprContext context)
@@ -101,8 +101,8 @@ namespace Plang.Compiler.TypeChecker
                 case "sizeof":
                 {
                     var expr = Visit(context.expr());
-                    if (!(expr.Type.Canonicalize() is SequenceType) && !(expr.Type.Canonicalize() is MapType))
-                        throw handler.TypeMismatch(expr, TypeKind.Map, TypeKind.Sequence);
+                    if (!(expr.Type.Canonicalize() is SequenceType) && !(expr.Type.Canonicalize() is MapType) && !(expr.Type.Canonicalize() is ArrayType))
+                        throw handler.TypeMismatch(expr, TypeKind.Map, TypeKind.Sequence, TypeKind.Array);
                     return new SizeofExpr(context, expr);
                 }
                 case "default":
@@ -446,7 +446,7 @@ namespace Plang.Compiler.TypeChecker
             return new TupleAccessExpr(context, lvalue, field, type.Types[field]);
         }
 
-        public override IPExpr VisitMapOrSeqLvalue(PParser.MapOrSeqLvalueContext context)
+        public override IPExpr VisitMapOrArrayLvalue(PParser.MapOrArrayLvalueContext context)
         {
             var lvalue = Visit(context.lvalue());
             var index = Visit(context.expr());
@@ -457,10 +457,10 @@ namespace Plang.Compiler.TypeChecker
                     if (!mapType.KeyType.IsAssignableFrom(indexType))
                         throw handler.TypeMismatch(context.expr(), indexType, mapType.KeyType);
                     return new MapAccessExpr(context, lvalue, index, mapType.ValueType);
-                case SequenceType seqType:
+                case ArrayType arrayType:
                     if (!PrimitiveType.Int.IsAssignableFrom(indexType))
                         throw handler.TypeMismatch(context.expr(), indexType, PrimitiveType.Int);
-                    return new SeqAccessExpr(context, lvalue, index, seqType.ElementType);
+                    return new ArrayAccessExpr(context, lvalue, index, arrayType.ElementType);
                 default:
                     throw handler.TypeMismatch(lvalue, TypeKind.Sequence, TypeKind.Map);
             }

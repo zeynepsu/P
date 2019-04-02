@@ -201,6 +201,7 @@ namespace Plang.Compiler.Backend.Solidity
                 }
                 else
                 {
+                    Console.WriteLine("<WriteMachine> Processing: " + context.Names.GetNameForDecl(field));
                     context.WriteLine(output, $"{GetSolidityType(context, field.Type)} private {context.Names.GetNameForDecl(field)};");
                 }
             }
@@ -461,7 +462,7 @@ namespace Plang.Compiler.Backend.Solidity
         private void WriteFunctionBody(CompilationContext context, StringWriter output, Function function)
         {
             context.WriteLine(output, "{");
-            context.WriteLine(output, "bool memory callReturnValue;");     // stores the return value of each call statement
+            context.WriteLine(output, "bool callReturnValue;");     // stores the return value of each call statement
             context.WriteLine(output, "bytes memory data;");         // holds the encoded string for call
             context.WriteLine(output, EventTypeName + " memory ev;");   // holds the struct to pass as argument
 
@@ -471,11 +472,11 @@ namespace Plang.Compiler.Backend.Solidity
                 var type = local.Type;
                 if (type.Canonicalize() is NamedTupleType)
                 {
-                    throw new Exception("<ExceptioLog, WriteFunctionBody> Declaring a named tuple within a function body not allowed")
+                    throw new Exception("<ExceptioLog, WriteFunctionBody> Declaring a named tuple within a function body not allowed");
                 }
                 else
                 {
-                    context.WriteLine(output, $"{GetSolidityType(context, type)} memory {context.Names.GetNameForDecl(local)};");
+                    context.WriteLine(output, $"{GetSolidityType(context, type)} {context.Names.GetNameForDecl(local)};");
                 }
             }
 
@@ -503,6 +504,13 @@ namespace Plang.Compiler.Backend.Solidity
             switch (stmt)
             {
                 case AnnounceStmt announceStmt:
+                    break;
+                case AppendStmt appendStmt:
+                    context.Write(output, context.Names.GetNameForDecl(appendStmt.Array));
+                    context.Write(output, ".push(");
+                    context.Write(output, appendStmt.Value.ToString());
+                    context.Write(output, ");");
+                    context.WriteLine(output, "");
                     break;
                 case AssertStmt assertStmt:
                     break;
@@ -701,11 +709,11 @@ namespace Plang.Compiler.Backend.Solidity
                     WriteExpr(context, output, namedTupleAccessExpr.SubExpr);
                     context.Write(output, $")[\"{namedTupleAccessExpr.FieldName}\"]");
                     break;
-                case SeqAccessExpr seqAccessExpr:
+                case ArrayAccessExpr arrayAccessExpr:
                     context.Write(output, "(");
-                    WriteLValue(context, output, seqAccessExpr.SeqExpr);
+                    WriteLValue(context, output, arrayAccessExpr.ArrayExpr);
                     context.Write(output, ")[");
-                    WriteExpr(context, output, seqAccessExpr.IndexExpr);
+                    WriteExpr(context, output, arrayAccessExpr.IndexExpr);
                     context.Write(output, "]");
                     break;
                 case TupleAccessExpr tupleAccessExpr:
@@ -809,7 +817,7 @@ namespace Plang.Compiler.Backend.Solidity
                     break;
                 case MapAccessExpr _:
                 case NamedTupleAccessExpr _:
-                case SeqAccessExpr _:
+                case ArrayAccessExpr _:
                 case TupleAccessExpr _:
                 case VariableAccessExpr _:
                     WriteLValue(context, output, pExpr);
@@ -984,6 +992,8 @@ namespace Plang.Compiler.Backend.Solidity
                     return "address";
                 case PrimitiveType primitiveType when primitiveType.IsSameTypeAs(PrimitiveType.Null):
                     return "void";
+                case ArrayType arrayType:
+                    return GetSolidityType(context, arrayType.ElementType) + "[]";
                 case SequenceType sequenceType:
                     return $"List<{GetSolidityType(context, sequenceType.ElementType)}>";
                 case TupleType tupleType:

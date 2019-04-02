@@ -27,7 +27,7 @@ program : (topDecl)* EOF ;
 iden : Iden ;
 int  : IntLiteral ;
 
-type : SEQ LBRACK type RBRACK     # SeqType
+type : ARRAY LBRACK type RBRACK     # ArrayType
      | MAP LBRACK keyType=type COMMA valueType=type RBRACK  # MapType
      | LPAREN tupTypes+=type (COMMA tupTypes+=type)* RPAREN # TupleType
      | LPAREN idenTypeList RPAREN # NamedTupleType
@@ -135,6 +135,7 @@ stateName : (groups+=iden DOT)* state=iden ; // First few Idens are groups
 
 functionBody : LBRACE varDecl* statement* RBRACE ;
 statement : LBRACE statement* RBRACE                      # CompoundStmt
+		  | APPEND LPAREN iden COMMA expr RPAREN          # AppendStmt
           | POP SEMI                                      # PopStmt
           | ASSERT expr (COMMA StringLiteral)? SEMI       # AssertStmt
           | PRINT StringLiteral (COMMA rvalueList)? SEMI  # PrintStmt
@@ -160,7 +161,7 @@ statement : LBRACE statement* RBRACE                      # CompoundStmt
 lvalue : name=iden                 # VarLvalue
        | lvalue DOT field=iden     # NamedTupleLvalue
        | lvalue DOT int            # TupleLvalue
-       | lvalue LBRACK expr RBRACK # MapOrSeqLvalue
+       | lvalue LBRACK expr RBRACK # MapOrArrayLvalue
        ;
 
 recvCase : CASE eventList COLON anonEventHandler ;
@@ -173,10 +174,11 @@ expr : primitive                                      # PrimitiveExpr
      | LPAREN expr RPAREN                             # ParenExpr
      | expr DOT field=iden                            # NamedTupleAccessExpr
      | expr DOT field=int                             # TupleAccessExpr
-     | seq=expr LBRACK index=expr RBRACK              # SeqAccessExpr
+     | array=expr LBRACK index=expr RBRACK            # ArrayAccessExpr
      | fun=KEYS LPAREN expr RPAREN                    # KeywordExpr
      | fun=VALUES LPAREN expr RPAREN                  # KeywordExpr
      | fun=SIZEOF LPAREN expr RPAREN                  # KeywordExpr
+	 | fun=DELETE LPAREN iden COMMA IntLiteral RPAREN # KeywordExpr
      | fun=DEFAULT LPAREN type RPAREN                 # KeywordExpr
      | NEW interfaceName=iden LPAREN rvalueList? RPAREN # CtorExpr
      | fun=iden LPAREN rvalueList? RPAREN             # FunCallExpr

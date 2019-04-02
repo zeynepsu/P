@@ -12,7 +12,7 @@ namespace Plang.Compiler.TypeChecker.Types
         }
 
         /// <summary>
-        ///     The category of type this is (eg. sequence, map, base)
+        ///     The category of type this is (eg. array, sequence, map, base)
         /// </summary>
         public TypeKind TypeKind { get; }
 

@@ -12,12 +12,13 @@ INT       : 'int' ;
 MACHINE   : 'machine' ;
 INTERFACE : 'interface' ;
 MAP       : 'map' ;
-SEQ       : 'seq' ;
+ARRAY     : 'array' ;
 DATA      : 'data' ;
 
 // Keywords
 
 ANNOUNCE  : 'announce' ;
+APPEND	  : 'append' ;
 AS        : 'as' ;
 ASSERT    : 'assert' ;
 ASSUME    : 'assume' ;
@@ -25,6 +26,7 @@ CASE      : 'case' ;
 COLD      : 'cold' ;
 DEFAULT   : 'default' ;
 DEFER     : 'defer' ;
+DELETE	  : 'delete' ;
 DO        : 'do' ;
 ELSE      : 'else' ;
 ENTRY     : 'entry' ;

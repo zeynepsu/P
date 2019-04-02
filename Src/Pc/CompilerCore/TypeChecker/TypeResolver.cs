@@ -29,9 +29,9 @@ namespace Plang.Compiler.TypeChecker
                 this.handler = handler;
             }
 
-            public override PLanguageType VisitSeqType(PParser.SeqTypeContext context)
+            public override PLanguageType VisitArrayType(PParser.ArrayTypeContext context)
             {
-                return new SequenceType(Visit(context.type()));
+                return new ArrayType(Visit(context.type()));
             }
 
             public override PLanguageType VisitNamedType(PParser.NamedTypeContext context)
