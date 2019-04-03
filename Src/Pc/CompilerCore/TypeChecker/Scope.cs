@@ -416,6 +416,7 @@ namespace Plang.Compiler.TypeChecker
             return typedef;
         }
 
+        /*
         internal TypeDef Put(string name, PParser.ForeignTypeDefContext tree)
         {
             var typedef = new TypeDef(name, tree);
@@ -427,6 +428,7 @@ namespace Plang.Compiler.TypeChecker
             typedefs.Add(name, typedef);
             return typedef;
         }
+        */
 
         public PEnum Put(string name, PParser.EnumTypeDefDeclContext tree)
         {

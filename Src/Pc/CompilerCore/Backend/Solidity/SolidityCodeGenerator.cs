@@ -715,9 +715,8 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, "]");
                     break;
                 case NamedTupleAccessExpr namedTupleAccessExpr:
-                    context.Write(output, "struct {");
                     WriteExpr(context, output, namedTupleAccessExpr.SubExpr);
-                    context.Write(output, $")[\"{namedTupleAccessExpr.FieldName}\"]");
+                    context.Write(output, "." + namedTupleAccessExpr.FieldName);
                     break;
                 case ArrayAccessExpr arrayAccessExpr:
                     context.Write(output, "(");
@@ -806,9 +805,12 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, "null");
                     break;
                 case SizeofExpr sizeofExpr:
+                    // Length of an array is returned as an uint. 
+                    // Casting to int256 since this is the only integer type we currently support.
+                    context.Write(output, "int256(");
                     WriteExpr(context, output, sizeofExpr.Expr);
                     context.Write(output, ".length");
-                    context.WriteLine(output, "");
+                    context.Write(output, ")");
                     break;
                 case ThisRefExpr _:
                     context.Write(output, "address(this)");

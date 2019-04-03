@@ -151,6 +151,7 @@ namespace Plang.Compiler.TypeChecker
 
         #region Typedefs
 
+        /*
         public override object VisitForeignTypeDef(PParser.ForeignTypeDefContext context)
         {
             // TYPE name=iden 
@@ -159,7 +160,7 @@ namespace Plang.Compiler.TypeChecker
             typedef.Type = new ForeignType(typedef.Name);
             return typedef;
         }
-
+        */
         public override object VisitPTypeDef(PParser.PTypeDefContext context)
         {
             // TYPE name=iden 

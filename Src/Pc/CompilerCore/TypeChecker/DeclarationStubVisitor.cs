@@ -86,6 +86,7 @@ namespace Plang.Compiler.TypeChecker
             return null;
         }
 
+        /*
         public override object VisitForeignTypeDef(PParser.ForeignTypeDefContext context)
         {
             var symbolName = context.name.GetText();
@@ -93,7 +94,7 @@ namespace Plang.Compiler.TypeChecker
             nodesToDeclarations.Put(context, typeDef);
             return null;
         }
-
+        */
         #endregion
 
         #region Enum typedef

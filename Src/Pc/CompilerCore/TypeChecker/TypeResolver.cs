@@ -48,9 +48,9 @@ namespace Plang.Compiler.TypeChecker
                         visitedTypeDefs.Add(typeDef);
                         switch (typeDef.SourceLocation)
                         {
-                            case PParser.ForeignTypeDefContext foreignType:
-                                typeDef.Type = new ForeignType(foreignType.name.GetText());
-                                break;
+                            //case PParser.ForeignTypeDefContext foreignType:
+                            //    typeDef.Type = new ForeignType(foreignType.name.GetText());
+                            //    break;
                             case PParser.PTypeDefContext typedefDecl:
                                 typeDef.Type = Visit(typedefDecl.type());
                                 break;
