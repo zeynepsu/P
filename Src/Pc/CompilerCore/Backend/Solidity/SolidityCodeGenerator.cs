@@ -806,10 +806,9 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, "null");
                     break;
                 case SizeofExpr sizeofExpr:
-                    if(sizeofExpr.Expr.Type.Equ)
-                    context.Write(output, "(");
                     WriteExpr(context, output, sizeofExpr.Expr);
-                    context.Write(output, ").Count");
+                    context.Write(output, ".length");
+                    context.WriteLine(output, "");
                     break;
                 case ThisRefExpr _:
                     context.Write(output, "address(this)");
