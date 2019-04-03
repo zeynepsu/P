@@ -47,7 +47,8 @@ idenType : name=iden COLON type ;
 funParamList : funParam (COMMA funParam)* ;
 funParam : name=iden COLON type ;
 
-topDecl : enumTypeDefDecl
+topDecl : typeDefDecl
+		| enumTypeDefDecl
         | eventDecl
         | eventSetDecl
         | interfaceDecl
@@ -58,6 +59,10 @@ topDecl : enumTypeDefDecl
         | testDecl
         | implementationDecl
         ;
+
+typeDefDecl : TYPE name=iden SEMI # ForeignTypeDef
+            | TYPE name=iden ASSIGN type SEMI # PTypeDef
+            ;
 
 enumTypeDefDecl : ENUM name=iden LBRACE enumElemList RBRACE
                 | ENUM name=iden LBRACE numberedEnumElemList RBRACE
@@ -88,16 +93,11 @@ receivesSends : RECEIVES eventSetLiteral? SEMI # MachineReceive
 specMachineDecl : SPEC name=iden OBSERVES eventSetLiteral machineBody ;
 
 machineBody : LBRACE machineEntry* RBRACE;
-machineEntry : typeDefDecl 
-			 | varDecl
+machineEntry : varDecl
              | funDecl
              | group
              | stateDecl
              ;
-
-typeDefDecl : TYPE name=iden SEMI # ForeignTypeDef
-            | TYPE name=iden ASSIGN type SEMI # PTypeDef
-            ;
 
 varDecl : VAR idenList COLON type SEMI ;
 

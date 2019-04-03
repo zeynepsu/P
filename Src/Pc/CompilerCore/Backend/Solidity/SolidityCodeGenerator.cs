@@ -18,11 +18,15 @@ namespace Plang.Compiler.Backend.Solidity
         // Name of the library containing contract types and event types
         string LibraryName;
 
+        string TypeLibraryName;
+
         // Name of the contract we are processing
         string ContractName;
 
         // Fully qualified name of the type of the event associated with the contract: <LibraryName>_Event
         string EventTypeName;
+
+        List<TypeDef> typeDefs = new List<TypeDef>();
 
         // Globally unique type identifier
         int TypeId = 0;
@@ -50,7 +54,8 @@ namespace Plang.Compiler.Backend.Solidity
 
             WriteSourcePrologue(context, source.Stream);
 
-            PopulateLibrary(context, source.Stream, globalScope);
+            WriteEventLibrary(context, source.Stream, globalScope);
+            WriteTypeLibrary(context, source.Stream);
 
             foreach (IPDecl decl in globalScope.AllDecls)
             {
@@ -102,9 +107,9 @@ namespace Plang.Compiler.Backend.Solidity
         /// </summary>
         /// <param name="context"></param>
         /// <param name="decl"></param>
-        private void PopulateLibrary(CompilationContext context, StringWriter output, Scope globalScope)
+        private void WriteEventLibrary(CompilationContext context, StringWriter output, Scope globalScope)
         {
-            LibraryName = "ContractLibrary";
+            LibraryName = "EventLibrary";
 
             // For each event type, assign a unique type id and gather information about the payload types
             foreach (IPDecl decl in globalScope.AllDecls)
@@ -113,6 +118,10 @@ namespace Plang.Compiler.Backend.Solidity
                 {
                     case PEvent pEvent when !pEvent.IsBuiltIn:
                         AddEventType(context, pEvent);
+                        break;
+
+                    case TypeDef typeDef:
+                        typeDefs.Add(typeDef);
                         break;
 
                     default:
@@ -145,6 +154,19 @@ namespace Plang.Compiler.Backend.Solidity
             context.WriteLine(output, "}");
 
             context.WriteLine(output, "}");
+        }
+
+        private void WriteTypeLibrary(CompilationContext context, StringWriter output)
+        {
+            TypeLibraryName = "TypeLibrary";
+
+            context.WriteLine(output, $"library " + LibraryName);
+            context.WriteLine(output, "{");
+
+            foreach ( TypeDef typedef in typeDefs )
+            {
+
+            }
         }
 
         /// <summary>
@@ -189,6 +211,10 @@ namespace Plang.Compiler.Backend.Solidity
         {
             BuildNextStateMap(context, machine);
             BuildActionMap(context, machine);
+
+            #region handle any type declarations
+
+            #endregion
 
             #region variables and data structures
             foreach (Variable field in machine.Fields)
