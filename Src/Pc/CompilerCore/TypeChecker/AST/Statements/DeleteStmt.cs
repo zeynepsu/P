@@ -2,17 +2,17 @@
 
 namespace Plang.Compiler.TypeChecker.AST.Statements
 {
-    class AppendStmt : IPStmt
+    class DeleteStmt : IPStmt
     {
-        public AppendStmt(ParserRuleContext sourceLocation, IPExpr array, IPExpr value)
+        public DeleteStmt(ParserRuleContext sourceLocation, IPExpr array, IPExpr index)
         {
             SourceLocation = sourceLocation;
             Array = array;
-            Value = value;
+            Index = index;
         }
 
         public ParserRuleContext SourceLocation { get; }
         public IPExpr Array { get; }
-        public IPExpr Value { get; }
+        public IPExpr Index { get; }
     }
 }

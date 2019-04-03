@@ -65,14 +65,32 @@ namespace Plang.Compiler.TypeChecker
             return new AssertStmt(context, assertion, message);
         }
 
+        /// <summary>
+        /// Append an element to the end of a dynamically sized array.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
         public override IPStmt VisitAppendStmt([NotNull] PParser.AppendStmtContext context)
         {
-            var arrayExpr = exprVisitor.Visit(context.rvalue(0));
-            var valueExpr = exprVisitor.Visit(context.expr(0));
-            if (!arrayExpr.Type.TypeKind.Equals(TypeKind.Array))
-                throw handler.TypeMismatch(context.expr(0), arrayExpr.Type);
+            var arrayExpr = exprVisitor.Visit(context.name);
 
+            if (!(PLanguageType.TypeIsOfKind(arrayExpr.Type, TypeKind.Array)))
+                throw handler.TypeMismatch(arrayExpr, TypeKind.Array);
+
+            var valueExpr = exprVisitor.Visit(context.value);
+            
             return new AppendStmt(context, arrayExpr, valueExpr);
+        }
+
+        public override IPStmt VisitDeleteStmt([NotNull] PParser.DeleteStmtContext context)
+        {
+            var arrayExpr = exprVisitor.Visit(context.name);
+            var indexExpr = exprVisitor.Visit(context.value);
+
+            if (! (PLanguageType.TypeIsOfKind(arrayExpr.Type, TypeKind.Array)))
+                throw handler.TypeMismatch(arrayExpr, TypeKind.Array);
+
+            return new DeleteStmt(context, arrayExpr, indexExpr);
         }
 
         public override IPStmt VisitPrintStmt(PParser.PrintStmtContext context)

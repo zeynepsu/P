@@ -69,8 +69,12 @@ namespace Plang.Compiler.TypeChecker
                     unavailable = compoundStmt.Statements.Aggregate(unavailable, ProcessStatement);
                     break;
                 case AppendStmt appendStmt:
-                    unavailable.Add(appendStmt.Array);
+                    unavailable = ProcessExpr(unavailable, appendStmt.Array);
                     unavailable = ProcessExpr(unavailable, appendStmt.Value);
+                    break;
+                case DeleteStmt deleteStmt:
+                    unavailable = ProcessExpr(unavailable, deleteStmt.Array);
+                    unavailable = ProcessExpr(unavailable, deleteStmt.Index);
                     break;
                 case AssertStmt assertStmt:
                     unavailable = ProcessExpr(unavailable, assertStmt.Assertion);

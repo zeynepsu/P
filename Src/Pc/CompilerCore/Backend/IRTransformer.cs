@@ -235,6 +235,9 @@ namespace Plang.Compiler.Backend
                 case AppendStmt appendStmt:
                     var (valueExpr, valueDeps) = SimplifyExpression(appendStmt.Value);
                     return valueDeps.Concat(new[] { new AppendStmt(location, appendStmt.Array, valueExpr) } ).ToList();
+                case DeleteStmt deleteStmt:
+                    var (deleteValueExpr, deleteValueDeps) = SimplifyExpression(deleteStmt.Index);
+                    return deleteValueDeps.Concat(new[] { new AppendStmt(location, deleteStmt.Array, deleteValueExpr) }).ToList();
                 case AssertStmt assertStmt:
                     var (assertExpr, assertDeps) = SimplifyExpression(assertStmt.Assertion);
                     return assertDeps.Concat(new[]

@@ -201,7 +201,6 @@ namespace Plang.Compiler.Backend.Solidity
                 }
                 else
                 {
-                    Console.WriteLine("<WriteMachine> Processing: " + context.Names.GetNameForDecl(field));
                     context.WriteLine(output, $"{GetSolidityType(context, field.Type)} private {context.Names.GetNameForDecl(field)};");
                 }
             }
@@ -506,10 +505,21 @@ namespace Plang.Compiler.Backend.Solidity
                 case AnnounceStmt announceStmt:
                     break;
                 case AppendStmt appendStmt:
-                    context.Write(output, context.Names.GetNameForDecl(appendStmt.Array));
+                    WriteExpr(context, output, appendStmt.Array);
                     context.Write(output, ".push(");
-                    context.Write(output, appendStmt.Value.ToString());
+                    WriteExpr(context, output, appendStmt.Value);
                     context.Write(output, ");");
+                    context.WriteLine(output, "");
+                    break;
+                case DeleteStmt deleteStmt:
+                    context.Write(output, "delete ");
+                    WriteExpr(context, output, deleteStmt.Array);
+                    context.Write(output, "[");
+                    WriteExpr(context, output, deleteStmt.Index);
+                    context.Write(output, "];");
+                    context.WriteLine(output, "");
+                    WriteExpr(context, output, deleteStmt.Array);
+                    context.Write(output, ".length--;");
                     context.WriteLine(output, "");
                     break;
                 case AssertStmt assertStmt:
@@ -796,6 +806,7 @@ namespace Plang.Compiler.Backend.Solidity
                     context.Write(output, "null");
                     break;
                 case SizeofExpr sizeofExpr:
+                    if(sizeofExpr.Expr.Type.Equ)
                     context.Write(output, "(");
                     WriteExpr(context, output, sizeofExpr.Expr);
                     context.Write(output, ").Count");

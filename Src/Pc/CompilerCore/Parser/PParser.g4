@@ -134,28 +134,29 @@ eventId : NullLiteral | HALT | iden ;
 stateName : (groups+=iden DOT)* state=iden ; // First few Idens are groups
 
 functionBody : LBRACE varDecl* statement* RBRACE ;
-statement : LBRACE statement* RBRACE                      # CompoundStmt
-		  | APPEND LPAREN iden COMMA expr RPAREN          # AppendStmt
-          | POP SEMI                                      # PopStmt
-          | ASSERT expr (COMMA StringLiteral)? SEMI       # AssertStmt
-          | PRINT StringLiteral (COMMA rvalueList)? SEMI  # PrintStmt
-          | RETURN expr? SEMI                             # ReturnStmt
-          | lvalue ASSIGN rvalue SEMI                     # AssignStmt
-          | lvalue INSERT LPAREN expr COMMA rvalue RPAREN SEMI # InsertStmt
-          | lvalue REMOVE expr SEMI                       # RemoveStmt
-          | WHILE LPAREN expr RPAREN statement            # WhileStmt
+statement : LBRACE statement* RBRACE								# CompoundStmt
+		  | APPEND LPAREN name=expr COMMA value=expr RPAREN SEMI	# AppendStmt
+		  | DELETE LPAREN name=expr COMMA value=expr RPAREN SEMI	# DeleteStmt
+          | POP SEMI												# PopStmt
+          | ASSERT expr (COMMA StringLiteral)? SEMI					# AssertStmt
+          | PRINT StringLiteral (COMMA rvalueList)? SEMI			# PrintStmt
+          | RETURN expr? SEMI										# ReturnStmt
+          | lvalue ASSIGN rvalue SEMI								# AssignStmt
+          | lvalue INSERT LPAREN expr COMMA rvalue RPAREN SEMI		# InsertStmt
+          | lvalue REMOVE expr SEMI									# RemoveStmt
+          | WHILE LPAREN expr RPAREN statement						# WhileStmt
           | IF LPAREN expr RPAREN thenBranch=statement 
-                            (ELSE elseBranch=statement)?  # IfStmt
-          | NEW iden LPAREN rvalueList? RPAREN SEMI       # CtorStmt
-          | fun=iden LPAREN rvalueList? RPAREN SEMI       # FunCallStmt
-          | RAISE expr (COMMA rvalueList)? SEMI           # RaiseStmt
+                            (ELSE elseBranch=statement)?			# IfStmt
+          | NEW iden LPAREN rvalueList? RPAREN SEMI					# CtorStmt
+          | fun=iden LPAREN rvalueList? RPAREN SEMI					# FunCallStmt
+          | RAISE expr (COMMA rvalueList)? SEMI						# RaiseStmt
           | SEND machine=expr COMMA event=expr 
-                              (COMMA rvalueList)? SEMI    # SendStmt
-          | ANNOUNCE expr (COMMA rvalueList)? SEMI        # AnnounceStmt
-          | GOTO stateName (COMMA rvalueList)? SEMI       # GotoStmt
-          | RECEIVE LBRACE recvCase+ RBRACE               # ReceiveStmt
-		  | REVERT StringLiteral (COMMA rvalueList)? SEMI # RevertStmt
-          | SEMI                                          # NoStmt
+                              (COMMA rvalueList)? SEMI				# SendStmt
+          | ANNOUNCE expr (COMMA rvalueList)? SEMI					# AnnounceStmt
+          | GOTO stateName (COMMA rvalueList)? SEMI					# GotoStmt
+          | RECEIVE LBRACE recvCase+ RBRACE							# ReceiveStmt
+		  | REVERT StringLiteral (COMMA rvalueList)? SEMI			# RevertStmt
+          | SEMI													# NoStmt
           ;
 
 lvalue : name=iden                 # VarLvalue

@@ -31,6 +31,8 @@ namespace Plang.Compiler.TypeChecker
                         .Union(InferCreatesForExpr(announce.Payload, handler));
                 case AppendStmt _:
                     return Enumerable.Empty<Interface>();
+                case DeleteStmt _:
+                    return Enumerable.Empty<Interface>();
                 case AssertStmt assertStmt:
                     return InferCreatesForExpr(assertStmt.Assertion, handler);
                 case AssignStmt assignStmt:
