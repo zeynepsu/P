@@ -160,13 +160,29 @@ namespace Plang.Compiler.Backend.Solidity
         {
             TypeLibraryName = "TypeLibrary";
 
-            context.WriteLine(output, $"library " + LibraryName);
+            context.WriteLine(output, $"library " + TypeLibraryName);
             context.WriteLine(output, "{");
 
-            foreach ( TypeDef typedef in typeDefs )
+            foreach ( TypeDef typeDef in typeDefs )
             {
+                context.Write(output, "struct ");
+                context.Write(output, typeDef.Name + "");
+                context.WriteLine(output, "{");
 
+                switch(typeDef.Type.Canonicalize())
+                {
+                    case NamedTupleType namedTupleType:
+                        foreach (var f in namedTupleType.Fields)
+                        {
+                            context.WriteLine(output, f.Type.CanonicalRepresentation + " " + f.Name + ";");
+                        }
+                        break;
+                }
+
+                context.WriteLine(output, "}");
             }
+
+            context.WriteLine(output, "}");
         }
 
         /// <summary>
