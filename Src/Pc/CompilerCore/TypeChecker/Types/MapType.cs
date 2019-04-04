@@ -40,7 +40,14 @@ namespace Plang.Compiler.TypeChecker.Types
 
         public override PLanguageType Canonicalize()
         {
-            return new MapType(KeyType.Canonicalize(), ValueType.Canonicalize());
+            if (!(ValueType is TypeDefType))
+            {
+                return new MapType(KeyType.Canonicalize(), ValueType.Canonicalize());
+            }
+            else
+            {
+                return this;
+            }
         }
     }
 }

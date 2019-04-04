@@ -27,7 +27,14 @@ namespace Plang.Compiler.TypeChecker.Types
 
         public override PLanguageType Canonicalize()
         {
-            return new ArrayType(ElementType.Canonicalize());
+            if (! (ElementType is TypeDefType) )
+            {
+                return new ArrayType(ElementType.Canonicalize());
+            }
+            else
+            {
+                return this;
+            }
         }
     }
 }

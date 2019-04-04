@@ -238,7 +238,7 @@ namespace Plang.Compiler.Backend.Solidity
                 if (field.Type is TypeDefType)
                 {
                     TypeDefType typeDef = (TypeDefType)field.Type;
-                    context.WriteLine(output, $"{TypeLibraryName}.{typeDef.TypeDefDecl.Name} private {context.Names.GetNameForDecl(field)};");
+                    context.WriteLine(output, $"{GetSolidityType(context, field.Type)} private {context.Names.GetNameForDecl(field)};");
                 }
 
                 else if (field.Type is NamedTupleType)
@@ -517,9 +517,9 @@ namespace Plang.Compiler.Backend.Solidity
             foreach (var local in function.LocalVariables)
             {
                 var type = local.Type;
-                if (type.Canonicalize() is NamedTupleType)
+                if (type is TypeDefType || type is ArrayType || type is MapType)
                 {
-                    throw new Exception("<ExceptioLog, WriteFunctionBody> Declaring a named tuple within a function body not allowed");
+                    context.WriteLine(output, $"{GetSolidityType(context, type)} memory {context.Names.GetNameForDecl(local)};");
                 }
                 else
                 {
@@ -1029,6 +1029,13 @@ namespace Plang.Compiler.Backend.Solidity
 
         private string GetSolidityType(CompilationContext context, PLanguageType returnType)
         {
+            // For a user-defined type, we don't canonicalize further
+            if (returnType is TypeDefType)
+            {
+                TypeDefType typeDefType = (TypeDefType)returnType;
+                return TypeLibraryName + "." + typeDefType.TypeDefDecl.Name;
+            }
+
             switch (returnType.Canonicalize())
             {
                 case EnumType enumType:
