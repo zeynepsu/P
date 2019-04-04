@@ -235,7 +235,13 @@ namespace Plang.Compiler.Backend.Solidity
             #region variables and data structures
             foreach (Variable field in machine.Fields)
             {
-                if (field.Type.Canonicalize() is NamedTupleType)
+                if (field.Type is TypeDefType)
+                {
+                    TypeDefType typeDef = (TypeDefType)field.Type;
+                    context.WriteLine(output, $"{TypeLibraryName}.{typeDef.TypeDefDecl.Name} private {context.Names.GetNameForDecl(field)};");
+                }
+
+                else if (field.Type is NamedTupleType)
                 {
                     // structs are defined differently compared to other types
                     context.WriteLine(output, $"{GetSolidityType(context, field)}");
@@ -1002,6 +1008,7 @@ namespace Plang.Compiler.Backend.Solidity
 
         private string GetSolidityType(CompilationContext context, Variable field)
         {
+            Console.WriteLine("Processing field: " + field.Name + " with type " + field.Type.Canonicalize());
             if (field.Type.Canonicalize() is NamedTupleType)
             {
                 NamedTupleType namedTupleType = (NamedTupleType)field.Type;
