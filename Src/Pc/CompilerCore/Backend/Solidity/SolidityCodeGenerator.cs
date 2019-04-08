@@ -1035,6 +1035,16 @@ namespace Plang.Compiler.Backend.Solidity
                 TypeDefType typeDefType = (TypeDefType)returnType;
                 return TypeLibraryName + "." + typeDefType.TypeDefDecl.Name;
             }
+            else if (returnType is ArrayType && ((ArrayType)returnType).ElementType is TypeDefType)
+            {
+                ArrayType arrayType = (ArrayType)returnType;
+                return GetSolidityType(context, arrayType.ElementType) + "[]";
+            }
+            else if (returnType is MapType )
+            {
+                MapType mapType = (MapType)returnType;
+                return $"mapping ({GetSolidityType(context, mapType.KeyType)} => {GetSolidityType(context, mapType.ValueType)})";
+            }
 
             switch (returnType.Canonicalize())
             {
