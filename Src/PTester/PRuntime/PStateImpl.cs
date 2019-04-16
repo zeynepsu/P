@@ -334,12 +334,16 @@ namespace P.Runtime
             int p_hash = symmetryReduction ? pred.GetHashCode(true) : pred.GetHashCode();
             int   hash = symmetryReduction ?      GetHashCode(true) :      GetHashCode();
 
+            // Console.WriteLine(this.ToPrettyString());
+
             if (mode == ExploreMode.Find_A_AP) // if we are locating a and ap
+            {
                 if (succHash == hash)
                 {
                     predHash = p_hash;
                     throw new SuccessorFound(pred, this);
                 }
+            }
 
             if ( invariant ? CheckAbstractStateInvariant(currIndex) && CheckTransInvariant(currIndex, pred) : true )
             {

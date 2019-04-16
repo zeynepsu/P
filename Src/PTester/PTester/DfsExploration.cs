@@ -175,7 +175,7 @@ namespace P.Tester
 
                 if (countConcretesPrevious == concretesInHash.Count) /// OS1 converges
                 {
-                    Console.WriteLine("Concrete state sequence converged!");
+                    Console.WriteLine("System state sequence converged!");
                     if (interativeMode)
                     {
                         Console.Write("For fun, do you want to run the abstract convergence test as well? " +
@@ -300,7 +300,7 @@ namespace P.Tester
             {
 
 #if false // code for investigating memory usage
-                if(stack.Count == 5000)
+                if(worklist.Count == 5000)
                 {
                     Console.WriteLine("Stack depth of 5000 reached");
                     
@@ -309,7 +309,7 @@ namespace P.Tester
                     Console.WriteLine("Current memory usage = {0} MB", mem1.ToString("F2"));
 
                     // lets clone
-                    var stackarr = stack.ToArray();
+                    var stackarr = worklist.ToArray();
                     var newStack = new List<StateImpl>();
                     for(int i = 0; i < stackarr.Length; i++)
                     {
@@ -336,7 +336,7 @@ namespace P.Tester
                 /// Also, advance currIndex and/or choiceIndex and push curr state back to worklist
                 /// TODO: try BFS
                 BacktrackingState succ = Execute(curr);
-                worklist.Push(curr);
+                worklist.Push(curr); // CurrIndex of curr has been updated
 
                 // if we are in competitor finding mode
                 if (StateImpl.mode == StateImpl.ExploreMode.Competitor)
@@ -368,7 +368,27 @@ namespace P.Tester
                     {
                         var succAbs = (StateImpl)succ.State.Clone();
                         succAbs.AbstractMe();
-                        if (abstractsInHash.Add(succAbs.GetHashCode())) /// --PL: if the abstract of current state has NOT been explored
+                        var succAbsHash = succAbs.GetHashCode();
+
+                        #if false
+#region dirty code, debugging============================
+                        var currAbs = (StateImpl)curr.State.Clone();
+                        currAbs.AbstractMe();
+                        if (currAbs.GetHashCode()  == -105414283)
+                        {
+                            Console.WriteLine("%%%%%%%%%%%%%%%%%%% = beginning ========");
+                            Console.WriteLine(curr.State.ToPrettyString());
+                            Console.WriteLine();
+                            Console.WriteLine(currAbs.ToPrettyString());
+                            Console.WriteLine(succ.State.ToPrettyString());
+                            Console.WriteLine("%%%%%%%%%%%%%%%%%%% = " + succAbsHash);
+                            Console.WriteLine(succAbs.ToPrettyString());
+                            Console.WriteLine("Abstract Successors............");
+
+                        }
+#endregion
+#endif
+                        if (abstractsInHash.Add(succAbsHash)) /// --PL: if the abstract of current state has NOT been explored
                         {
                             succAbs.CollectAbstractSuccessors(abstractSuccsInHash, abstractSuccsFile);
                             if (fileDump)
@@ -377,6 +397,13 @@ namespace P.Tester
                                 abstractsFile.WriteLine(Constants.consoleSeparator);
                             }
                         }
+
+#if false
+                        if (currAbs.GetHashCode() == -417525807)
+                        {
+                            Environment.Exit(0);
+                        }
+#endif
                     }
 #if DEBUG
                     // status and diagnostics

@@ -355,11 +355,14 @@ namespace P.Runtime
 
         public void PrtRunStateMachine()
         {
-            int numOfStepsTaken = 0;
             Debug.Assert(currentStatus == PrtMachineStatus.Enabled, "Invoked PrtRunStateMachine on a blocked or a halted machine");
 
             try
             {
+#if false
+                PrtStepStateMachine();
+#endif
+                int numOfStepsTaken = 0;
                 while (PrtStepStateMachine())
                 {
                     if (    nextSMOperation == PrtNextStatemachineOperation.DequeueOperation
