@@ -85,6 +85,7 @@ MAIN		   : 'main' ;
 // machine annotations
 RECEIVES  : 'receives' ;
 SENDS     : 'sends' ;
+INVARIANT : 'invariant' ;
 
 // Common keywords
 CREATES : 'creates' ;

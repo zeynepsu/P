@@ -1,0 +1,162 @@
+module main
+{
+    // Helper Procedures
+    procedure eGlobalCommit_all(w: [participants]integer) returns (v: [participants]integer)
+        requires forall (n : participants) :: w[n] == 0;
+        ensures forall (n : participants) :: v[n] == w[n] + 1; // doesn't matter how we achieve this
+    { }
+
+    procedure eGlobalAbort_all(w: [participants]integer) returns (v: [participants]integer)
+        requires forall (n : participants) :: w[n] == 0;
+        ensures forall (n : participants) :: v[n] == w[n] + 1; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepareSuccess() returns (v: [participants]integer)
+        ensures forall (n : participants) :: v[n] == 0; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepareFailed() returns (v: [participants]integer)
+        ensures forall (n : participants) :: v[n] == 0; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepare() returns (v: [participants]integer)
+        ensures forall (n : participants) :: v[n] == 0; // doesn't matter how we achieve this
+    { }
+
+    procedure ePrepare_all(w: [participants]integer) returns (v: [participants]integer)
+        requires forall (n : participants) :: w[n] == 0;
+        ensures forall (n : participants) :: v[n] == w[n] + 1; // doesn't matter how we achieve this
+    { }
+
+    type participants;
+
+    type state_enum = enum {WaitForTransactions, WaitForPrepareResponses};
+    var state : state_enum;
+
+    var ePrepare        : [participants]integer; // number of ePrepare messages coordinator has pending to p
+    var eGlobalCommit   : [participants]integer;
+    var eGlobalAbort    : [participants]integer; 
+    var ePrepareSuccess : [participants]integer; // number of ePrepareSuccess messages that p has pending to coordinator
+    var ePrepareFailed  : [participants]integer;
+
+    type key;
+    type value;
+
+    const null : value;
+
+    var kvstores : [participants, key]value; // p's kvstore
+
+    // current key and value
+    var k : key;
+    var v : value;
+
+    init
+    {
+        assume(forall (n : participants, k : key) :: kvstores[n, k] == null);
+        assume(forall (n : participants) :: ePrepare[n] == 0);
+        assume(forall (n : participants) :: eGlobalCommit[n] == 0);
+        assume(forall (n : participants) :: eGlobalAbort[n] == 0);
+        assume(forall (n : participants) :: ePrepareSuccess[n] == 0);
+        assume(forall (n : participants) :: ePrepareFailed[n] == 0);
+        state = WaitForTransactions;
+    }
+
+    next
+    {
+        // Participant
+        var p : participants; // pick some participant
+
+        if (*) {
+            // participant p ePrepare on the current integer-integer pair
+            if (ePrepare[p] > 0) {
+                if (*) {
+                    ePrepareSuccess' = ePrepareSuccess[p -> ePrepareSuccess[p] + 1];
+                } else {
+                    ePrepareFailed' = ePrepareFailed[p -> ePrepareFailed[p] + 1];
+                }
+                ePrepare' = ePrepare[p -> ePrepare[p] - 1];
+            }
+        } else { if (*) {
+            // participant p eGlobalCommits the round it was told to eGlobalCommit
+            if (eGlobalCommit[p] > 0) {
+                kvstores' = kvstores[p, k -> v];
+                eGlobalCommit' = eGlobalCommit[p -> eGlobalCommit[p] - 1];
+            }
+        } else { if (*) {
+            // participant p eGlobalAborts the round it was told to eGlobalAbort
+            if (eGlobalAbort[p] > 0) {
+                eGlobalAbort' = eGlobalAbort[p -> eGlobalAbort[p] - 1];
+            }
+
+        // Coordinator
+        } else { if (*) {
+            // only do this if all participants have eGlobalCommited (this is an assumption)
+            if ((forall (n : participants) :: eGlobalCommit[n] == 0) && (forall (n : participants) :: eGlobalAbort[n] == 0)) {
+                if(state == WaitForTransactions) {
+                    // coordinator receives request (some integer-integer pair)
+                    havoc v;
+                    havoc k;
+                    call (ePrepare') = ePrepare_all(ePrepare);
+                    state' = WaitForPrepareResponses;
+                }
+            }
+        } else { if (*) {
+            // some participant rejects the current round, so the coordinator tells them all to eGlobalAbort
+            if(state == WaitForPrepareResponses && ePrepareFailed[p] > 0) {
+                // p voted no
+                call (eGlobalAbort')    = eGlobalAbort_all(eGlobalAbort);
+                state' = WaitForTransactions;
+
+                call (ePrepareFailed')  = reset_ePrepareFailed();
+                call (ePrepareSuccess') = reset_ePrepareSuccess();
+                call (ePrepare')        = reset_ePrepare();
+            }
+        } else {
+            if (state == WaitForPrepareResponses && ePrepareSuccess[p] > 0) {
+                // p voted yes
+                if(forall (n : participants) :: ePrepareSuccess[n] > 0) {
+                    // all participants accept the current round, so the coordinator tells them to eGlobalCommit
+                    call (eGlobalCommit')   = eGlobalCommit_all(eGlobalCommit);
+                    state' = WaitForTransactions;
+
+                    call (ePrepareFailed')  = reset_ePrepareFailed();
+                    call (ePrepareSuccess') = reset_ePrepareSuccess();
+                    call (ePrepare')        = reset_ePrepare();
+                }
+            }
+        }}}}}
+    }
+
+    // main invariant: when no eGlobalCommit is on the way, every kvstore must be equal.
+    invariant sync_when_no_eGlobalCommit: (forall (n : participants) :: eGlobalCommit[n] == 0) ==> 
+            (forall (n1 : participants, n2 : participants, k : key) :: kvstores[n1, k] == kvstores[n2, k]);
+
+    // helpers
+    invariant eGlobalCommit_means_everyone_eGlobalCommit_or_eGlobalCommited: 
+        (forall (n1 : participants) :: eGlobalCommit[n1] > 0 ==> 
+            (forall (n2 : participants) :: (eGlobalCommit[n2] > 0 || kvstores[n2, k] == v)));
+
+    invariant no_lonely_kvstore: (forall (n1 : participants,  n2 : participants, k1 : key, v1 : value) :: 
+        kvstores[n1, k1] == v1 ==> (kvstores[n2, k1] == v1 || k1 == k));
+
+    invariant one_GlobalCommit_at_a_time: (forall (n : participants) :: eGlobalCommit[n] > 0 ==> (eGlobalCommit[n] == 1));
+    invariant one_GlobalAbort_at_a_time: (forall (n : participants) :: eGlobalAbort[n] > 0 ==> (eGlobalAbort[n] == 1));
+    invariant one_Prepare_at_a_time: (forall (n : participants) :: ePrepare[n] > 0 ==> (ePrepare[n] == 1));
+
+    invariant GlobalCommit_always_natural: (forall (n : participants) :: eGlobalCommit[n] >= 0);
+    invariant GlobalAbort_always_natural: (forall (n : participants) :: eGlobalAbort[n] >= 0);
+    invariant Prepare_always_natural: (forall (n : participants) :: ePrepare[n] >= 0);
+    invariant PrepareSuccess_always_natural: (forall (n : participants) :: ePrepareSuccess[n] >= 0);
+    invariant PrepareFailed_always_natural: (forall (n : participants) :: ePrepareFailed[n] >= 0);
+
+    invariant GlobalCommit_means_WaitForTransactions: (exists (n : participants) :: (eGlobalCommit[n] > 0 || eGlobalAbort[n] > 0)) ==> state == WaitForTransactions;
+    invariant Prepare_means_WaitForPrepareResponses: (exists (n : participants) :: (ePrepare[n] > 0)) ==> state == WaitForPrepareResponses;
+
+    control
+    {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex;
+    }
+}

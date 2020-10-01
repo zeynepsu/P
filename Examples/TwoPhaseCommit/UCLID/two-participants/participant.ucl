@@ -1,0 +1,86 @@
+module Participant {
+
+    define peek() : event_t = queue.events[queue.head];
+
+    type * = Common.*;
+    type state_t = enum {WAITFORREQUESTS};
+
+    var state : state_t;
+    var wcount: integer;
+    var kvstore: [integer]integer;
+    
+    var id : integer;
+    
+    sharedvar queue : event_q;
+    sharedvar active: boolean;
+
+    instance common : Common (event_queue : (queue));
+
+    procedure [inline] participant_WaitForRequests()
+        modifies state, wcount, kvstore, common;
+        requires peek().signal == EPREPARE || peek().signal == EGLOBALCOMMIT || peek().signal == EGLOBALABORT;
+        requires peek().target == id;
+        requires state == WAITFORREQUESTS;
+    {
+        var e : event_t;
+        call (e) = common.pop_event();
+        case 
+        (e.signal == EGLOBALABORT) : {
+        }
+        (e.signal == EGLOBALCOMMIT) : {
+            wcount = wcount + 1;
+        }
+        (e.signal == EPREPARE) : {
+            var w : event_t;
+            w.target = Common.coordinator_id;
+            w.source = e.target; 
+            if (*) {
+                kvstore = kvstore[wcount -> e.data];
+                w.signal = EPREPARESUCCESS;
+                call () = common.push_event(w); 
+            } else {
+                w.signal = EPREPAREFAIL;
+                call () = common.push_event(w);  
+            }
+        }
+        esac 
+    }
+
+    init {
+        call () = common.reset_events();
+        state = WAITFORREQUESTS;
+        wcount = 0;
+        active = false;
+    }
+
+    next {
+        if (active && queue.size > 0 && peek().target == id) {
+            case
+            (state == WAITFORREQUESTS) : {
+                call () = participant_WaitForRequests();
+            }
+            esac
+        }
+    }
+
+    invariant coherent_events: queue.size >= 0 && queue.size == queue.tail - queue.head;
+
+    control {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex(
+            queue.size,
+            queue.head,
+            queue.tail,
+            queue.events[queue.head].source,
+            queue.events[queue.head].target,
+            queue.events[queue.head].signal,
+            queue.events[queue.tail - 1].source,
+            queue.events[queue.tail - 1].target,
+            queue.events[queue.tail - 1].signal,
+
+            state
+        );
+    }
+}

@@ -1,0 +1,149 @@
+module main
+{
+    type node;
+    type quorum;
+    type round;
+    type value;
+
+    function leq(a : round, b : round) : boolean;
+    // leq is a total order
+    axiom((forall (x : round) :: leq(x, x)));
+    axiom((forall (x : round, y : round, z : round) :: leq(x, y) && leq(y, z) ==> leq(x, z)));
+    axiom((forall (x : round, y : round) :: leq(x, y) && leq(y, x) ==> x == y));
+    axiom((forall (x : round, y : round) :: leq(x, y) || leq(y, x)));
+
+    const bot : round;
+
+    function member(n : node, q : quorum): boolean;
+    axiom((forall (q1 : quorum, q2: quorum) :: (exists (n : node) :: member(n, q1) && member(n, q2))));
+
+    var start_round_msg : [round]boolean;
+    var join_ack_msg    : [node, round, round, value]boolean;
+    var propose_msg     : [round, value]boolean;
+    var vote_msg        : [node, round, value]boolean;
+    var decision        : [node, round, value]boolean;
+
+    init
+    {
+        assume(forall (r : round) :: !start_round_msg[r]);
+        assume(forall (n : node, r1 : round, r2: round, v : value) :: !join_ack_msg[n, r1, r2, v]);
+        assume(forall (r : round, v : value) :: !propose_msg[r, v]);
+        assume(forall (n : node, r : round, v : value) :: !vote_msg[n, r, v]);
+        assume(forall (n : node, r : round, v : value) :: !decision[n, r, v]);
+    }
+ 
+    define phi_1(r: round, v : value, n_global : node, r_global: round) : boolean =
+        vote_msg[n_global, r, v] && leq(r, r_global) && r != r_global;
+
+    define phi_2(r: round, v : value, n_global : node, r_global: round, q_global : quorum) : boolean =
+        (exists (n : node) :: (member(n, q_global) && join_ack_msg[n_global, r_global, r, v] && r != bot));
+
+    next
+    {
+        if (*) {
+            // start round 
+            var r : round;
+            assume(r != bot);
+            start_round_msg' = start_round_msg[r -> true];
+        } else { if (*) {
+            // join round
+            var n : node;
+            var r : round;
+            var maxr : round;
+            var v : value;
+            assume(r != bot);
+            assume(start_round_msg[r]);
+            assume(!(exists (rp: round, rpp: round, v : value) :: (!leq(rp, r) && join_ack_msg[n, rp, rpp, v])));
+            assume(
+                (
+                    maxr == bot && 
+                    (forall (rp: round, vp: value) :: !phi_1(rp, vp, n, r))
+                ) 
+                || 
+                (
+                    maxr != bot && 
+                    phi_1(maxr, v, n, r) && 
+                    (forall (rp : round, vp : value) :: (phi_1(rp, vp, n, r) ==> leq(rp, maxr)))
+                ));
+            join_ack_msg' = join_ack_msg[n, r, maxr, v -> true];
+        } else { if (*) {
+            // propose
+            var n : node;
+            var r : round;
+            var maxr : round;
+            var v : value;
+            var q : quorum;
+            assume(r != bot);
+            assume((forall (v : value) :: !propose_msg[r, v]));
+            assume((forall (n : node) :: (member(n, q) ==> (exists (rp : round, v : value) :: join_ack_msg[n, r, rp, v]))));
+            assume(
+                (
+                    maxr == bot && 
+                    (forall (rp: round, vp: value) :: !phi_2(rp, vp, n, r, q))
+                )
+                ||
+                (
+                    maxr != bot && 
+                    phi_2(maxr, v, n, r, q) && 
+                    (forall (rp : round, vp : value) :: (phi_2(rp, vp, n, r, q) ==> leq(rp, maxr)))
+                ));
+            propose_msg' = propose_msg[r, v -> true];
+        } else { if (*) {
+            // vote
+            var n : node;
+            var r : round;
+            var v : value;
+            assume(r != bot);
+            assume(propose_msg[r, v]);
+            assume(!(exists (rp: round, rpp : round, v: value) :: (leq(r, rp) && r != rp && join_ack_msg[n, rp, rpp, v])));
+            vote_msg' = vote_msg[n, r, v -> true];
+        } else {
+            // learn
+            var n : node;
+            var r : round;
+            var v : value;
+            var q : quorum;
+            assume(r != bot);
+            assume((forall (n : node) :: member(n, q) ==> vote_msg[n, r, v]));
+            decision' = decision[n, r, v -> true]; 
+        }}}}
+    }
+ 
+
+    // main invariant
+    invariant single_decision: (forall (n1 : node, n2 : node, r1 : round, r2 : round, v1 : value, v2 : value) :: 
+        decision[n1, r1, v1] && decision[n2, r2, v2] ==> v1 == v2);
+
+    // helper invariants
+    invariant unique_proposal: (forall (r : round, v1 : value, v2 : value) :: 
+        propose_msg[r, v1] && propose_msg[r, v2] ==> v1 == v2);
+
+    invariant vote_after_propose: (forall (n : node, r : round, v : value) :: vote_msg[n, r, v] ==> propose_msg[r, v]);
+
+    invariant if_decision_then_quorum_vote: (forall (r : round, v : value) :: 
+        (exists (n : node) :: decision[n, r, v]) ==> (exists (q : quorum) :: (forall (n : node) :: member(n, q) ==> vote_msg[n, r, v])));
+
+    invariant eight: (forall (n : node, r : round, rp : round, v : value, vp : value) :: 
+        (join_ack_msg[n, r, bot, v] && leq(r, rp) && r != rp) ==> !vote_msg[n, rp, vp]);
+
+    invariant nine: (forall (n : node, r : round, rp : round, v : value) :: 
+        (join_ack_msg[n, r, rp, v] && rp != bot) ==> (leq(r, rp) && r != rp && vote_msg[n, rp, v]));
+
+    invariant ten: (forall (n : node, r : round, rp : round, rpp : round, v : value, vp : value) :: 
+        (join_ack_msg[n, r, rp, v] && rp != bot && leq(rp, rpp) && rp != rpp && leq(rpp, r) && rpp != r) ==> !vote_msg[n, rpp, vp]);
+
+    invariant eleven: (forall (n : node, v: value) :: !vote_msg[n, bot, v]);
+
+    invariant twelve: (forall (r1 : round, r2 : round, v1 : value, v2 : value, q : quorum) :: 
+        (propose_msg[r2, v2] && leq(r1, r2) && r1 != r2 && v1 != v2) ==> 
+            (exists (n : node, rp: round, rpp: round, v : value) :: 
+                member(n, q) && !vote_msg[n, r1, v1] && leq(r1, rp) && r1 != rp && join_ack_msg[n, rp, rpp, v]));
+
+    control
+    {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex;
+    }
+}

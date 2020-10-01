@@ -1,0 +1,176 @@
+// UCLID5 version of Simple Paxos from https://cs.stanford.edu/~padon/paxos-made-epr-oopsla17.pdf
+module main
+{
+    type node;
+    type quorum;
+    type round = bv2; // USUALLY THIS WOULD BE AN UNINTERPRETED SORT
+    type value; // Fig. 3 Line 1
+
+    function leq(a : round, b : round) : boolean; // Fig. 3 Line 3
+    
+    // Fig. 3 Line 4 (based on Fig. 1)
+    axiom((forall (x : round) :: leq(x, x)));
+    axiom((forall (x : round, y : round, z : round) :: leq(x, y) && leq(y, z) ==> leq(x, z)));
+    axiom((forall (x : round, y : round) :: leq(x, y) && leq(y, x) ==> x == y));
+    axiom((forall (x : round, y : round) :: leq(x, y) || leq(y, x)));
+
+    const bot : round; // Fig. 3 Line 5
+
+    function member(n : node, q : quorum): boolean; // Fig. 3 Line 7
+    axiom((forall (q1 : quorum, q2: quorum) :: (exists (n : node) :: member(n, q1) && member(n, q2)))); // Fig. 3 Line 8
+
+    var start_round_msg : [round]boolean; // Fig. 3 Line 10
+    var join_ack_msg    : [node, round, round, value]boolean;
+    var propose_msg     : [round, value]boolean;
+    var vote_msg        : [node, round, value]boolean;
+    var decision        : [node, round, value]boolean; // Fig. 3 Line 14
+
+    var left_round   : [node, round]boolean; // Fig. 5 Line 1
+    var joined_round : [node, round]boolean; // Fig. 5 Line 2
+
+    init
+    {
+        assume(forall (r : round) :: !start_round_msg[r]); // Fig. 3 Line 16
+        assume(forall (n : node, r1 : round, r2: round, v : value) :: !join_ack_msg[n, r1, r2, v]);
+        assume(forall (r : round, v : value) :: !propose_msg[r, v]);
+        assume(forall (n : node, r : round, v : value) :: !vote_msg[n, r, v]);
+        assume(forall (n : node, r : round, v : value) :: !decision[n, r, v]); // Fig. 3 Line 20
+
+        assume(forall (n : node, r : round) :: !left_round[n, r]); // Fig. 5 Line 4
+        assume(forall (n : node, r : round) :: !joined_round[n, r]); // Fig. 5 Line 5
+    }
+ 
+    // Helper for Fig. 3 Line 32 and Fig. 5 Line 11 (See eq. (3) for how phi_1 wil be used)
+    define phi_1(r: round, v : value, n_global : node, r_global: round) : boolean =
+        vote_msg[n_global, r, v] && leq(r, r_global) && r != r_global;
+
+    // Helper for Fig. 5 Line 24 (See eq. (3) for how phi_2 wil be used)
+    define phi_2(r: round, v : value, r_global: round, q_global : quorum) : boolean =
+        (exists (n : node) :: (member(n, q_global) && vote_msg[n, r, v] && leq(r, r_global) && r != r_global));
+
+    next
+    {
+        if (*) {
+            // START_ROUND Fig. 3 Line 22 
+            var r : round;
+            assume(r != bot);
+            start_round_msg' = start_round_msg[r -> true];
+        } else { if (*) {
+            // JOIN_ROUND Fig. 5 Line 7
+            var n : node;
+            var r : round;
+            var R : round;
+            var maxr : round;
+            var v : value;
+            assume(r != bot);
+            assume(start_round_msg[r]);
+            assume(!left_round[n, r]);
+            assume(
+                (
+                    maxr == bot && 
+                    (forall (rp: round, vp: value) :: !phi_1(rp, vp, n, r))
+                ) 
+                || 
+                (
+                    maxr != bot && 
+                    phi_1(maxr, v, n, r) && 
+                    (forall (rp : round, vp : value) :: (phi_1(rp, vp, n, r) ==> leq(rp, maxr)))
+                )); // Fig. 5 Line 11 (See eq. (3) and phi_1 above)
+            join_ack_msg' = join_ack_msg[n, r, maxr, v -> true];
+            left_round' = left_round[n, R -> (left_round[n, R] || (leq(R, r) && R != r))]; // Fig 5. Line 15
+            joined_round' = joined_round[n, r -> true];
+        } else { if (*) {
+            // PROPOSE Fig. 5 Line 18
+            var n : node;
+            var r : round;
+            var maxr : round;
+            var v : value;
+            var q : quorum;
+            assume(r != bot);
+            assume(forall (v : value) :: !propose_msg[r, v]);
+            assume(forall (n : node) :: (member(n, q) ==> joined_round[n, r]));
+            assume(
+                (
+                    maxr == bot && 
+                    (forall (rp: round, vp: value) :: !phi_2(rp, vp, r, q))
+                )
+                ||
+                (
+                    maxr != bot && 
+                    phi_2(maxr, v, r, q) && 
+                    (forall (rp : round, vp : value) :: (phi_2(rp, vp, r, q) ==> leq(rp, maxr)))
+                )); // Fig. 5 Line 24 (See eq. (3) and phi_2 above)
+            propose_msg' = propose_msg[r, v -> true];
+        } else { if (*) {
+            // VOTE Fig. 5 Line 28
+            var n : node;
+            var r : round;
+            var v : value;
+            assume(r != bot);
+            assume(propose_msg[r, v]);
+            assume(!left_round[n, r]); // Fig. 5 Line 31
+            vote_msg' = vote_msg[n, r, v -> true];
+        } else {
+            // LEARN Fig. 3 Line 53
+            var n : node;
+            var r : round;
+            var v : value;
+            var q : quorum;
+            assume(r != bot);
+            assume((forall (n : node) :: member(n, q) ==> vote_msg[n, r, v]));
+            decision' = decision[n, r, v -> true]; 
+        }}}}
+    }
+ 
+
+    // main invariant
+    // invariant single_decision_eq_4: 
+    assume(forall (n1 : node, n2 : node, r1 : round, r2 : round, v1 : value, v2 : value) :: 
+        decision[n1, r1, v1] && decision[n2, r2, v2] ==> v1 == v2);
+
+    // helper invariants
+    // invariant unique_proposal_eq_5: 
+    assume(forall (r : round, v1 : value, v2 : value) :: 
+        propose_msg[r, v1] && propose_msg[r, v2] ==> v1 == v2);
+
+    // invariant vote_after_propose_eq_6: 
+    assume(forall (n : node, r : round, v : value) :: vote_msg[n, r, v] ==> propose_msg[r, v]);
+
+    // invariant if_decision_then_quorum_vote_eq_7: 
+    assume(forall (r : round, v : value) :: 
+        (exists (n : node) :: decision[n, r, v]) ==> (exists (q : quorum) :: (forall (n : node) :: member(n, q) ==> vote_msg[n, r, v])));
+
+    // invariant eq_8: 
+    assume(forall (n : node, r : round, rp : round, v : value, vp : value) :: 
+        (join_ack_msg[n, r, bot, v] && leq(r, rp) && r != rp) ==> !vote_msg[n, rp, vp]);
+
+    // invariant eq_9: 
+    assume(forall (n : node, r : round, rp : round, v : value) :: 
+        (join_ack_msg[n, r, rp, v] && rp != bot) ==> (leq(r, rp) && r != rp && vote_msg[n, rp, v]));
+
+    // invariant eq_10: 
+    assume(forall (n : node, r : round, rp : round, rpp : round, v : value, vp : value) :: 
+        (join_ack_msg[n, r, rp, v] && rp != bot && leq(rp, rpp) && rp != rpp && leq(rpp, r) && rpp != r) ==> !vote_msg[n, rpp, vp]);
+
+    // invariant eq_11: 
+    assume(forall (n : node, v: value) :: !vote_msg[n, bot, v]);
+
+    // invariant eq_13: 
+    assume(forall (r1 : round, r2 : round, v1 : value, v2 : value, q : quorum) :: 
+        (propose_msg[r2, v2] && leq(r1, r2) && r1 != r2 && v1 != v2) ==> 
+            (exists (n : node) :: 
+                member(n, q) && !vote_msg[n, r1, v1] && left_round[n, r1]));
+
+    invariant eq_14: (forall (n : node, r1 : round, r2 : round) :: (leq(r1, r2) && r1 != r2 && joined_round[n, r2]) ==> left_round[n, r1]);
+
+    // invariant eq_15: 
+    assume(forall (n : node, r : round, rp : round, v : value) :: join_ack_msg[n, r, rp, v] ==> joined_round[n, r]);
+
+    control
+    {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex;
+    }
+}

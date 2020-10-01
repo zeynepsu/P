@@ -1,0 +1,69 @@
+module Common {
+
+    define peek() : event_t = event_queue.events[event_queue.head];
+
+    type machine_id = integer;
+
+    const coordinator_id : machine_id;
+    axiom coordinator_id == 0;
+
+    const participant_i : machine_id;
+    const participant_j : machine_id;
+    axiom participant_i != participant_j;
+    axiom participant_i > 0 && participant_i <= participant_count;
+    axiom participant_j > 0 && participant_j <= participant_count;
+
+    const participant_count : machine_id;
+    axiom participant_count == 2;
+
+    type event_id   = integer;
+    type signal_t = enum { 
+        EWRITETRANSACTION,
+         EPREPARESUCCESS,
+         EPREPAREFAIL,
+         EPREPARE,
+         EGLOBALCOMMIT,
+         EGLOBALABORT
+    };
+
+    type event_t  = record {
+        signal: signal_t,
+        source: machine_id,
+        target: machine_id,
+        data: integer
+    };
+
+    type event_q = record { 
+        events  : [event_id]event_t,
+        head  : event_id, 
+        tail  : event_id,
+        size  : event_id
+    };
+
+    procedure [inline] reset_events() 
+        modifies event_queue;
+    {
+        event_queue.head = 0;
+        event_queue.tail = 0;
+        event_queue.size = 0;
+    }
+
+    procedure [inline] push_event(e: event_t) 
+        modifies event_queue;
+    {
+        event_queue.events = event_queue.events[event_queue.tail -> e];
+        event_queue.tail = event_queue.tail + 1;
+        event_queue.size = event_queue.size + 1;
+    }
+
+    procedure [inline] pop_event() 
+        returns (e: event_t)
+        modifies event_queue;  
+    {
+        e = event_queue.events[event_queue.head];
+        event_queue.head = event_queue.head + 1;
+        event_queue.size = event_queue.size - 1;
+    }
+
+    sharedvar event_queue : event_q;
+}

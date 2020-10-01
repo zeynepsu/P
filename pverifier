@@ -1,0 +1,87 @@
+#!/usr/local/bin/python3
+
+# Include standard modules
+import argparse
+import subprocess
+
+# Initiate the parser
+parser = argparse.ArgumentParser()
+
+# Add long and short argument
+parser.add_argument("--proof", "-p", help="proof procedure to use")
+parser.add_argument("--timeout", "-t", help="timeout to give z3")
+parser.add_argument("--unroll", "-k", help="number of transitions")
+parser.add_argument("--pproj", "-f", help="P project to compile")
+parser.add_argument("--counter", "-c", help="variables to get counterexample for")
+parser.add_argument("--init_assume", "-a", help="assume these invariants at init")
+
+# Read arguments from the command line
+args = parser.parse_args()
+
+# Check for --pproj
+if args.pproj:
+    print("Set pproj to %s" % args.pproj)
+
+proof = args.proof
+# Check for --proof
+if args.proof:
+    print("Set proof proof to %s" % args.proof)
+else:
+    proof = "induction"
+
+# Check for --unroll
+if args.unroll:
+    print("Set unroll to %s" % args.unroll)
+    proof += "(%s)"%args.unroll
+
+model = ""
+if args.counter:
+    if args.counter == "all":
+        model = "v.print_cex;"
+    else:
+        print("Get model(s) for %s" % args.counter)
+        model = "v.print_cex(%s);" %args.counter
+
+timeout = args.timeout
+# Check for --timeout
+if args.timeout:
+    print("Set timeout to %s" % args.timeout)
+else:
+    timeout = "1000"
+
+subprocess.call("pc -proj:%s" % args.pproj, shell=True)
+
+control = """
+    control {
+        set_solver_option("timeout", %s);
+        v = %s;
+        check;
+        print_results;
+        %s
+    } // End of control block
+} // End of main module
+""" %(timeout, proof, model)
+
+uclid = "PGenerated/"+args.pproj[:-5]+"ucl"
+
+with open(uclid, "r") as myfile:
+    code = myfile.read()
+
+with open(uclid, "w") as myfile:
+    if args.init_assume:
+        invs = args.init_assume.split(", ")
+        for i in invs:
+            # find inv and parse it
+            start = code.find(i) + len(i + ":")
+            end = code[start:].find(";") + start
+            inv = code[start:end]
+
+            # find init and add the assumption to it
+            start_m = code.find("main {")
+            start_init = code[start_m:].find("init") + start_m
+            start_init = code[start_init:].find("{") + start_init + 2
+            code = code[:start_init] + "\t\tassume(%s);\n" % inv + code[start_init:] 
+
+    myfile.write(code+control)
+
+subprocess.call("uclid %s" % uclid, shell=True)

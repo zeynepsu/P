@@ -1,0 +1,222 @@
+
+module main {
+
+    define peek() : event_t = queue.events[queue.head];
+
+    type * = Common.*;
+    type coordinator_state_t = Coordinator.state_t;
+    type participant_state_t = Participant.state_t;
+    
+    var queue : event_q;
+    var active_c : boolean;
+    var active_i : boolean;
+    var active_j : boolean;
+
+    define e_valid(id : event_id) : boolean = id >= queue.head && id < queue.tail && queue.size > 0;
+
+    instance c : Coordinator (queue : (queue), active : (active_c));
+    instance i : Participant (queue : (queue), active : (active_i));
+    instance j : Participant (queue : (queue), active : (active_j));
+
+    instance common : Common (event_queue : (queue));
+
+    init {
+        queue.size = 0;
+        queue.head = 0;
+        queue.tail = 0;
+        assume(c.state == WAITFORTRANSACTIONS);
+        assume(i.id == Common.participant_i);
+        assume(i.wcount == 0);
+        assume(j.id == Common.participant_j);
+        assume(j.wcount == 0);
+        assume(c.countPrepareResponses == 0);
+        active_c = true;
+        active_i = false;
+        active_j = false;
+    }
+
+    next {
+        if (queue.size == 0 && c.state == WAITFORTRANSACTIONS) {
+            var e : event_t;
+            assume(e.target == Common.coordinator_id);
+            assume(e.signal == EWRITETRANSACTION);
+            assume(e.source == -1);
+            call () = common.push_event(e);
+        }
+        case
+        (active_c) : {
+            next(c);
+        }
+        (active_i) : {
+            next(i);
+        }
+        (active_j) : {
+            next(j);
+        }
+        esac
+
+        havoc active_c;
+        havoc active_i;
+        havoc active_j;
+        assume(active_c || active_i || active_j);
+        assume(active_c ==> (!active_i && !active_j));
+        assume(active_i ==> (!active_c && !active_j));
+        assume(active_j ==> (!active_i && !active_c));
+    }
+
+    invariant same_kvstore: (forall (x : integer) :: (x >= 0 && x < i.wcount && x < j.wcount) 
+        ==> i.kvstore[x] == j.kvstore[x]);
+
+    // auxilary invariants
+    invariant close_wcount: i.wcount == j.wcount || i.wcount == j.wcount + 1 || i.wcount + 1 == j.wcount;
+    invariant sync_wcount: (c.state == WAITFORTRANSACTIONS && queue.size == 0) ==> i.wcount == j.wcount;
+    invariant i_behind_means_i_commit: i.wcount < j.wcount ==> 
+        ((exists (x : integer) :: e_valid(x) && 
+            queue.events[x].signal == EGLOBALCOMMIT && 
+            queue.events[x].target == Common.participant_i) &&
+        (i.kvstore[i.wcount] == j.kvstore[i.wcount]) &&
+        (forall (y : integer) :: e_valid(y) ==> 
+            queue.events[y].target != Common.participant_j)
+        );
+    invariant j_behind_means_j_commit: j.wcount < i.wcount ==> 
+        ((exists (x : integer) :: e_valid(x) && 
+            queue.events[x].signal == EGLOBALCOMMIT && 
+            queue.events[x].target == Common.participant_j) &&
+        (j.kvstore[j.wcount] == i.kvstore[j.wcount]) &&
+        (forall (y : integer) :: e_valid(y) ==> 
+            queue.events[y].target != Common.participant_i)
+        );
+
+    invariant even_means_both_or_neither_commit: i.wcount == j.wcount ==>
+        (((exists (x : integer) :: e_valid(x) && 
+            queue.events[x].signal == EGLOBALCOMMIT && 
+            queue.events[x].target == Common.participant_j) && 
+           (exists (x : integer) :: e_valid(x) && 
+            queue.events[x].signal == EGLOBALCOMMIT && 
+            queue.events[x].target == Common.participant_i)) ||
+         (forall (y : integer) :: e_valid(y) ==> 
+           ((queue.events[y].target != Common.participant_i && queue.events[y].target != Common.participant_j) || queue.events[y].signal != EGLOBALCOMMIT)));
+
+    invariant only_ever_single_write :
+        (exists (x : integer) :: (e_valid(x) && 
+            queue.events[x].signal == EWRITETRANSACTION)) ==> queue.size == 1;
+
+    invariant no_abort_means_no_more_events_than_can_count: 
+        ((forall (y : integer) :: e_valid(y) ==> 
+           (queue.events[y].signal != EGLOBALABORT)) ==> queue.size <= Common.participant_count - c.countPrepareResponses) || (queue.size  == 1 && peek().signal == EWRITETRANSACTION);
+
+    invariant no_abort_before_prep: 
+        (exists (x : integer) :: (e_valid(x) && 
+            queue.events[x].signal == EGLOBALABORT) ==> 
+                (forall (y: integer) :: (y > x && e_valid(y)) ==> (queue.events[x].signal != EPREPARE)));
+
+    invariant abort_always_last: 
+        (exists (x : integer) :: (e_valid(x) && 
+            queue.events[x].signal == EGLOBALABORT)) ==> 
+                (forall (y: integer) :: (y >= queue.tail || queue.events[y].signal == EGLOBALABORT));
+
+    invariant count_range : c.countPrepareResponses >= 0 && c.countPrepareResponses <= Common.participant_count;
+    // invariant nothing_to_wait_for : c.countPrepareResponses == Common.participant_count ==> (c.state == WAITFORTRANSACTIONS || c.entry);
+    invariant wait_means_no_count: c.state == WAITFORTRANSACTIONS ==> c.countPrepareResponses == 0;
+
+
+    invariant not_commit_and_abort:
+        (exists (x : integer) :: e_valid(x) && 
+            queue.events[x].signal == EGLOBALCOMMIT) ==>
+        (forall (y : integer) :: e_valid(y) ==> 
+            queue.events[y].signal != EGLOBALABORT);
+
+    invariant below_count_means_no_commit: c.countPrepareResponses < Common.participant_count ==>
+        (forall (y : integer) :: e_valid(y) ==> 
+            queue.events[y].signal != EGLOBALCOMMIT);
+
+    invariant abort_means_equal:
+        (exists (x : integer) :: e_valid(x) && 
+            queue.events[x].signal == EGLOBALABORT) ==> i.wcount == j.wcount;
+
+    invariant abort_means_wait_trans: 
+        (exists (x : integer) :: (e_valid(x) && 
+            queue.events[x].signal == EGLOBALABORT)) ==> c.state == WAITFORTRANSACTIONS;
+
+    invariant commit_means_wait_trans: 
+        (exists (x : integer) :: (e_valid(x) && 
+            queue.events[x].signal == EGLOBALCOMMIT)) ==> c.state == WAITFORTRANSACTIONS;
+
+    // Assumptions from submodules and message passing
+    assume(active_c && queue.size > 0 ==> peek().target == Common.coordinator_id);
+    assume(active_i && queue.size > 0 ==> peek().target == Common.participant_i);
+    assume(active_j && queue.size > 0 ==> peek().target == Common.participant_j);
+
+    assume(forall (x : integer, y : integer) :: 
+        (e_valid(x) && e_valid(y) && queue.events[x].signal == EPREPARE &&  queue.events[y].signal == EPREPARE) ==>
+            (queue.events[x].data == queue.events[y].data));
+
+    assume(queue.size >= 0 && queue.size == queue.tail - queue.head);
+    assume(queue.head >= 0);
+
+    assume((exists (x : integer) :: e_valid(x) && 
+            queue.events[x].signal == EWRITETRANSACTION && 
+            queue.events[x].target == Common.coordinator_id) ==>
+                (queue.size == 1));
+
+    assume((forall (x : integer) :: (c.state == WAITFORPREPARERESPONSES && e_valid(x) && queue.events[x].target == Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARESUCCESS || 
+                     queue.events[x].signal == EPREPAREFAIL)));
+
+    assume((forall (x : integer) :: (e_valid(x) && queue.events[x].target > Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARE || 
+                     queue.events[x].signal == EGLOBALCOMMIT || 
+                     queue.events[x].signal == EGLOBALABORT)));
+
+    assume((forall (x : integer) :: (e_valid(x) && queue.events[x].signal == EPREPARE) ==>
+                    (queue.events[x].target > Common.coordinator_id)));
+
+    assume((forall (x : integer) :: (e_valid(x) && queue.events[x].signal == EGLOBALCOMMIT) ==>
+                    (queue.events[x].target > Common.coordinator_id)));
+        
+    assume((forall (x : integer) :: (e_valid(x) && queue.events[x].signal == EGLOBALABORT) ==>
+                    (queue.events[x].target > Common.coordinator_id)));
+
+    assume(i.id > Common.coordinator_id && i.id <= Common.participant_count && 
+                   j.id > Common.coordinator_id && j.id <= Common.participant_count &&
+                   i.id != j.id &&
+                   Common.coordinator_id == 0);
+
+    assume(i.wcount >= 0 && j.wcount >= 0);
+
+    // unique_commits: 
+    assume((forall (x : integer, y : integer) :: 
+        (e_valid(x) && e_valid(y) && queue.events[y].target == queue.events[x].target && queue.events[y].signal == EGLOBALCOMMIT && queue.events[x].signal == EGLOBALCOMMIT) ==> 
+        x == y));
+
+    // one_write_transaction_at_a_time
+    assume((forall (x : integer, y : integer) :: 
+        (e_valid(x) && e_valid(y) && queue.events[y].signal == EWRITETRANSACTION && queue.events[x].signal == EWRITETRANSACTION) ==> 
+        x == y));
+
+
+    control {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex(
+            Common.participant_i,
+            Common.participant_j,
+            Common.participant_count,
+
+            c.state,
+            c.entry,
+            c.countPrepareResponses,
+
+            queue.size,
+            queue.head,
+            queue.tail,
+            queue.events,
+
+            i.wcount,
+            j.wcount,
+            i.kvstore,
+            j.kvstore
+        );
+    }
+}

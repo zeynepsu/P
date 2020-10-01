@@ -100,6 +100,10 @@ namespace Plang.Compiler
                                     outputLanguage = CompilerOutput.Coyote;
                                     break;
 
+                                case "uclid":
+                                    outputLanguage = CompilerOutput.Uclid;
+                                    break;
+
                                 default:
                                     CommandlineOutput.WriteMessage(
                                         $"Unrecognized generate option '{colonArg}', expecting C or Coyote",
@@ -219,114 +223,82 @@ namespace Plang.Compiler
         private static bool ParseProjectFile(string projectFile, out CompilationJob job)
         {
             job = null;
-            if (!IsLegalPProjFile(projectFile, out FileInfo projectFilePath))
+            if (!IsLegalPProjFile(projectFile, out FileInfo fullPathName))
             {
                 CommandlineOutput.WriteMessage(
-                    $"Illegal P project file name {projectFile} or file {projectFilePath?.FullName} not found", SeverityKind.Error);
+                    $"Illegal P project file name {projectFile} or file {fullPathName?.FullName} not found", SeverityKind.Error);
                 return false;
             }
 
             CommandlineOutput.WriteMessage($".... Parsing the project file: {projectFile}", SeverityKind.Info);
 
             CompilerOutput outputLanguage = CompilerOutput.C;
+            DirectoryInfo outputDirectory = null;
             List<FileInfo> inputFiles = new List<FileInfo>();
+            string targetName = null;
             bool generateSourceMaps = false;
-            List<string> projectDependencies = new List<string>();
 
-            // get all project dependencies and the input files
-            var dependencies = GetAllProjectDependencies(projectFilePath);
+            XElement projectXML = XElement.Load(fullPathName.FullName);
 
-            inputFiles.AddRange(dependencies.inputFiles);
-            projectDependencies.AddRange(dependencies.projectDependencies);
-            
+            // get all files to be compiled
+
+            foreach (XElement inputs in projectXML.Elements("InputFiles"))
+            {
+                foreach (XElement inputFileName in inputs.Elements("PFile"))
+                {
+                    var pFiles = new List<string>();
+
+                    if(Directory.Exists(inputFileName.Value))
+                    {
+                        foreach(var files in Directory.GetFiles(inputFileName.Value, "*.p"))
+                        {
+                            pFiles.Add(files);
+                        }
+                    }
+                    else
+                    {
+                        pFiles.Add(inputFileName.Value);   
+                    }
+
+                    foreach(var pFile in pFiles)
+                    {
+                        if (IsLegalPFile(pFile, out FileInfo pFilePathName))
+                        {
+                            CommandlineOutput.WriteMessage($"....... project includes: {pFilePathName.FullName}", SeverityKind.Info);
+                            inputFiles.Add(pFilePathName);
+                        }
+                        else
+                        {
+                            CommandlineOutput.WriteMessage(
+                                $"Illegal P file name {pFile} or file {pFilePathName?.FullName} not found", SeverityKind.Error);
+                        }
+                    }
+                }
+            }
+
             if (inputFiles.Count == 0)
             {
                 CommandlineOutput.WriteMessage("At least one .p file must be provided as input files", SeverityKind.Error);
                 return false;
             }
 
-            // get project name
-            string projectName = GetProjectName(projectFilePath);
-
-            // get output directory
-            DirectoryInfo outputDirectory = GetOutputDirectory(projectFilePath);
-
-
-            // get target language
-            GetTargetLanguage(projectFilePath, ref outputLanguage, ref generateSourceMaps);
-
-            job = new CompilationJob(output: new DefaultCompilerOutput(outputDirectory), outputLanguage: outputLanguage, inputFiles: inputFiles, projectName: projectName, generateSourceMaps: generateSourceMaps, projectDependencies);
-            return true;
-        }
-
-        private static (List<FileInfo> inputFiles, List<string> projectDependencies) GetAllProjectDependencies(FileInfo fullPathName)
-        {
-            var projectDependencies = new List<string>();
-            var inputFiles = new List<FileInfo>();
-            XElement projectXML = XElement.Load(fullPathName.FullName);
-            projectDependencies.Add(GetProjectName(fullPathName));
-            // add all input files from the current project
-            inputFiles.AddRange(ReadAllInputFiles(fullPathName));
-
-            // get recursive project dependencies
-            foreach (XElement projectDepen in projectXML.Elements("IncludeProject"))
+            // get target file name
+            if (projectXML.Elements("TargetFileName").Any())
             {
-
-                if (!IsLegalPProjFile(projectDepen.Value, out FileInfo fullProjectDepenPathName))
-                {
-                    CommandlineOutput.WriteMessage(
-                        $"Illegal P project file name {projectDepen.Value} or file {fullProjectDepenPathName?.FullName} not found", SeverityKind.Error);
-                    Environment.Exit(1);
-                }
-
-                CommandlineOutput.WriteMessage($".... Parsing the project file: {fullProjectDepenPathName.FullName}", SeverityKind.Info);
-
-                var inputsAndDependencies = GetAllProjectDependencies(fullProjectDepenPathName);
-                projectDependencies.AddRange(inputsAndDependencies.projectDependencies);
-                inputFiles.AddRange(inputsAndDependencies.inputFiles);
-                if(projectDependencies.Count != projectDependencies.Distinct().Count())
-                {
-                    CommandlineOutput.WriteMessage(
-                        $"Cyclic project dependencies: {projectDependencies}", SeverityKind.Error);
-                    Environment.Exit(1);
-                }
-            }
-
-            return (inputFiles, projectDependencies);
-        }
-
-        private static string GetProjectName(FileInfo fullPathName)
-        {
-            string targetName = null;
-            XElement projectXML = XElement.Load(fullPathName.FullName);
-            if (projectXML.Elements("ProjectName").Any())
-            {
-                targetName = projectXML.Element("ProjectName").Value;
+                targetName = projectXML.Element("TargetFileName").Value;
                 if (!IsLegalUnitName(targetName))
                 {
-                    CommandlineOutput.WriteMessage($"{targetName} is not a legal project name", SeverityKind.Error);
-                    Environment.Exit(1);
+                    CommandlineOutput.WriteMessage($"{targetName} is not a legal target file name", SeverityKind.Error);
+                    return false;
                 }
             }
-            else
-            {
-                CommandlineOutput.WriteMessage($"Missing project name field in {fullPathName.FullName}", SeverityKind.Error);
-                Environment.Exit(1);
-            }
 
-            return targetName;
-        }
+            string projectName = targetName ?? Path.GetFileNameWithoutExtension(inputFiles[0].FullName);
 
-        private static DirectoryInfo GetOutputDirectory(FileInfo fullPathName)
-        {
-            XElement projectXML = XElement.Load(fullPathName.FullName);
-            DirectoryInfo outputDirectory = projectXML.Elements("OutputDir").Any() ? Directory.CreateDirectory(projectXML.Element("OutputDir").Value) : new DirectoryInfo(Directory.GetCurrentDirectory());
-            return outputDirectory;
-        }
+            // get output directory
+            outputDirectory = projectXML.Elements("OutputDir").Any() ? Directory.CreateDirectory(projectXML.Element("OutputDir").Value) : new DirectoryInfo(Directory.GetCurrentDirectory());
 
-        private static void GetTargetLanguage(FileInfo fullPathName, ref CompilerOutput outputLanguage, ref bool generateSourceMaps)
-        {
-            XElement projectXML = XElement.Load(fullPathName.FullName);
+            // get target language
             if (projectXML.Elements("Target").Any())
             {
                 switch (projectXML.Element("Target").Value.ToLowerInvariant())
@@ -344,7 +316,6 @@ namespace Plang.Compiler
                         catch (Exception)
                         {
                             CommandlineOutput.WriteMessage($"Expected true or false, received {projectXML.Element("Target").Attribute("sourcemaps").Value}", SeverityKind.Error);
-                            Environment.Exit(1);
                         }
                         break;
 
@@ -352,56 +323,18 @@ namespace Plang.Compiler
                         outputLanguage = CompilerOutput.Coyote;
                         break;
 
+                    case "uclid":
+                        outputLanguage = CompilerOutput.Uclid;
+                        break;
+
                     default:
                         outputLanguage = CompilerOutput.C;
                         break;
                 }
             }
-        }
 
-        private static List<FileInfo> ReadAllInputFiles(FileInfo fullPathName)
-        {
-            List<FileInfo> inputFiles = new List<FileInfo>();
-            XElement projectXML = XElement.Load(fullPathName.FullName);
-
-            // get all files to be compiled
-            foreach (XElement inputs in projectXML.Elements("InputFiles"))
-            {
-                foreach (XElement inputFileName in inputs.Elements("PFile"))
-                {
-                    var pFiles = new List<string>();
-                    var inputFileNameFull = Path.Combine(Path.GetDirectoryName(fullPathName.FullName), inputFileName.Value);
-
-                    if (Directory.Exists(inputFileNameFull))
-                    {
-                        foreach (var files in Directory.GetFiles(inputFileNameFull, "*.p"))
-                        {
-                            pFiles.Add(files);
-                        }
-                    }
-                    else
-                    {
-                        pFiles.Add(inputFileNameFull);
-                    }
-
-                    foreach (var pFile in pFiles)
-                    {
-                        if (IsLegalPFile(pFile, out FileInfo pFilePathName))
-                        {
-                            CommandlineOutput.WriteMessage($"....... project includes: {pFilePathName.FullName}", SeverityKind.Info);
-                            inputFiles.Add(pFilePathName);
-                        }
-                        else
-                        {
-                            CommandlineOutput.WriteMessage(
-                                $"Illegal P file name {pFile} or file {pFilePathName?.FullName} not found", SeverityKind.Error);
-                            Environment.Exit(1);
-                        }
-                    }
-                }
-            }
-
-            return inputFiles;
+            job = new CompilationJob(output: new DefaultCompilerOutput(outputDirectory), outputLanguage: outputLanguage, inputFiles: inputFiles, projectName: projectName, generateSourceMaps: generateSourceMaps);
+            return true;
         }
 
         private static bool IsLegalUnitName(string unitFileName)
@@ -453,9 +386,10 @@ namespace Plang.Compiler
             CommandlineOutput.WriteMessage("USAGE: Pc.exe -proj:<.pproj file>", SeverityKind.Info);
             CommandlineOutput.WriteMessage("    -t:[tfileName]             -- name of output file produced for this compilation unit; if not supplied then file1", SeverityKind.Info);
             CommandlineOutput.WriteMessage("    -outputDir:[path]          -- where to write the generated files", SeverityKind.Info);
-            CommandlineOutput.WriteMessage("    -generate:[C,Coyote]       -- select a target language to generate", SeverityKind.Info);
-            CommandlineOutput.WriteMessage("        C   : generate C code using the Prt runtime", SeverityKind.Info);
+            CommandlineOutput.WriteMessage("    -generate:[C,Coyote,Uclid] -- select a target language to generate", SeverityKind.Info);
+            CommandlineOutput.WriteMessage("        C       : generate C code using the Prt runtime", SeverityKind.Info);
             CommandlineOutput.WriteMessage("        Coyote  : generate C# code using the Coyote runtime", SeverityKind.Info);
+            CommandlineOutput.WriteMessage("        Uclid   : generate Uclid5 models", SeverityKind.Info);
             CommandlineOutput.WriteMessage("    -proj:[.pprojfile]         -- the p project to be compiled", SeverityKind.Info);
             CommandlineOutput.WriteMessage("    -sourcemaps[:(true|false)] -- enable or disable generating source maps", SeverityKind.Info);
             CommandlineOutput.WriteMessage("                                  in the compiled C output. may confuse some", SeverityKind.Info);

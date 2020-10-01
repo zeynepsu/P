@@ -113,7 +113,7 @@ namespace Plang.Compiler.Backend
             List<IPStmt> deps = new List<IPStmt>();
 #pragma warning disable CCN0002 // Non exhaustive patterns in switch block
             switch (expr)
-            {
+            {   
                 case IExprTerm term:
                     return (term, deps);
 
@@ -317,46 +317,6 @@ namespace Plang.Compiler.Backend
             Antlr4.Runtime.ParserRuleContext location = statement?.SourceLocation;
             switch (statement)
             {
-                case null:
-                    throw new ArgumentNullException(nameof(statement));
-                case AnnounceStmt announceStmt:
-                    (IExprTerm annEvt, List<IPStmt> annEvtDeps) = SimplifyExpression(announceStmt.PEvent);
-                    (IExprTerm annPayload, List<IPStmt> annPayloadDeps) = announceStmt.Payload == null
-                        ? (null, new List<IPStmt>())
-                        : SimplifyExpression(announceStmt.Payload);
-                    return annEvtDeps.Concat(annPayloadDeps)
-                        .Concat(new[]
-                        {
-                            new AnnounceStmt(location, annEvt, annPayload)
-                        })
-                        .ToList();
-
-                case AssertStmt assertStmt:
-                    (IExprTerm assertExpr, List<IPStmt> assertDeps) = SimplifyExpression(assertStmt.Assertion);
-                    (IExprTerm messageExpr, List<IPStmt> messageDeps) = SimplifyExpression(assertStmt.Message);
-
-                    return assertDeps.Concat(messageDeps).Concat(new[]
-                        {
-                            new AssertStmt(location, assertExpr, messageExpr)
-                        })
-                        .ToList();
-
-                case AssignStmt assignStmt:
-                    (IPExpr assignLV, List<IPStmt> assignLVDeps) = SimplifyLvalue(assignStmt.Location);
-                    (IExprTerm assignRV, List<IPStmt> assignRVDeps) = SimplifyRvalue(assignStmt.Value);
-                    IPStmt assignment;
-                    // If temporary returned, then automatically move.
-                    if (assignRV is VariableAccessExpr variableRef &&
-                        variableRef.Variable.Role.HasFlag(VariableRole.Temp))
-                    {
-                        assignment = new MoveAssignStmt(location, assignLV, variableRef.Variable);
-                    }
-                    else
-                    {
-                        assignment = new AssignStmt(location, assignLV, new CloneExpr(assignRV));
-                    }
-
-                    return assignLVDeps.Concat(assignRVDeps).Concat(new[] { assignment }).ToList();
 
                 case CompoundStmt compoundStmt:
                     List<IPStmt> newBlock = new List<IPStmt>();
@@ -366,192 +326,47 @@ namespace Plang.Compiler.Backend
                     }
                     // TODO: why not return the list? because of source location info?
                     return new List<IPStmt> { new CompoundStmt(location, newBlock) };
-
-                case CtorStmt ctorStmt:
-                    (IReadOnlyList<IVariableRef> ctorArgs, List<IPStmt> ctorArgDeps) = SimplifyArgPack(ctorStmt.Arguments);
-                    return ctorArgDeps.Concat(new[]
-                        {
-                            new CtorStmt(location, ctorStmt.Interface, ctorArgs)
-                        })
-                        .ToList();
-
-                case FunCallStmt funCallStmt:
-                    (ILinearRef[] funCallArgs, List<IPStmt> funCallArgDeps) = SimplifyFunArgs(funCallStmt.ArgsList);
-                    return funCallArgDeps.Concat(new[]
-                        {
-                            new FunCallStmt(location, funCallStmt.Function, funCallArgs)
-                        })
-                        .ToList();
-
-                case GotoStmt gotoStmt:
-                    if (gotoStmt.Payload == null)
-                    {
-                        return new List<IPStmt> { gotoStmt };
-                    }
-
-                    (IExprTerm gotoPayload, List<IPStmt> gotoDeps) = SimplifyExpression(gotoStmt.Payload);
-                    (VariableAccessExpr gotoArgTmp, IPStmt gotoArgDep) = SaveInTemporary(new CloneExpr(gotoPayload));
-                    return gotoDeps.Concat(new[]
-                        {
-                            gotoArgDep,
-                            new GotoStmt(location, gotoStmt.State, gotoArgTmp)
-                        })
-                        .ToList();
-
-                case IfStmt ifStmt:
-                    (IExprTerm ifCond, List<IPStmt> ifCondDeps) = SimplifyExpression(ifStmt.Condition);
-                    List<IPStmt> thenBranch = SimplifyStatement(ifStmt.ThenBranch);
-                    List<IPStmt> elseBranch = SimplifyStatement(ifStmt.ElseBranch);
-                    return ifCondDeps.Concat(new[]
-                        {
-                            new IfStmt(location,
-                                ifCond,
-                                new CompoundStmt(ifStmt.ThenBranch.SourceLocation, thenBranch),
-                                new CompoundStmt(ifStmt.ElseBranch.SourceLocation, elseBranch))
-                        })
-                        .ToList();
-
-                case AddStmt addStmt:
-                    var (addVar, addVarDeps) = SimplifyLvalue(addStmt.Variable);
-                    var (addVal, addValDeps) = SimplifyArgPack(new[] { addStmt.Value });
-                    Debug.Assert(addVal.Count == 1);
-                    return addVarDeps.Concat(addValDeps)
-                        .Concat(new[]
-                        {
-                            new AddStmt(location, addVar, addVal[0])
-                        })
-                        .ToList();
-
-                case InsertStmt insertStmt:
-                    (IPExpr insVar, List<IPStmt> insVarDeps) = SimplifyLvalue(insertStmt.Variable);
-                    (IExprTerm insIdx, List<IPStmt> insIdxDeps) = SimplifyExpression(insertStmt.Index);
-                    (IReadOnlyList<IVariableRef> insVal, List<IPStmt> insValDeps) = SimplifyArgPack(new[] { insertStmt.Value });
-                    Debug.Assert(insVal.Count == 1);
-                    return insVarDeps.Concat(insIdxDeps)
-                        .Concat(insValDeps)
-                        .Concat(new[]
-                        {
-                            new InsertStmt(location, insVar, insIdx, insVal[0])
-                        })
-                        .ToList();
-
-                case MoveAssignStmt moveAssignStmt:
-                    (IPExpr moveDest, List<IPStmt> moveDestDeps) = SimplifyLvalue(moveAssignStmt.ToLocation);
-                    return moveDestDeps.Concat(new[]
-                        {
-                            new MoveAssignStmt(moveAssignStmt.SourceLocation, moveDest, moveAssignStmt.FromVariable)
-                        })
-                        .ToList();
-
-                case NoStmt _:
-                    return new List<IPStmt>();
-
-                case PopStmt popStmt:
-                    return new List<IPStmt> { popStmt };
-
-                case PrintStmt printStmt:
-                    List<IPStmt> deps = new List<IPStmt>();
-                    (IExprTerm newMessage, List<IPStmt> printDeps) = SimplifyExpression(printStmt.Message);
-                    deps.AddRange(printDeps);
-                    return deps.Concat(new[] { new PrintStmt(location, newMessage) }).ToList();
-
-                case RaiseStmt raiseStmt:
-                    (IExprTerm raiseEvent, List<IPStmt> raiseEventDeps) = SimplifyExpression(raiseStmt.PEvent);
-                    (VariableAccessExpr raiseEventTmp, IPStmt raiseEventTempDep) = SaveInTemporary(new CloneExpr(raiseEvent));
-
-                    (IReadOnlyList<IVariableRef> raiseArgs, List<IPStmt> raiseArgDeps) = SimplifyArgPack(raiseStmt.Payload);
-
-                    return raiseEventDeps.Concat(raiseEventDeps)
-                        .Concat(raiseArgDeps)
-                        .Concat(new[] { raiseEventTempDep })
-                        .Concat(new[]
-                        {
-                            new RaiseStmt(location, raiseEventTmp, raiseArgs)
-                        })
-                        .ToList();
-
-                case ReceiveStmt receiveStmt:
-                    foreach (Function recvCase in receiveStmt.Cases.Values)
-                    {
-                        IPStmt functionBody = recvCase.Body;
-                        recvCase.Body = new CompoundStmt(functionBody.SourceLocation, SimplifyStatement(functionBody));
-                    }
-
-                    return new List<IPStmt> { receiveStmt };
-
-                case RemoveStmt removeStmt:
-                    (IPExpr removeVar, List<IPStmt> removeVarDeps) = SimplifyLvalue(removeStmt.Variable);
-                    (IExprTerm removeKey, List<IPStmt> removeKeyDeps) = SimplifyExpression(removeStmt.Value);
-                    return removeVarDeps.Concat(removeKeyDeps)
-                        .Concat(new[]
-                        {
-                            new RemoveStmt(location, removeVar, removeKey)
-                        })
-                        .ToList();
-
-                case ReturnStmt returnStmt:
-                    if (returnStmt.ReturnValue == null)
-                    {
-                        return new List<IPStmt> { returnStmt };
-                    }
-
-                    (IExprTerm returnValue, List<IPStmt> returnValueDeps) = SimplifyExpression(returnStmt.ReturnValue);
-                    return returnValueDeps.Concat(new[]
-                        {
-                            new ReturnStmt(location, new CloneExpr(returnValue))
-                        })
-                        .ToList();
-
-                case BreakStmt breakStmt:
-                    return new List<IPStmt> { breakStmt };
-
-                case ContinueStmt continueStmt:
-                    return new List<IPStmt> { continueStmt };
-
+                    
                 case SendStmt sendStmt:
-                    (IExprTerm sendMachine, List<IPStmt> sendMachineDeps) = SimplifyExpression(sendStmt.MachineExpr);
-                    (VariableAccessExpr sendMachineAccessExpr, IPStmt sendMachineAssn) = SaveInTemporary(new CloneExpr(sendMachine));
+                    // (IExprTerm sendMachine, List<IPStmt> sendMachineDeps) = SimplifyExpression(sendStmt.MachineExpr);
+                    // (VariableAccessExpr sendMachineAccessExpr, IPStmt sendMachineAssn) = SaveInTemporary(new CloneExpr(sendMachine));
 
-                    (IExprTerm sendEvent, List<IPStmt> sendEventDeps) = SimplifyExpression(sendStmt.Evt);
-                    (VariableAccessExpr sendEventAccessExpr, IPStmt sendEventAssn) = SaveInTemporary(new CloneExpr(sendEvent));
+                    // (IExprTerm sendEvent, List<IPStmt> sendEventDeps) = SimplifyExpression(sendStmt.Evt);
+                    // (VariableAccessExpr sendEventAccessExpr, IPStmt sendEventAssn) = SaveInTemporary(new CloneExpr(sendEvent));
 
                     (IReadOnlyList<IVariableRef> sendArgs, List<IPStmt> sendArgDeps) = SimplifyArgPack(sendStmt.Arguments);
 
-                    return sendMachineDeps
-                        .Concat(new[] { sendMachineAssn })
-                        .Concat(sendEventDeps)
-                        .Concat(new[] { sendEventAssn })
-                        .Concat(sendArgDeps)
+                    return sendArgDeps
                         .Concat(new[]
                         {
-                            new SendStmt(location, sendMachineAccessExpr, sendEventAccessExpr, sendArgs)
+                            new SendStmt(location, sendStmt.MachineExpr, sendStmt.Evt, sendArgs)
                         })
                         .ToList();
 
+                case null:
+                    throw new ArgumentNullException(nameof(statement));
+                case AnnounceStmt announceStmt:
+                case AssertStmt assertStmt:
+                case AssignStmt assignStmt:
+                case CtorStmt ctorStmt:
+                case FunCallStmt funCallStmt:
+                case GotoStmt gotoStmt:
+                case IfStmt ifStmt:
+                case AddStmt addStmt:
+                case InsertStmt insertStmt:
+                case MoveAssignStmt moveAssignStmt:
+                case NoStmt _:
+                case PopStmt popStmt:
+                case PrintStmt printStmt:
+                case RaiseStmt raiseStmt:
+                case ReceiveStmt receiveStmt:
+                case RemoveStmt removeStmt:
+                case ReturnStmt returnStmt:
+                case BreakStmt breakStmt:
+                case ContinueStmt continueStmt:
                 case SwapAssignStmt swapAssignStmt:
-                    (IPExpr swapVar, List<IPStmt> swapVarDeps) = SimplifyLvalue(swapAssignStmt.NewLocation);
-                    Variable rhs = swapAssignStmt.OldLocation;
-                    return swapVarDeps.Concat(new[]
-                        {
-                            new SwapAssignStmt(swapAssignStmt.SourceLocation, swapVar, rhs)
-                        })
-                        .ToList();
-
                 case WhileStmt whileStmt:
-                    (IExprTerm condExpr, List<IPStmt> condDeps) = SimplifyExpression(whileStmt.Condition);
-                    (VariableAccessExpr condTemp, IPStmt condStore) = SaveInTemporary(new CloneExpr(condExpr));
-                    Antlr4.Runtime.ParserRuleContext condLocation = whileStmt.Condition.SourceLocation;
-                    List<IPStmt> condCheck =
-                        condDeps
-                        .Append(condStore)
-                        .Append(new IfStmt(condLocation, condTemp, new NoStmt(condLocation), new BreakStmt(condLocation)))
-                        .ToList();
-
-                    CompoundStmt loopBody = new CompoundStmt(
-                        whileStmt.Body.SourceLocation,
-                        condCheck.Concat(SimplifyStatement(whileStmt.Body)));
-
-                    return new List<IPStmt> { new WhileStmt(location, new BoolLiteralExpr(location, true), loopBody) };
+                    return new List<IPStmt> { statement };
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(statement));

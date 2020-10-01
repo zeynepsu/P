@@ -86,12 +86,14 @@ eventSetLiteral : events+=nonDefaultEvent (COMMA events+=nonDefaultEvent)* ;
 interfaceDecl : INTERFACE name=iden LPAREN type? RPAREN (RECEIVES nonDefaultEventList?) SEMI ;
 
 // has scope
-implMachineDecl : MACHINE name=iden cardinality? receivesSends* machineBody ;
+implMachineDecl : MACHINE name=iden cardinality? receivesSends* invariants* machineBody ;
 idenList : names+=iden (COMMA names+=iden)* ;
 
 receivesSends : RECEIVES eventSetLiteral? SEMI # MachineReceive
               | SENDS eventSetLiteral? SEMI    # MachineSend
               ;
+
+invariants : INVARIANT StringLiteral SEMI # MachineInvariant;
 
 specMachineDecl : SPEC name=iden OBSERVES eventSetLiteral machineBody ;
 

@@ -1,0 +1,169 @@
+module main
+{
+    // Helper Procedures
+    procedure eGlobalCommit_all(w: [participants, transID]boolean, id : transID) returns (v: [participants, transID]boolean)
+        requires forall (n : participants) :: w[n, id] == false;
+        ensures forall (n : participants) :: v[n, id] == true;
+        ensures forall (n : participants, t : transID) :: t != id ==> v[n, t] == w[n, t];  // doesn't matter how we achieve this
+    { }
+
+    procedure eGlobalAbort_all(w: [participants, transID]boolean, id : transID) returns (v: [participants, transID]boolean)
+        requires forall (n : participants) :: w[n, id] == false;
+        ensures forall (n : participants) :: v[n, id] == true;
+        ensures forall (n : participants, t : transID) :: t != id ==> v[n, t] == w[n, t];  // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepareSuccess(id : transID) returns (v: [participants, transID]boolean)
+        ensures forall (n : participants, t : transID) :: v[n, t] == false; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepareFailed(id : transID) returns (v: [participants, transID]boolean)
+        ensures forall (n : participants, t : transID) :: v[n, t] == false; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepare(id : transID) returns (v: [participants, transID]boolean)
+        ensures forall (n : participants, t : transID) :: v[n, t] == false; // doesn't matter how we achieve this
+    { }
+
+    procedure ePrepare_all(w: [participants, transID]boolean, id : transID) returns (v: [participants, transID]boolean)
+        requires forall (n : participants) :: w[n, id] == false;
+        ensures forall (n : participants) :: v[n, id] == true;
+        ensures forall (n : participants, t : transID) :: t != id ==> v[n, t] == w[n, t];  // doesn't matter how we achieve this
+    { }
+
+    type participants;
+    type transID;
+    type key;
+    type value;
+
+    type state_enum = enum {WaitForTransactions, WaitForPrepareResponses};
+    var state : state_enum;
+
+    var ePrepare        : [participants, transID]boolean; // number of ePrepare messages coordinator has pending to p
+    var eGlobalCommit   : [participants, transID]boolean;
+    var eGlobalAbort    : [participants, transID]boolean; 
+    var ePrepareSuccess : [participants, transID]boolean; // number of ePrepareSuccess messages that p has pending to coordinator
+    var ePrepareFailed  : [participants, transID]boolean;
+
+    var kvstores : [participants, key]value; // p's kvstore
+    
+    const null : value;
+
+    function keys(t : transID) : key;
+    function values(t : transID) : value;
+
+    var current : transID;
+
+    init
+    {
+        assume(forall (n : participants, k : key) :: kvstores[n, k] == null);
+        assume(forall (n : participants, t : transID) :: ePrepare[n, t] == false);
+        assume(forall (n : participants, t : transID) :: eGlobalCommit[n, t] == false);
+        assume(forall (n : participants, t : transID) :: eGlobalAbort[n, t] == false);
+        assume(forall (n : participants, t : transID) :: ePrepareSuccess[n, t] == false);
+        assume(forall (n : participants, t : transID) :: ePrepareFailed[n, t] == false);
+        state = WaitForTransactions;
+    }
+
+    next
+    {
+        // Participant
+        var p : participants; // pick some participant
+        var t : transID; // pick some transaction
+
+        assume(t == current);
+
+        if (*) {
+            // participant p ePrepare on the current
+            if (ePrepare[p, t] == true) {
+                if (*) {
+                    ePrepareSuccess' = ePrepareSuccess[p, t -> true];
+                } else {
+                    ePrepareFailed' = ePrepareFailed[p, t -> true];
+                }
+                ePrepare' = ePrepare[p, t -> false];
+            }
+        } else { if (*) {
+            // participant p eGlobalCommits the round it was told to eGlobalCommit
+            if (eGlobalCommit[p, t] == true) {
+                kvstores' = kvstores[p, keys(t) -> values(t)];
+                eGlobalCommit' = eGlobalCommit[p, t -> false];
+            }
+        } else { if (*) {
+            // participant p eGlobalAborts the round it was told to eGlobalAbort
+            if (eGlobalAbort[p, t] == true) {
+                eGlobalAbort' = eGlobalAbort[p, t -> false];
+            }
+
+        // Coordinator
+        } else { if (*) {
+            // only do this if all participants have eGlobalCommited
+            if(forall (n : participants, tr : transID) :: eGlobalCommit[n, tr] == false && eGlobalAbort[n, tr] == false){
+                if(state == WaitForTransactions) {
+                    // coordinator receives request
+                    current' = t;
+                    call (ePrepare') = ePrepare_all(ePrepare, t);
+                    state' = WaitForPrepareResponses;
+                }
+            }
+
+        } else { if (*) {
+            // some participant rejects the current round, so the coordinator tells them all to eGlobalAbort
+            if(state == WaitForPrepareResponses && ePrepareFailed[p, t] == true) {
+                // p voted no
+                call (eGlobalAbort')    = eGlobalAbort_all(eGlobalAbort, t);
+                state' = WaitForTransactions;
+
+                call (ePrepareFailed')  = reset_ePrepareFailed(t);
+                call (ePrepareSuccess') = reset_ePrepareSuccess(t);
+                call (ePrepare')        = reset_ePrepare(t);
+            }
+        } else {
+            if (state == WaitForPrepareResponses && ePrepareSuccess[p, t] == true) {
+                // p voted yes
+                if(forall (n : participants) :: ePrepareSuccess[n, t] == true) {
+                    // all participants accept the current round, so the coordinator tells them to eGlobalCommit
+                    call (eGlobalCommit')   = eGlobalCommit_all(eGlobalCommit, t);
+                    state' = WaitForTransactions;
+
+                    call (ePrepareFailed')  = reset_ePrepareFailed(t);
+                    call (ePrepareSuccess') = reset_ePrepareSuccess(t);
+                    call (ePrepare')        = reset_ePrepare(t);
+                }
+            }
+        }}}}}
+    }
+
+    // main invariant: when no eGlobalCommit is on the way, every kvstore must be equal.
+    invariant sync_when_no_eGlobalCommit: (forall (n : participants, t : transID) :: eGlobalCommit[n, t] == false) ==> 
+            (forall (n1 : participants, n2 : participants, k : key) :: kvstores[n1, k] == kvstores[n2, k]);
+
+    // helpers
+    invariant eGlobalCommit_means_everyone_eGlobalCommit_or_eGlobalCommited: 
+        (forall (n1 : participants, t : transID) :: eGlobalCommit[n1, t] == true ==> 
+            (forall (n2 : participants) :: (eGlobalCommit[n2, t] == true || kvstores[n2, keys(t)] == values(t))));
+
+    invariant no_lonely_kvstore: (forall (n1 : participants,  n2 : participants, k1 : key, v1 : value) :: 
+        kvstores[n1, k1] == v1 ==> (kvstores[n2, k1] == v1 || k1 == keys(current)));
+
+    invariant GlobalCommit_means_WaitForTransactions: (exists (n : participants, t : transID) :: (eGlobalCommit[n, t] == true || eGlobalAbort[n, t] == true)) ==> state == WaitForTransactions;
+    invariant Prepare_means_WaitForPrepareResponses: (exists (n : participants, t : transID) :: (ePrepare[n, t] == true || ePrepareFailed[n, t] == true || ePrepareSuccess[n, t] == true)) ==> state == WaitForPrepareResponses;
+
+    invariant one_GlobalCommit_overall: (forall (n : participants, t1 : transID) :: eGlobalCommit[n, t1] == true ==> (forall (t2 : transID) :: t1 != t2 ==> eGlobalCommit[n, t2] == false));
+    invariant one_GlobalAbort_overall: (forall (n : participants, t1 : transID) :: eGlobalAbort[n, t1] == true ==> (forall (t2 : transID) :: t1 != t2 ==> eGlobalAbort[n, t2] == false));
+    invariant one_Prepare_overall: (forall (n : participants, t1 : transID) :: ePrepare[n, t1] == true ==> (forall (t2 : transID) :: t1 != t2 ==> ePrepare[n, t2] == false));
+
+    invariant everything_false_except_current: (forall (n1 : participants, t : transID) :: t != current ==> (eGlobalCommit[n1, t] == false && eGlobalAbort[n1, t] == false && ePrepare[n1, t] == false && ePrepareSuccess[n1, t] == false && ePrepareFailed[n1, t] == false));
+
+    invariant cant_succed_and_fail: (forall (n1: participants, t : transID) :: (ePrepareSuccess[n1, t] == false && ePrepareFailed[n1, t] == false) || ((ePrepareSuccess[n1, t] == true || ePrepareFailed[n1, t] == true) && (ePrepareSuccess[n1, t] == false || ePrepareFailed[n1, t] == false)));
+    invariant cant_prepare_and_fail: (forall (n1: participants, t : transID) :: (ePrepare[n1, t] == false && ePrepareFailed[n1, t] == false) || ((ePrepare[n1, t] == true || ePrepareFailed[n1, t] == true) && (ePrepare[n1, t] == false || ePrepareFailed[n1, t] == false)));
+    invariant cant_prepare_and_succed: (forall (n1: participants, t : transID) :: (ePrepare[n1, t] == false && ePrepareSuccess[n1, t] == false) || ((ePrepare[n1, t] == true || ePrepareSuccess[n1, t] == true) && (ePrepare[n1, t] == false || ePrepareSuccess[n1, t] == false)));
+
+    control
+    {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex;
+    }
+}

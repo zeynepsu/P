@@ -341,6 +341,14 @@ namespace Plang.Compiler.TypeChecker
                 machine.Sends = CurrentScope.UniversalEventSet;
             }
 
+            // Invariants*
+            foreach (PParser.InvariantsContext invariant in context.invariants())
+            {
+                // IPExpr inv = (IPExpr)Visit(invariant);
+                string inv = invariant.children[1].GetText();
+                machine.AddInvariant(inv);
+            }
+
             // machineBody
             using (currentScope.NewContext(machine.Scope))
             using (currentMachine.NewContext(machine))
@@ -354,6 +362,11 @@ namespace Plang.Compiler.TypeChecker
             @interface.PayloadType = machine.PayloadType;
 
             return machine;
+        }
+
+        public override object VisitMachineInvariant(PParser.MachineInvariantContext context)
+        {
+            return Visit(context.StringLiteral());
         }
 
         public override object VisitMachineReceive(PParser.MachineReceiveContext context)

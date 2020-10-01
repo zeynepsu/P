@@ -1,0 +1,164 @@
+module Coordinator {
+
+    define peek() : event_t = queue.events[queue.head];
+    define e_valid(id : event_id) : boolean = id >= queue.head && id < queue.tail && queue.size > 0;
+
+    type * = Common.*;
+    type state_t = enum {
+        WAITFORTRANSACTIONS, 
+        WAITFORPREPARERESPONSES
+    };
+
+    var state : state_t;
+    var entry : boolean;
+    var countPrepareResponses : integer;
+
+    sharedvar queue : event_q;
+    sharedvar active: boolean;
+
+    instance common : Common (event_queue : (queue));
+
+    procedure [inline] coordinator_WaitForTransactions()
+        modifies state, entry, common;
+        requires peek().target == Common.coordinator_id;
+        requires state == WAITFORTRANSACTIONS;
+        requires (forall (x : integer) :: (e_valid(x) && queue.events[x].target > Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARE || 
+                     queue.events[x].signal == EGLOBALCOMMIT || 
+                     queue.events[x].signal == EGLOBALABORT));
+        ensures (forall (x : integer) :: (e_valid(x) && queue.events[x].target > Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARE || 
+                     queue.events[x].signal == EGLOBALCOMMIT || 
+                     queue.events[x].signal == EGLOBALABORT));
+    {
+        var e : event_t;
+        call (e) = common.pop_event();
+
+        if (e.signal == EWRITETRANSACTION) { 
+            var x : integer;
+            x = 1;
+            while (x <= Common.participant_count)
+                invariant x >= 1;
+                invariant (forall (x : integer) :: (e_valid(x) && queue.events[x].target > Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARE || 
+                     queue.events[x].signal == EGLOBALCOMMIT || 
+                     queue.events[x].signal == EGLOBALABORT));
+            {
+                var w : event_t;
+                w.target = x;
+                w.source = Common.coordinator_id; 
+                w.signal = EPREPARE;
+                w.data = e.data;
+                call () = common.push_event(w);
+                x = x + 1;
+            }
+            entry = true;
+            state = WAITFORPREPARERESPONSES;
+        }
+    }
+
+    procedure [inline] coordinator_WaitForPrepareResponses()
+        modifies state, entry, countPrepareResponses, common;
+        requires peek().target == Common.coordinator_id;
+        requires peek().signal == EPREPARESUCCESS || peek().signal == EPREPAREFAIL;
+        requires state == WAITFORPREPARERESPONSES;
+        requires (forall (x : integer) :: (e_valid(x) && queue.events[x].target > Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARE || 
+                     queue.events[x].signal == EGLOBALCOMMIT || 
+                     queue.events[x].signal == EGLOBALABORT));
+        ensures (forall (x : integer) :: (e_valid(x) && queue.events[x].target > Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARE || 
+                     queue.events[x].signal == EGLOBALCOMMIT || 
+                     queue.events[x].signal == EGLOBALABORT));
+    {
+        var e : event_t;
+        call (e) = common.pop_event();
+        if (entry) {
+            countPrepareResponses = 0;
+            entry = false;
+        }
+        case
+        (e.signal == EPREPARESUCCESS) : {
+            countPrepareResponses = countPrepareResponses + 1;
+            if (countPrepareResponses == Common.participant_count) {
+                var x : integer;
+                x = 1;
+                while (x <= Common.participant_count)
+                    invariant x >= 1;
+                    invariant (forall (y : integer) :: (y >= 1 && y < x) ==> (exists (z : integer) :: (e_valid(z) && queue.events[z].target == y && queue.events[z].signal == EGLOBALCOMMIT)));
+                {
+                    var w : event_t;
+                    w.target = x;
+                    w.source = Common.coordinator_id; 
+                    w.signal = EGLOBALCOMMIT;
+                    call () = common.push_event(w);
+                    x = x + 1;
+                }
+                entry = true;
+                state = WAITFORTRANSACTIONS;
+                countPrepareResponses = 0;
+            }
+        }
+        (e.signal == EPREPAREFAIL) : {
+            var x : integer;
+            x = 1;
+            while (x <= Common.participant_count)
+                invariant x >= 1;
+                invariant (forall (y : integer) :: (y >= 1 && y < x) ==> (exists (z : integer) :: (e_valid(z) && queue.events[z].target == y && queue.events[z].signal == EGLOBALABORT)));
+            {
+                var w : event_t;
+                w.target = x;
+                w.source = Common.coordinator_id; 
+                w.signal = EGLOBALABORT;
+                call () = common.push_event(w);
+                x = x + 1;
+            }
+            entry = true;
+            state = WAITFORTRANSACTIONS;
+            countPrepareResponses = 0;
+        }
+        esac
+    }
+
+    init {
+        call () = common.reset_events();
+        state = WAITFORTRANSACTIONS;
+        entry = true;
+        countPrepareResponses = 0;
+        active = false;
+    }
+
+    next {
+        if (active && queue.size > 0 && peek().target == Common.coordinator_id) {
+            case
+            (state == WAITFORTRANSACTIONS) : {
+                call () = coordinator_WaitForTransactions();
+            }
+            (state == WAITFORPREPARERESPONSES) : {
+                // assume(peek().signal == EPREPARESUCCESS || peek().signal == EPREPAREFAIL);
+                call () = coordinator_WaitForPrepareResponses();
+            }
+            esac
+        }
+    }
+
+    invariant coherent_events: queue.size >= 0 && queue.size == queue.tail - queue.head;
+
+    invariant participant_events: (forall (x : integer) :: (e_valid(x) && queue.events[x].target > Common.coordinator_id) ==>
+                    (queue.events[x].signal == EPREPARE || 
+                     queue.events[x].signal == EGLOBALCOMMIT || 
+                     queue.events[x].signal == EGLOBALABORT));
+
+    control {
+        // verify(coordinator_WaitForTransactions);
+        // verify(coordinator_WaitForPrepareResponses);
+        v = induction;
+        check;
+        print_results;
+        v.print_cex(
+            queue.size,
+            queue.events,
+            state
+        );
+    }
+}

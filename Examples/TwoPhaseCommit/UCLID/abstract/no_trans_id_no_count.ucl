@@ -1,0 +1,141 @@
+module main
+{
+    // Helper Procedures
+    procedure eGlobalCommit_all() returns (c: [participants]boolean)
+        ensures forall (n : participants) :: c[n]; // doesn't matter how we achieve this
+    { }
+
+    procedure eGlobalAbort_all() returns (c: [participants]boolean)
+        ensures forall (n : participants) :: c[n]; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepareSuccess() returns (v: [participants]boolean)
+        ensures forall (n : participants) :: !v[n]; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepareFailed() returns (v: [participants]boolean)
+        ensures forall (n : participants) :: !v[n]; // doesn't matter how we achieve this
+    { }
+
+    procedure reset_ePrepare() returns (v: [participants]boolean)
+        ensures forall (n : participants) :: !v[n]; // doesn't matter how we achieve this
+    { }
+
+    procedure ePrepare_all() returns (v: [participants]boolean)
+        ensures forall (n : participants) :: v[n]; // doesn't matter how we achieve this
+    { }
+
+    type participants;
+
+    type state_enum = enum {WaitForTransactions, WaitForPrepareResponses};
+    var state : state_enum;
+
+    var ePrepare        : [participants]boolean; // true if at p if coordinator has pending ePrepare message to p; false when p deals with it
+    var eGlobalCommit   : [participants]boolean; // true at p if coordinator sends eGlobalCommit to p; false when p deals with it
+    var eGlobalAbort    : [participants]boolean; // true at p if coordinator sends eGlobalAbort to p; false when p deals with it
+    var ePrepareSuccess : [participants]boolean; // true if p sends ePrepareSuccess to coordinator; false when coordinator deals with it
+    var ePrepareFailed  : [participants]boolean; // true if p sends ePrepareFailed to coordinator; false when  coordinator deals with it
+
+    var kvstores : [participants, integer]integer; // p's kvstore
+
+    // the current integer and integer (input)
+    var k : integer;
+    var v : integer;
+
+    init
+    {
+        assume(forall (n : participants, k : integer) :: kvstores[n, k] == 0);
+        assume(forall (n : participants) :: !ePrepare[n]);
+        assume(forall (n : participants) :: !eGlobalCommit[n]);
+        assume(forall (n : participants) :: !eGlobalAbort[n]);
+        assume(forall (n : participants) :: !ePrepareSuccess[n]);
+        assume(forall (n : participants) :: !ePrepareFailed[n]);
+        state = WaitForTransactions;
+    }
+
+    next
+    {
+        // Participant
+        var p : participants; // pick some participant
+
+        if (*) {
+            // participant p ePrepare on the current integer-integer pair
+            if (ePrepare[p]) {
+                if (*) {
+                    ePrepareSuccess' = ePrepareSuccess[p -> true];
+                } else {
+                    ePrepareFailed' = ePrepareFailed[p -> true];
+                }
+                ePrepare' = ePrepare[p -> false];
+            }
+        } else { if (*) {
+            // participant p eGlobalCommits the round it was told to eGlobalCommit
+            if (eGlobalCommit[p]) {
+                kvstores' = kvstores[p, k -> v];
+                eGlobalCommit' = eGlobalCommit[p -> false];
+            }
+        } else { if (*) {
+            // participant p eGlobalAborts the round it was told to eGlobalAbort
+            if (eGlobalAbort[p]) {
+                eGlobalAbort' = eGlobalAbort[p -> false];
+            }
+
+        // Coordinator
+        } else { if (*) {
+            // only do this if all participants have eGlobalCommited (this is an assumption)
+            if ((forall (n : participants) :: !eGlobalCommit[n]) && (forall (n : participants) :: !eGlobalAbort[n])) {
+                if(state == WaitForTransactions) {
+                    // coordinator receives request (some integer-integer pair)
+                    havoc v;
+                    havoc k;
+                    call (ePrepare') = ePrepare_all();
+                    state' = WaitForPrepareResponses;
+                }
+            }
+        } else { if (*) {
+            // some participant rejects the current round, so the coordinator tells them all to eGlobalAbort
+            if(state == WaitForPrepareResponses && ePrepareFailed[p]) {
+                // p voted no
+                call (eGlobalAbort')    = eGlobalAbort_all();
+                state' = WaitForTransactions;
+
+                call (ePrepareFailed')  = reset_ePrepareFailed();
+                call (ePrepareSuccess') = reset_ePrepareSuccess();
+                call (ePrepare')        = reset_ePrepare();
+            }
+        } else {
+            if (state == WaitForPrepareResponses && ePrepareSuccess[p]) {
+                // p voted yes
+                if(forall (n : participants) :: ePrepareSuccess[n]) {
+                    // all participants accept the current round, so the coordinator tells them to eGlobalCommit
+                    call (eGlobalCommit')   = eGlobalCommit_all();
+                    state' = WaitForTransactions;
+
+                    call (ePrepareFailed')  = reset_ePrepareFailed();
+                    call (ePrepareSuccess') = reset_ePrepareSuccess();
+                    call (ePrepare')        = reset_ePrepare();
+                }
+            }
+        }}}}}
+    }
+
+    // main invariant: when no eGlobalCommit is on the way, every kvstore must be equal.
+    invariant sync_when_no_eGlobalCommit: (forall (n : participants) :: !eGlobalCommit[n]) ==> 
+            (forall (n1 : participants, n2 : participants, k : integer) :: kvstores[n1, k] == kvstores[n2, k]);
+
+    // helpers
+    invariant eGlobalCommit_means_everyone_eGlobalCommit_or_eGlobalCommited: 
+        (forall (n1 : participants) :: eGlobalCommit[n1] ==> 
+            (forall (n2 : participants) :: (eGlobalCommit[n2] || kvstores[n2, k] == v)));
+
+    invariant no_lonely_kvstore: (forall (n1 : participants,  n2 : participants, k1 : integer, v1 : integer) :: 
+        kvstores[n1, k1] == v1 ==> (kvstores[n2, k1] == v1 || k1 == k));
+
+    control
+    {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex;
+    }
+}

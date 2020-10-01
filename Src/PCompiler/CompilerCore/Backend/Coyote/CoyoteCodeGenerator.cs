@@ -48,8 +48,6 @@ namespace Plang.Compiler.Backend.Coyote
         private void WriteInitializeInterfaces(CompilationContext context, StringWriter output,
             IEnumerable<Interface> interfaces)
         {
-            WriteNameSpacePrologue(context, output);
-
             //create the interface declarations
             List<Interface> ifaces = interfaces.ToList();
             foreach (Interface iface in ifaces)
@@ -80,8 +78,6 @@ namespace Plang.Compiler.Backend.Coyote
             context.WriteLine(output, "}");
             context.WriteLine(output, "}");
             context.WriteLine(output);
-
-            WriteNameSpaceEpilogue(context, output);
         }
 
         private void WriteSourcePrologue(CompilationContext context, StringWriter output)
@@ -100,32 +96,17 @@ namespace Plang.Compiler.Backend.Coyote
             context.WriteLine(output, "using Plang.CoyoteRuntime.Exceptions;");
             context.WriteLine(output, "using System.Threading;");
             context.WriteLine(output, "using System.Threading.Tasks;");
-            context.WriteLine(output, "using PGlobalFunctions;");
-            foreach (var depen in context.ProjectDependencies)
-            {
-                context.WriteLine(output, $"using {depen};");
-            }
             context.WriteLine(output);
             context.WriteLine(output, "#pragma warning disable 162, 219, 414, 1998");
-            context.WriteLine(output, $"namespace PGlobalFunctions");
+            context.WriteLine(output, $"namespace {context.ProjectName}");
             context.WriteLine(output, "{");
-            context.WriteLine(output, "}");
+            context.WriteLine(output, $"public static partial class {context.GlobalFunctionClassName} {{}}");
         }
 
         private void WriteSourceEpilogue(CompilationContext context, StringWriter output)
         {
-            context.WriteLine(output, "#pragma warning restore 162, 219, 414");
-        }
-
-        private void WriteNameSpacePrologue(CompilationContext context, StringWriter output)
-        {
-            context.WriteLine(output, $"namespace {context.ProjectName}");
-            context.WriteLine(output, "{");
-        }
-
-        private void WriteNameSpaceEpilogue(CompilationContext context, StringWriter output)
-        {
             context.WriteLine(output, "}");
+            context.WriteLine(output, "#pragma warning restore 162, 219, 414");
         }
 
         private void WriteDecl(CompilationContext context, StringWriter output, IPDecl decl)
@@ -136,12 +117,9 @@ namespace Plang.Compiler.Backend.Coyote
                 case Function function:
                     if (!function.IsForeign)
                     {
-                        context.WriteLine(output, $"namespace PGlobalFunctions");
-                        context.WriteLine(output, "{");
                         context.WriteLine(output, $"public static partial class {context.GlobalFunctionClassName}");
                         context.WriteLine(output, "{");
                         WriteFunction(context, output, function);
-                        context.WriteLine(output, "}");
                         context.WriteLine(output, "}");
                     }
 
@@ -202,8 +180,6 @@ namespace Plang.Compiler.Backend.Coyote
 
         private void WriteMonitor(CompilationContext context, StringWriter output, Machine machine)
         {
-            WriteNameSpacePrologue(context, output);
-
             string declName = context.Names.GetNameForDecl(machine);
             context.WriteLine(output, $"internal partial class {declName} : PMonitor");
             context.WriteLine(output, "{");
@@ -227,8 +203,6 @@ namespace Plang.Compiler.Backend.Coyote
             }
 
             context.WriteLine(output, "}");
-
-            WriteNameSpaceEpilogue(context, output);
         }
 
         private void WriteMonitorConstructor(CompilationContext context, StringWriter output, Machine machine)
@@ -248,13 +222,11 @@ namespace Plang.Compiler.Backend.Coyote
         {
             // we do not generate code for foreign types
             string declName = foreignType.CanonicalRepresentation;
-            context.WriteLine(output, $"// TODO: Implement the Foreign Type {declName}");
+            context.WriteLine(output, $"// TODO: Implement the Forieng Type {declName}");
         }
 
         private void WriteSafetyTestDecl(CompilationContext context, StringWriter output, SafetyTest safety)
         {
-            WriteNameSpacePrologue(context, output);
-
             context.WriteLine(output, $"public class {context.Names.GetNameForDecl(safety)} {{");
             WriteInitializeLinkMap(context, output, safety.ModExpr.ModuleInfo.LinkMap);
             WriteInitializeInterfaceDefMap(context, output, safety.ModExpr.ModuleInfo.InterfaceDef);
@@ -262,14 +234,10 @@ namespace Plang.Compiler.Backend.Coyote
             WriteInitializeMonitorMap(context, output, safety.ModExpr.ModuleInfo.MonitorMap);
             WriteTestFunction(context, output, safety.Main);
             context.WriteLine(output, "}");
-
-            WriteNameSpaceEpilogue(context, output);
         }
 
         private void WriteImplementationDecl(CompilationContext context, StringWriter output, Implementation impl)
         {
-            WriteNameSpacePrologue(context, output);
-
             context.WriteLine(output, $"public class {context.Names.GetNameForDecl(impl)} {{");
             WriteInitializeLinkMap(context, output, impl.ModExpr.ModuleInfo.LinkMap);
             WriteInitializeInterfaceDefMap(context, output, impl.ModExpr.ModuleInfo.InterfaceDef);
@@ -277,8 +245,6 @@ namespace Plang.Compiler.Backend.Coyote
             WriteInitializeMonitorMap(context, output, impl.ModExpr.ModuleInfo.MonitorMap);
             WriteTestFunction(context, output, impl.Main);
             context.WriteLine(output, "}");
-
-            WriteNameSpaceEpilogue(context, output);
         }
 
         private void WriteInitializeMonitorObserves(CompilationContext context, StringWriter output,
@@ -303,7 +269,6 @@ namespace Plang.Compiler.Backend.Coyote
 
         private void WriteInitializeEnums(CompilationContext context, StringWriter output, IEnumerable<PEnum> enums)
         {
-            WriteNameSpacePrologue(context, output);
             //initialize the interfaces
             context.WriteLine(output, "public partial class PHelper {");
             context.WriteLine(output, "public static void InitializeEnums() {");
@@ -319,8 +284,6 @@ namespace Plang.Compiler.Backend.Coyote
             context.WriteLine(output, "}");
             context.WriteLine(output, "}");
             context.WriteLine(output);
-
-            WriteNameSpaceEpilogue(context, output);
         }
 
         private void WriteTestFunction(CompilationContext context, StringWriter output, string main)
@@ -417,8 +380,6 @@ namespace Plang.Compiler.Backend.Coyote
 
         private void WriteEvent(CompilationContext context, StringWriter output, PEvent pEvent)
         {
-            WriteNameSpacePrologue(context, output);
-
             string declName = context.Names.GetNameForDecl(pEvent);
 
             // initialize the payload type
@@ -429,14 +390,10 @@ namespace Plang.Compiler.Backend.Coyote
             context.WriteLine(output, $"public {declName} ({payloadType} payload): base(payload)" + "{ }");
             context.WriteLine(output, $"public override IPrtValue Clone() {{ return new {declName}();}}");
             context.WriteLine(output, "}");
-
-            WriteNameSpaceEpilogue(context, output);
         }
 
         private void WriteMachine(CompilationContext context, StringWriter output, Machine machine)
         {
-            WriteNameSpacePrologue(context, output);
-
             string declName = context.Names.GetNameForDecl(machine);
             context.WriteLine(output, $"internal partial class {declName} : PMachine");
             context.WriteLine(output, "{");
@@ -472,8 +429,6 @@ namespace Plang.Compiler.Backend.Coyote
             }
 
             context.WriteLine(output, "}");
-
-            WriteNameSpaceEpilogue(context, output);
         }
 
         private static void WriteMachineConstructor(CompilationContext context, StringWriter output, Machine machine)
@@ -611,15 +566,8 @@ namespace Plang.Compiler.Backend.Coyote
             string functionParameters = "Event currentMachine_dequeuedEvent";
             string awaitMethod = isAsync ? "await " : "";
             string asyncMethod = isAsync ? "async" : "";
-            string returnType = "void";
-
-            if (isAsync)
-            {
-                returnType = "Task"; 
-            }
-
             context.WriteLine(output,
-                $"public {asyncMethod} {returnType} {$"_{functionName}"}({functionParameters})");
+                $"public {asyncMethod} void {$"_{functionName}"}({functionParameters})");
 
             context.WriteLine(output, "{");
 

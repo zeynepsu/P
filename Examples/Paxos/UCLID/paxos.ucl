@@ -1,0 +1,138 @@
+// Main is the leader and distinguished learner
+
+module main
+{
+
+    procedure ePrepare_all(x: [proposer, round, acceptor]integer, p : proposer, r : round) returns (y: [proposer, round, acceptor]integer)
+        ensures  forall (n : acceptor) :: y[p, r, n] == x[p, r, n] + 1;
+        ensures  forall (n : acceptor, ro : round) :: r != ro ==> y[p, r, n] == x[p, r, n];  // doesn't matter how we achieve this
+    { }
+
+    procedure ePromise_consume_q(x: [acceptor, round, proposer]integer, q : quorum, r : round, p : proposer) returns (y: [acceptor, round, proposer]integer)
+        ensures  forall (n : acceptor) :: member(n, q) ==> y[n, r, p] == x[n, r, p] - 1;
+        ensures  forall (n : acceptor, ro : round) :: r != ro ==> y[n, r, p] == x[n, r, p];  // doesn't matter how we achieve this
+    { }
+
+    procedure eAccept_consume_q(x: [acceptor, round, value]integer, q : quorum, r : round, v : value) returns (y: [acceptor, round, value]integer)
+        ensures  forall (n : acceptor) :: member(n, q) ==> y[n, r, v] == x[n, r, v] - 1;
+        ensures  forall (n : acceptor, ro : round) :: r != ro ==> y[n, r, v] == x[n, r, v];  // doesn't matter how we achieve this
+    { }
+
+    procedure eRequest_all(x: [proposer, round, value, acceptor]integer, p : proposer, r : round, v : value) returns (y: [proposer, round, value, acceptor]integer)
+        ensures  forall (n : acceptor) :: y[p, r, v, n] == x[p, r, v, n] + 1;
+        ensures  forall (n : acceptor, ro : round) :: r != ro ==> y[p, r, v, n] == x[p, r, v, n];  // doesn't matter how we achieve this
+    { }
+
+    type acceptor;
+    type proposer;
+    type round;
+    type value;
+
+    type quorum;
+    function member(n : acceptor, q : quorum): boolean;
+    axiom((forall (q1 : quorum, q2: quorum) :: (exists (n : acceptor) :: member(n, q1) && member(n, q2))));
+
+    function leq(a : round, b : round) : boolean;
+    // leq is a total order
+    axiom((forall (x : round) :: leq(x, x)));
+    axiom((forall (x : round, y : round, z : round) :: leq(x, y) && leq(y, z) ==> leq(x, z)));
+    axiom((forall (x : round, y : round) :: leq(x, y) && leq(y, x) ==> x == y));
+    axiom((forall (x : round, y : round) :: leq(x, y) || leq(y, x)));
+
+    const first : round;
+    axiom(forall (r : round) :: leq(first, r));
+
+    // *** events
+    var ePrepare : [proposer, round, acceptor]integer;
+    // proposer p is porposing value v at round r to acceptor a k times iff eRequest[p, r, v, a] == k
+    var eRequest : [proposer, round, value, acceptor]integer;
+    var ePromise : [acceptor, round, proposer]integer;
+    var eAccept  : [acceptor, round, value]integer;
+
+    // *** instance variables (first index is the machine whose instance we are talking about)
+    var promised_round : [acceptor]round; // for acceptors
+    var accepted : [round, value]boolean; // for learner
+
+    init
+    {
+        assume(forall (p : proposer, r : round, a : acceptor) :: ePrepare[p, r, a] == 0);
+        assume(forall (p : proposer, r : round, v : value, a : acceptor) :: eRequest[p, r, v, a] == 0);
+        assume(forall (p : proposer, r : round, a : acceptor) :: ePromise[a, r, p] == 0);
+        assume(forall (v : value, r : round, a : acceptor) :: eAccept[a, r, v] == 0);
+
+        assume(forall (a : acceptor) :: promised_round[a] == first);
+        assume(forall (r : round, v : value) :: accepted[r, v] == false);
+    }
+
+    var p : proposer; // pick some proposer
+    var a : acceptor; // pick some acceptor
+    var r : round; // pick some round
+    var v : value; // pick some value
+    var q : quorum; // pick some quorum
+    
+    next
+    {
+        havoc p;
+        havoc a;
+        havoc r;
+        havoc v;
+        assume(leq(r, r'));
+
+        if (*) {
+            // A proposer selects a proposal number n and sends a prepare request with number n to a majority of acceptors
+            call (ePrepare') = ePrepare_all(ePrepare, p, r);
+        } else { if (*) {
+            // if an acceptor receives a prepare request with number n greater than that of any prepare request to which 
+            // it has already responded, then it responds to the request with a promise not to accept any more proposals 
+            // numbered less than n and with the highest-numbered proposal (if any) that it has accepted.
+            if (ePrepare[p, r, a] > 0) {
+                ePrepare' = ePrepare[p, r, a -> ePrepare[p, r, a] - 1]; // consume events
+                if (leq(promised_round[a], r) && promised_round[a] != r) {
+                    promised_round' = promised_round[a -> r]; // remember your promises
+                    ePromise' = ePromise[a, r, p -> ePromise[a, r, p] + 1];
+                }
+            }
+        } else { if (*) {
+            // if the proposer receives a response to its prepare requests(numbered n) from a majority of acceptors, 
+            // then it sends an accept request to each of those acceptors for a proposal numbered n with a value v, 
+            // where v is the value of the highest-numbered proposal among the responses, or is any value if the 
+            // responses reported no proposals.
+            if (forall (q_a : acceptor) :: member(q_a, q) ==> ePromise[q_a, r, p] > 0) {
+                call (eRequest') = eRequest_all(eRequest, p, r, v);
+                call (ePromise') = ePromise_consume_q(ePromise, q, r, p); // consume events
+            }
+        } else { if (*) {
+            // if an acceptor receives an accept request for a proposal numbered n, it accepts the proposal unless it has 
+            // already responded to a prepare request having a number greater than n.
+            if (eRequest[p, r, v, a] > 0) {
+                eRequest' = eRequest[p, r, v, a -> eRequest[p, r, v, a] - 1]; // consume events
+                if (leq(promised_round[a], r) && promised_round[a] != r) {
+                    eAccept' = eAccept[a, r, v -> eAccept[a, r, v] + 1];
+                }
+            }
+        } else {
+            if (forall (q_a : acceptor) :: member(q_a, q) ==> eAccept[q_a, r, v] > 0) {
+                accepted' = accepted[r, v -> true];
+                call (eAccept') = eAccept_consume_q(eAccept, q, r, v); // consume events
+            }
+        }}}}
+    }
+
+    // main invariant
+    invariant never_two_decisions : (forall (r1 : round, r2 : round, v1 : value, v2 : value) :: 
+        (accepted[r1, v1] && r1 != r2 && v1 != v2) ==> (!accepted[r2, v2]));
+
+    // helpers
+    invariant two_happy_quorums_means_same_choice : (exists (q1 : quorum, q2 : quorum, r1 : round, r2: round, v1 : value, v2 : value) :: 
+        (forall (q1_a : acceptor, q2_a : acceptor) :: 
+            ((member(q1_a, q1) ==> eAccept[q1_a, r1, v1] > 0) && 
+            (member(q2_a, q2) ==> eAccept[q2_a, r2, v2] > 0)) ==> (r1 == r2 && v1 == v2)));
+
+    control
+    {
+        v = induction;
+        check;
+        print_results;
+        v.print_cex;
+    }
+}

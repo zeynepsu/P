@@ -4,7 +4,7 @@
 	<PFile>./PSpec/</PFile>
 	<PFile>./PTst/</PFile>
 </InputFiles>
-<Target>Coyote</Target>
+<Target>Uclid</Target>
 <TargetFileName>TwoPhaseCommit</TargetFileName>
 <OutputDir>./PGenerated/</OutputDir>
 </Project>

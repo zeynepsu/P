@@ -9,6 +9,7 @@ namespace Plang.Compiler.TypeChecker.AST.Declarations
 {
     public class Machine : IStateContainer, IHasScope
     {
+        private readonly List<string> invariants = new List<string>();
         private readonly List<Variable> fields = new List<Variable>();
         private readonly Dictionary<string, StateGroup> groups = new Dictionary<string, StateGroup>();
         private readonly List<Function> methods = new List<Function>();
@@ -28,6 +29,7 @@ namespace Plang.Compiler.TypeChecker.AST.Declarations
         public IEventSet Receives { get; set; }
         public IEventSet Sends { get; set; }
         public IInterfaceSet Creates { get; set; }
+        public IEnumerable<string> Invariants => invariants;
         public IEnumerable<Variable> Fields => fields;
         public IEnumerable<Function> Methods => methods;
         public State StartState { get; set; }
@@ -97,6 +99,11 @@ namespace Plang.Compiler.TypeChecker.AST.Declarations
         public void AddField(Variable field)
         {
             fields.Add(field);
+        }
+
+        public void AddInvariant(string inv)
+        {
+            invariants.Add(inv);
         }
 
         public void AddMethod(Function method)
