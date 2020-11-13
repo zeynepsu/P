@@ -19,9 +19,7 @@ jobs:
       - name: Setup .NET Core @ Latest
         uses: actions/setup-dotnet@v1
         with:
-          source-url: https://nuget.pkg.github.com/p-org/index.json
-        env:
-          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}} 
+          dotnet-version: 3.1.100
 
       - name: Set the package version
         run: |
@@ -39,4 +37,4 @@ jobs:
 
       - name: Push generated package to GitHub registry
         run: |
-          dotnet nuget push ./Bld/Drops/Binaries/P.${VERSION}.nupkg --no-symbols true
+          dotnet nuget push ./Bld/Drops/Binaries/P.${VERSION}.nupkg -k ${{ secrets.NUGET_TOKEN }} --no-symbols true
