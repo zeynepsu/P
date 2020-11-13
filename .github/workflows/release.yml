@@ -20,6 +20,8 @@ jobs:
         uses: actions/setup-dotnet@v1
         with:
           source-url: https://nuget.pkg.github.com/p-org/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}} 
 
       - name: Set the package version
         run: |
@@ -36,7 +38,5 @@ jobs:
           dotnet pack -p:PackageVersion=${VERSION}
 
       - name: Push generated package to GitHub registry
-        env:
-          NUGET_AUTH_TOKEN: ${{secrets.NUGET_TOKEN}} 
         run: |
-          dotnet nuget push ./Bld/Drops/Binaries/P.${VERSION}.nupkg -k ${NUGET_AUTH_TOKEN} --no-symbols true
+          dotnet nuget push ./Bld/Drops/Binaries/P.${VERSION}.nupkg --no-symbols true
