@@ -26,6 +26,9 @@ jobs:
           # The environment variable GITHUB_REF is refs/tags/ptest-*
           echo "TAG=${GITHUB_REF:10}" >> $GITHUB_ENV
           echo "VERSION=${GITHUB_REF:16}" >> $GITHUB_ENV
+          # Validate tag and version
+          [[ $TAG =~ '^ptest\-([0-9]+)\.([0-9]+)\.([0-9]+)$' ]]
+          [[ $VERSION =~ '^([0-9]+)\.([0-9]+)\.([0-9]+)$' ]]
           printenv | sort
           cat ${GITHUB_EVENT_PATH}
 
