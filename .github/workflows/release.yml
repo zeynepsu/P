@@ -31,12 +31,18 @@ jobs:
           # Validate tag and version
           python3 .github/workflows/regex_check.py ${TAG} ${VERSION}
 
-      - name: Create the package
+      - name: Create the P CLI tool package
         run: |
           # Grab version number from the tag via the environment variable
           cd Src/PCompiler/CommandLine
           dotnet pack -p:PackageVersion=${VERSION}
 
-      - name: Push generated package to Nuget
+      - name: Create the P C# Runtime package
         run: |
-          dotnet nuget push ./Bld/Drops/Binaries/P.${VERSION}.nupkg -k ${{ secrets.NUGET_SECRET }} -s https://api.nuget.org/v3/index.json --no-symbols true
+          cd Src/PRuntimes/CSharpRuntime
+          dotnet pack -p:PackageVersion=${VERSION}
+
+      - name: Push generated packages to Nuget
+        run: |
+          # dotnet nuget push ./Bld/Drops/Binaries/P.${VERSION}.nupkg -k ${{ secrets.NUGET_SECRET }} -s https://api.nuget.org/v3/index.json --no-symbols true
+          dotnet nuget push ./Bld/Drops/Binaries/PCSharpRuntime.${VERSION}.nupkg -k ${{ secrets.NUGET_SECRET }} -s https://api.nuget.org/v3/index.json --no-symbols true

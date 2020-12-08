@@ -10,7 +10,6 @@
     <PackageProjectUrl>https://github.com/p-org/P</PackageProjectUrl>
     <Copyright>The P team</Copyright>
     <PackageTags>P programming language;safe asynchrony;state machines;model checkers</PackageTags>
-    <PackageVersion>1.0.0</PackageVersion>
     <Title>P C# Runtime</Title>
     <Authors>The P team</Authors>
     <PackageIcon>icon.png</PackageIcon>
